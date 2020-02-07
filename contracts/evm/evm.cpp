@@ -1,18 +1,5 @@
 #include <eosio/eosio.hpp>
 
-// Account Table:
-// - a unique 160bit account ID
-// - a nonce (sequence number)
-// - an EOSIO token balance (aka SYS)
-// - [optional] a unique associated EOSIO account
-
-// Account State Table (per account):
-// - a unique 256bit key
-// - a 256bit value
-
-// Account Code Table (per account):
-// - EVM bytecode associated with account
-
 // EVM executes as the Yellow Paper, and:
 // - there will be no effective BLOCK gas limit. Instructions that return block limit should return a sufficiently large supply
 // - the TRANSACTION gas limit will be enforced
@@ -27,7 +14,33 @@
 
 using namespace eosio;
 
-class [[eosio::contract]] evm : public contract {
+using std::string;
+
+class [[eosio::contract("evm")]] evm : public contract {
+private:
+
+    // Account Table
+    struct [[eosio::table]] account_table {
+        uint8_t account_id[20]; // - a unique 160bit account ID
+        uint64_t nonce; // - a nonce (sequence number)
+        uint128_t token_balance; // - an EOSIO token balance (aka SYS)
+        name account; // - [optional] a unique associated EOSIO account
+
+        uint64_t primary_key() const { return 0; }
+        uint64_t get_secondary() const { return account.value; }
+    };
+
+    // Account State Table (per account)
+    struct [[eosio::table]] account_state_table {
+        int8_t key[32]; // - a unique 256bit key
+        int8_t value[32]; // - a 256bit value
+    };
+
+    // Account Code Table (per account)
+    struct [[eosio::table]] account_code_table {
+        int8_t bytecode[]; // - EVM bytecode associated with account
+    };
+
 public:
     using contract::contract;
 
@@ -43,7 +56,7 @@ public:
     // - If the associated entry in the Accounts Table has no Associated EOSIO Account
     // - OR if the transaction has not been authorized by the Associated EOSIO Account
     [[eosio::action]]
-    void raw() {
+    void raw(const string& data, const checksum160 sender) {
         print("Unimplemented");
     }
 
@@ -57,8 +70,8 @@ public:
     // - a transaction containing this action must fail if it is not authorized by the EOSIO account listed in the inputs
     // - a transaction containing this action must fail if an Account Table entry exists with this EOSIO account associated
     [[eosio::action]]
-    void create(name user) {
-        require_auth(user);
+    void create(const name& account, const string& data) {
+        require_auth(account);
         print("Unimplemented");
     }
 
@@ -71,7 +84,7 @@ public:
     //   by the EOSIO account listed in the inputs OR if such a withdrawal would
     //   leave the Account Table entry’s balance negative
     [[eosio::action]]
-    void withdraw(name user) {
+    void withdraw(const name& account, const uint128_t amount) {
         print("Unimplemented");
     }
 
