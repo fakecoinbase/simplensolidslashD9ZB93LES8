@@ -14,6 +14,7 @@ private:
     }
 public:
     inline uint256_t() { for (int i = 0; i < W; i++) data[i] = 0; }
+    inline uint256_t(uint32_t v) { data[0] = v; for (int i = 1; i < W; i++) data[i] = 0; }
     inline uint256_t(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] = v.data[i]; }
     inline uint256_t& operator=(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] = v.data[i]; return *this; }
     inline const uint256_t operator~() const { uint256_t v; for (int i = 0; i < W; i++) v.data[i] = ~data[i]; return v; }
@@ -36,6 +37,7 @@ public:
     inline uint256_t& operator-=(const uint256_t& v) { *this += -v; return *this; }
     uint256_t& operator*=(const uint256_t& v);
     uint256_t& operator/=(const uint256_t& v);
+    uint256_t& operator%=(const uint256_t& v);
     inline uint256_t& operator&=(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] &= v.data[i]; return *this; }
     inline uint256_t& operator|=(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] |= v.data[i]; return *this; }
     inline uint256_t& operator^=(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] ^= v.data[i]; return *this; }
@@ -45,6 +47,7 @@ public:
     friend inline const uint256_t operator-(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) -= v2; }
     friend inline const uint256_t operator*(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) *= v2; }
     friend inline const uint256_t operator/(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) /= v2; }
+    friend inline const uint256_t operator%(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) %= v2; }
     friend inline const uint256_t operator&(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) &= v2; }
     friend inline const uint256_t operator|(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) |= v2; }
     friend inline const uint256_t operator^(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) ^= v2; }
@@ -82,9 +85,9 @@ enum Opcode : uint8_t {
     XOR = 0x18,
     NOT = 0x19,
     BYTE = 0x1a,
-    SHL = 0x1b,
-    SHR = 0x1c,
-    SAR = 0x1d,
+//    SHL = 0x1b,
+//    SHR = 0x1c,
+//    SAR = 0x1d,
     SHA3 = 0x20,
     ADDRESS = 0x30,
     BALANCE = 0x31,
@@ -101,7 +104,7 @@ enum Opcode : uint8_t {
     EXTCODECOPY = 0x3c,
     RETURNDATASIZE = 0x3d,
     RETURNDATACOPY = 0x3e,
-    EXTCODEHASH = 0x3f,
+//    EXTCODEHASH = 0x3f,
     BLOCKHASH = 0x40,
     COINBASE = 0x41,
     TIMESTAMP = 0x42,
@@ -189,19 +192,243 @@ enum Opcode : uint8_t {
     LOG2 = 0xa2,
     LOG3 = 0xa3,
     LOG4 = 0xa4,
-    PUSH = 0xb0,
-    DUP = 0xb1,
-    SWAP = 0xb2,
     CREATE = 0xf0,
     CALL = 0xf1,
     CALLCODE = 0xf2,
     RETURN = 0xf3,
     DELEGATECALL = 0xf4,
-    CREATE2 = 0xf5,
+//    CREATE2 = 0xf5,
     STATICCALL = 0xfa,
     REVERT = 0xfd,
+    INVALID = 0xfe,
     SELFDESTRUCT = 0xff,
 };
+
+class Stack {
+private:
+    static constexpr int L = 1024;
+    uint256_t data[L];
+    int top = 0;
+public:
+    inline const uint256_t pop() { return data[--top]; }
+    inline void push(const uint256_t& v) { data[top++] = v; }
+    inline uint256_t operator [](int i) const { return data[i < 0 ? top - i: i]; }
+    inline uint256_t& operator [](int i) { return data[i < 0 ? top - i: i]; }
+};
+
+uint256_t get_balance(uint256_t address)
+{
+    return 0;
+}
+
+uint256_t code_size_at(uint256_t address)
+{
+    return 0;
+}
+
+void vm_step()
+{
+    uint256_t gas_price;
+    uint256_t gas_limit;
+    uint256_t caller_address;
+    uint256_t origin_address;
+    uint256_t owner_address;
+    uint32_t code_size;
+    uint8_t code[1];
+    uint32_t pc = 0;
+    Stack stack;
+    for (;;) {
+        uint8_t opc = code[pc];
+        switch (opc) {
+        case STOP: { /* implement */ break; }
+        case ADD: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 + v2); pc++; break; }
+        case MUL: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 * v2); pc++; break; }
+        case SUB: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 - v2); pc++; break; }
+        case DIV: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 / v2); pc++; break; }
+        case SDIV: { /* implement */ break; }
+        case MOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 % v2); pc++; break; }
+        case SMOD: { /* implement */ break; }
+        case ADDMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push((v1 + v2) % v3); pc++; break; }
+        case MULMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push((v1 * v2) % v3); pc++; break; }
+        case EXP: { /* implement */ break; }
+        case SIGNEXTEND: { /* implement */ break; }
+        case LT: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = v1 < v2; stack.push(v3); pc++; break; }
+        case GT: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = v1 > v2; stack.push(v3); pc++; break; }
+        case SLT: { /* implement */ break; }
+        case SGT: { /* implement */ break; }
+        case EQ: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = v1 == v2; stack.push(v3); pc++; break; }
+        case ISZERO: { uint256_t v1 = stack.pop(), v2 = v1 == 0; stack.push(v2); pc++; break; }
+        case AND: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = v1 & v2; stack.push(v3); pc++; break; }
+        case OR: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = v1 | v2; stack.push(v3); pc++; break; }
+        case XOR: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = v1 ^ v2; stack.push(v3); pc++; break; }
+        case NOT: { uint256_t v1 = stack.pop(), v2 = ~v1; stack.push(v2); pc++; break; }
+        case BYTE: { /* implement */ break; }
+        case SHA3: { /* implement */ break; }
+        case ADDRESS: {
+            uint256_t v1 = owner_address;
+            stack.push(v1);
+            pc++;
+            break;
+        }
+        case BALANCE: {
+            uint256_t v1 = stack.pop();
+            uint256_t v2 = get_balance(v1);
+            stack.push(v2);
+            pc++;
+            break;
+        }
+        case ORIGIN: {
+            uint256_t v1 = origin_address;
+            stack.push(v1);
+            pc++;
+            break;
+        }
+        case CALLER: {
+            uint256_t v1 = caller_address;
+            stack.push(v1);
+            pc++;
+            break;
+        }
+        case CALLVALUE: { /* implement */ break; }
+        case CALLDATALOAD: { /* implement */ break; }
+        case CALLDATASIZE: { /* implement */ break; }
+        case CALLDATACOPY: { /* implement */ break; }
+        case CODESIZE: {
+            uint256_t v1 = code_size;
+            stack.push(v1);
+            pc++;
+            break;
+        }
+        case CODECOPY: { /* implement */ break; }
+        case GASPRICE: {
+            uint256_t v1 = gas_price;
+            stack.push(v1);
+            pc++;
+            break;
+        }
+        case EXTCODESIZE: {
+            uint256_t v1 = stack.pop();
+            uint256_t v2 = code_size_at(v1);
+            stack.push(v2);
+            pc++;
+            break;
+        }
+        case EXTCODECOPY: { /* implement */ break; }
+        case RETURNDATASIZE: { /* implement */ break; }
+        case RETURNDATACOPY: { /* implement */ break; }
+        case BLOCKHASH: { /* implement */ break; }
+        case COINBASE: { /* implement */ break; }
+        case TIMESTAMP: { /* implement */ break; }
+        case NUMBER: { /* implement */ break; }
+        case DIFFICULTY: { /* implement */ break; }
+        case GASLIMIT: {
+            uint256_t v1 = gas_limit;
+            stack.push(v1);
+            pc++;
+            break;
+        }
+        case POP: { stack.pop(); pc++; break; }
+        case MLOAD: {
+            uint256_t v1 = stack.pop();
+            uint256_t v2 = /*mem.load(v1)*/0;
+            stack.push(v2);
+            pc++;
+            break;
+        }
+        case MSTORE: { /* implement */ break; }
+        case MSTORE8: { /* implement */ break; }
+        case SLOAD: { /* implement */ break; }
+        case SSTORE: { /* implement */ break; }
+        case JUMP: { /* implement */ break; }
+        case JUMPI: { /* implement */ break; }
+        case PC: { /* implement */ break; }
+        case MSIZE: { /* implement */ break; }
+        case GAS: { /* implement */ break; }
+        case JUMPDEST: { /* implement */ break; }
+        case PUSH1: { stack.push(1); pc++; break; }
+        case PUSH2: { stack.push(2); pc++; break; }
+        case PUSH3: { stack.push(3); pc++; break; }
+        case PUSH4: { stack.push(4); pc++; break; }
+        case PUSH5: { stack.push(5); pc++; break; }
+        case PUSH6: { stack.push(6); pc++; break; }
+        case PUSH7: { stack.push(7); pc++; break; }
+        case PUSH8: { stack.push(8); pc++; break; }
+        case PUSH9: { stack.push(9); pc++; break; }
+        case PUSH10: { stack.push(10); pc++; break; }
+        case PUSH11: { stack.push(11); pc++; break; }
+        case PUSH12: { stack.push(12); pc++; break; }
+        case PUSH13: { stack.push(13); pc++; break; }
+        case PUSH14: { stack.push(14); pc++; break; }
+        case PUSH15: { stack.push(15); pc++; break; }
+        case PUSH16: { stack.push(16); pc++; break; }
+        case PUSH17: { stack.push(17); pc++; break; }
+        case PUSH18: { stack.push(18); pc++; break; }
+        case PUSH19: { stack.push(19); pc++; break; }
+        case PUSH20: { stack.push(20); pc++; break; }
+        case PUSH21: { stack.push(21); pc++; break; }
+        case PUSH22: { stack.push(22); pc++; break; }
+        case PUSH23: { stack.push(23); pc++; break; }
+        case PUSH24: { stack.push(24); pc++; break; }
+        case PUSH25: { stack.push(25); pc++; break; }
+        case PUSH26: { stack.push(26); pc++; break; }
+        case PUSH27: { stack.push(27); pc++; break; }
+        case PUSH28: { stack.push(28); pc++; break; }
+        case PUSH29: { stack.push(29); pc++; break; }
+        case PUSH30: { stack.push(30); pc++; break; }
+        case PUSH31: { stack.push(31); pc++; break; }
+        case PUSH32: { stack.push(32); pc++; break; }
+        case DUP1: { uint256_t v1 = stack[-1]; stack.push(v1); pc++; break; }
+        case DUP2: { uint256_t v1 = stack[-2]; stack.push(v1); pc++; break; }
+        case DUP3: { uint256_t v1 = stack[-3]; stack.push(v1); pc++; break; }
+        case DUP4: { uint256_t v1 = stack[-4]; stack.push(v1); pc++; break; }
+        case DUP5: { uint256_t v1 = stack[-5]; stack.push(v1); pc++; break; }
+        case DUP6: { uint256_t v1 = stack[-6]; stack.push(v1); pc++; break; }
+        case DUP7: { uint256_t v1 = stack[-7]; stack.push(v1); pc++; break; }
+        case DUP8: { uint256_t v1 = stack[-8]; stack.push(v1); pc++; break; }
+        case DUP9: { uint256_t v1 = stack[-9]; stack.push(v1); pc++; break; }
+        case DUP10: { uint256_t v1 = stack[-10]; stack.push(v1); pc++; break; }
+        case DUP11: { uint256_t v1 = stack[-11]; stack.push(v1); pc++; break; }
+        case DUP12: { uint256_t v1 = stack[-12]; stack.push(v1); pc++; break; }
+        case DUP13: { uint256_t v1 = stack[-13]; stack.push(v1); pc++; break; }
+        case DUP14: { uint256_t v1 = stack[-14]; stack.push(v1); pc++; break; }
+        case DUP15: { uint256_t v1 = stack[-15]; stack.push(v1); pc++; break; }
+        case DUP16: { uint256_t v1 = stack[-16]; stack.push(v1); pc++; break; }
+        case SWAP1: { uint256_t v1 = stack[-1]; stack[-1] = stack[-2]; stack[-2] = v1; pc++; break; }
+        case SWAP2: { uint256_t v1 = stack[-1]; stack[-1] = stack[-3]; stack[-3] = v1; pc++; break; }
+        case SWAP3: { uint256_t v1 = stack[-1]; stack[-1] = stack[-4]; stack[-4] = v1; pc++; break; }
+        case SWAP4: { uint256_t v1 = stack[-1]; stack[-1] = stack[-5]; stack[-5] = v1; pc++; break; }
+        case SWAP5: { uint256_t v1 = stack[-1]; stack[-1] = stack[-6]; stack[-6] = v1; pc++; break; }
+        case SWAP6: { uint256_t v1 = stack[-1]; stack[-1] = stack[-7]; stack[-7] = v1; pc++; break; }
+        case SWAP7: { uint256_t v1 = stack[-1]; stack[-1] = stack[-8]; stack[-8] = v1; pc++; break; }
+        case SWAP8: { uint256_t v1 = stack[-1]; stack[-1] = stack[-9]; stack[-9] = v1; pc++; break; }
+        case SWAP9: { uint256_t v1 = stack[-1]; stack[-1] = stack[-10]; stack[-10] = v1; pc++; break; }
+        case SWAP10: { uint256_t v1 = stack[-1]; stack[-1] = stack[-11]; stack[-11] = v1; pc++; break; }
+        case SWAP11: { uint256_t v1 = stack[-1]; stack[-1] = stack[-12]; stack[-12] = v1; pc++; break; }
+        case SWAP12: { uint256_t v1 = stack[-1]; stack[-1] = stack[-13]; stack[-13] = v1; pc++; break; }
+        case SWAP13: { uint256_t v1 = stack[-1]; stack[-1] = stack[-14]; stack[-14] = v1; pc++; break; }
+        case SWAP14: { uint256_t v1 = stack[-1]; stack[-1] = stack[-15]; stack[-15] = v1; pc++; break; }
+        case SWAP15: { uint256_t v1 = stack[-1]; stack[-1] = stack[-16]; stack[-16] = v1; pc++; break; }
+        case SWAP16: { uint256_t v1 = stack[-1]; stack[-1] = stack[-17]; stack[-17] = v1; pc++; break; }
+        case LOG0: { /* implement */ break; }
+        case LOG1: { /* implement */ break; }
+        case LOG2: { /* implement */ break; }
+        case LOG3: { /* implement */ break; }
+        case LOG4: { /* implement */ break; }
+        case CREATE: { /* implement */ break; }
+        case CALL: { /* implement */ break; }
+        case CALLCODE: { /* implement */ break; }
+        case RETURN: { /* implement */ break; }
+        case DELEGATECALL: { /* implement */ break; }
+        case STATICCALL: { /* implement */ break; }
+        case REVERT: { /* implement */ break; }
+        case INVALID: { /* implement */ break; }
+        case SELFDESTRUCT: { /* implement */ break; }
+        default:
+            // error invalid opcode
+            break;
+        }
+    }
+}
 
 int main(int argc, char *argv[])
 {
