@@ -825,7 +825,15 @@ void vm_run()
             pc++;
             break;
         }
-        case CREATE: throw UNIMPLEMENTED;
+        case CREATE: {
+            if (false/*isStaticCall()*/) throw ILLEGAL_UPDATE;
+            uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
+            uint32_t offset = v2.cast32();
+            uint32_t size = v3.cast32();
+            // create_contract(v1, offset, size);
+            pc++;
+            break;
+        }
         case CALL: throw UNIMPLEMENTED;
         case CALLCODE: throw UNIMPLEMENTED;
         case RETURN: {
@@ -838,7 +846,15 @@ void vm_run()
             return;
         }
         case DELEGATECALL: throw UNIMPLEMENTED;
-        case CREATE2: throw UNIMPLEMENTED;
+        case CREATE2: {
+            if (false/*isStaticCall()*/) throw ILLEGAL_UPDATE;
+            uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
+            uint32_t offset = v2.cast32();
+            uint32_t size = v3.cast32();
+            // create_contract(v1, offset, size, v4);
+            pc++;
+            break;
+        }
         case STATICCALL: throw UNIMPLEMENTED;
         case REVERT: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
