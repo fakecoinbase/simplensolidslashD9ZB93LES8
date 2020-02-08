@@ -1163,20 +1163,6 @@ void vm_run()
 int main(int argc, char *argv[])
 {
     try {
-        struct txn txn = decode_txn((const uint8_t*)"\xf8\x6c\x09\x85\x04\xa8\x17\xc8\x00\x82\x52\x08\x94\x35\x35\x35\x35\x35\x35\x35\x35\x35\x35\x35\x35\x35\x35\x35\x35\x35\x35\x35\x35\x88\x0d\xe0\xb6\xb3\xa7\x64\x00\x00\x80\x25\xa0\x28\xef\x61\x34\x0b\xd9\x39\xbc\x21\x95\xfe\x53\x75\x67\x86\x60\x03\xe1\xa1\x5d\x3c\x71\xff\x63\xe1\x59\x06\x20\xaa\x63\x62\x76\xa0\x67\xcb\xe9\xd8\x99\x7f\x76\x1a\xec\xb7\x03\x30\x4b\x38\x00\xcc\xf5\x55\xc9\xf3\xdc\x64\x21\x4b\x29\x7f\xb1\x96\x6a\x3b\x6d\x83", 110);
-        std::cout << txn.nonce << std::endl;
-        std::cout << txn.gasprice << std::endl;
-        std::cout << txn.gaslimit << std::endl;
-        std::cout << txn.has_to << std::endl;
-        std::cout << txn.to << std::endl;
-        std::cout << txn.value << std::endl;
-        // std::cout << txn.data << std::endl;
-        std::cout << txn.data_size << std::endl;
-        std::cout << txn.is_signed << std::endl;
-        std::cout << txn.v << std::endl;
-        std::cout << txn.r << std::endl;
-        std::cout << txn.s << std::endl;
-
         vm_run();
     } catch (Error e) {
         std::cout << "error: " << e << std::endl;
