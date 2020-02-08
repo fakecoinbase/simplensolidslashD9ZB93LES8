@@ -3,6 +3,8 @@
 #include <iostream>
 #include <stdint.h>
 
+/* error */
+
 enum Error {
     MEMORY_EXAUSTED = 1,
     ILLEGAL_TARGET,
@@ -27,6 +29,8 @@ static const char *errors[UNIMPLEMENTED+1] = {
     "STACK_UNDERFLOW",
     "UNIMPLEMENTED",
 };
+
+/* uint256 */
 
 class uint256_t {
 private:
@@ -574,20 +578,44 @@ public:
     }
 };
 
-uint256_t balance_of(uint256_t address)
-{
-    throw UNIMPLEMENTED;
-}
+struct account {
+    uint256_t nonce;
+    uint256_t balance;
+    uint8_t *code;
+    uint32_t code_size;
+    uint256_t code_hash;
+};
 
-uint32_t code_size_at(uint256_t address)
-{
-    throw UNIMPLEMENTED;
-}
-
-const uint8_t *code_at(uint256_t address)
-{
-    throw UNIMPLEMENTED;
-}
+class Storage {
+private:
+    static struct account *find_account(const uint256_t &address)
+    {
+        throw UNIMPLEMENTED;
+    }
+public:
+    inline const uint8_t* code(const uint256_t &v) const {
+        struct account *account = find_account(v);
+        return account == nullptr ? nullptr : account->code;
+    }
+    inline uint32_t code_size(const uint256_t &v) const {
+        struct account *account = find_account(v);
+        return account == nullptr ? 0 : account->code_size;
+    }
+    inline uint256_t code_hash(const uint256_t &v) const {
+        struct account *account = find_account(v);
+        return account == nullptr ? 0 : account->code_hash;
+    }
+    inline uint256_t balance(const uint256_t &v) const {
+        struct account *account = find_account(v);
+        return account == nullptr ? 0 : account->balance;
+    }
+    inline const uint256_t& load(const uint256_t &account, const uint256_t &address) const {
+        throw UNIMPLEMENTED;
+    }
+    inline void store(const uint256_t &account, const uint256_t &address, const uint256_t& v) {
+        throw UNIMPLEMENTED;
+    }
+};
 
 uint32_t block_timestamp()
 {
@@ -595,16 +623,6 @@ uint32_t block_timestamp()
 }
 
 uint256_t block_coinbase()
-{
-    throw UNIMPLEMENTED;
-}
-
-uint256_t block_hash(uint32_t index)
-{
-    throw UNIMPLEMENTED;
-}
-
-uint256_t code_hash_at(uint256_t address)
 {
     throw UNIMPLEMENTED;
 }
@@ -618,6 +636,13 @@ uint256_t block_difficulty()
 {
     throw UNIMPLEMENTED;
 }
+
+uint256_t block_hash(uint32_t index)
+{
+    throw UNIMPLEMENTED;
+}
+
+Storage storage;
 
 static void vm_run()
 {
@@ -693,7 +718,7 @@ static void vm_run()
         }
         case BALANCE: {
             uint256_t v1 = stack.pop();
-            uint256_t v2 = balance_of(v1);
+            uint256_t v2 = storage.balance(v1);
             stack.push(v2);
             pc++;
             break;
@@ -765,7 +790,7 @@ static void vm_run()
         }
         case EXTCODESIZE: {
             uint256_t v1 = stack.pop();
-            uint256_t v2 = code_size_at(v1);
+            uint256_t v2 = storage.code_size(v1);
             stack.push(v2);
             pc++;
             break;
@@ -776,8 +801,8 @@ static void vm_run()
             uint32_t offset1 = v2.cast32();
             uint32_t offset2 = v3.cast32();
             uint32_t size = v4.cast32();
-            const uint8_t *code = code_at(address);
-            uint32_t code_size = code_size_at(address);
+            const uint8_t *code = storage.code(address);
+            uint32_t code_size = storage.code_size(address);
             if (offset2 + size > code_size) size = code_size - offset2;
             memory.burn(offset1, size, &code[offset2]);
             pc++;
@@ -803,7 +828,7 @@ static void vm_run()
         }
         case EXTCODEHASH: {
             uint256_t v1 = stack.pop();
-            uint256_t hash = code_hash_at(v1);
+            uint256_t hash = storage.code_hash(v1);
             stack.push(hash);
             pc++;
             break;
@@ -872,7 +897,7 @@ static void vm_run()
         }
         case SLOAD: {
             uint256_t v1 = stack.pop();
-            uint256_t value = 0/*storage.load(v1)*/;
+            uint256_t value = storage.load(owner_address, v1);
             stack.push(value);
             pc++;
             break;
@@ -880,7 +905,7 @@ static void vm_run()
         case SSTORE: {
             if (false/*isStaticCall()*/) throw ILLEGAL_UPDATE;
             uint256_t v1 = stack.pop(), v2 = stack.pop();
-            // storage.store(v1, v2);
+            storage.store(owner_address, v1, v2);
             pc++;
             break;
         }
