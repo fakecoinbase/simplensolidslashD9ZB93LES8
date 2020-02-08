@@ -587,64 +587,43 @@ struct account {
 };
 
 class Storage {
-private:
-    static struct account *find_account(const uint256_t &address)
-    {
-        throw UNIMPLEMENTED;
-    }
+protected:
+    virtual struct account *find_account(const uint256_t &address) = 0;
 public:
-    inline const uint8_t* code(const uint256_t &v) const {
-        struct account *account = find_account(v);
-        return account == nullptr ? nullptr : account->code;
-    }
-    inline uint32_t code_size(const uint256_t &v) const {
-        struct account *account = find_account(v);
-        return account == nullptr ? 0 : account->code_size;
-    }
-    inline uint256_t code_hash(const uint256_t &v) const {
-        struct account *account = find_account(v);
-        return account == nullptr ? 0 : account->code_hash;
-    }
-    inline uint256_t balance(const uint256_t &v) const {
+    inline uint256_t balance(const uint256_t &v) {
         struct account *account = find_account(v);
         return account == nullptr ? 0 : account->balance;
     }
-    inline const uint256_t& load(const uint256_t &account, const uint256_t &address) const {
-        throw UNIMPLEMENTED;
+    inline const uint8_t* code(const uint256_t &v) {
+        struct account *account = find_account(v);
+        return account == nullptr ? nullptr : account->code;
     }
-    inline void store(const uint256_t &account, const uint256_t &address, const uint256_t& v) {
-        throw UNIMPLEMENTED;
+    inline uint32_t code_size(const uint256_t &v) {
+        struct account *account = find_account(v);
+        return account == nullptr ? 0 : account->code_size;
     }
+    inline uint256_t code_hash(const uint256_t &v) {
+        struct account *account = find_account(v);
+        return account == nullptr ? 0 : account->code_hash;
+    }
+    virtual const uint256_t& load(const uint256_t &account, const uint256_t &address) = 0;
+    virtual void store(const uint256_t &account, const uint256_t &address, const uint256_t& v) = 0;
 };
 
-uint32_t block_timestamp()
-{
-    throw UNIMPLEMENTED;
-}
-
-uint256_t block_coinbase()
-{
-    throw UNIMPLEMENTED;
-}
-
-uint32_t block_number()
-{
-    throw UNIMPLEMENTED;
-}
-
-uint256_t block_difficulty()
-{
-    throw UNIMPLEMENTED;
-}
+class Block {
+public:
+    virtual uint32_t timestamp() = 0;
+    virtual uint32_t number() = 0;
+    virtual uint256_t coinbase() = 0;
+    virtual uint256_t difficulty() = 0;
+};
 
 uint256_t block_hash(uint32_t index)
 {
     throw UNIMPLEMENTED;
 }
 
-Storage storage;
-
-static void vm_run()
+static void vm_run(Block &block, Storage &storage)
 {
     uint256_t gas;
     uint256_t gas_limit;
@@ -842,25 +821,25 @@ static void vm_run()
             break;
         }
         case COINBASE: {
-            uint256_t coinbase = block_coinbase();
+            uint256_t coinbase = block.coinbase();
             stack.push(coinbase);
             pc++;
             break;
         }
         case TIMESTAMP: {
-            uint32_t timestamp = block_timestamp();
+            uint32_t timestamp = block.timestamp();
             stack.push(timestamp);
             pc++;
             break;
         }
         case NUMBER: {
-            uint32_t number = block_number();
+            uint32_t number = block.number();
             stack.push(number);
             pc++;
             break;
         }
         case DIFFICULTY: {
-            uint256_t difficulty = block_difficulty();
+            uint256_t difficulty = block.difficulty();
             stack.push(difficulty);
             pc++;
             break;
@@ -1086,10 +1065,42 @@ static void vm_run()
     }
 }
 
+class _Storage : public Storage {
+private:
+    struct account *find_account(const uint256_t &address) {
+        throw UNIMPLEMENTED;
+    }
+public:
+    const uint256_t& load(const uint256_t &account, const uint256_t &address) {
+        throw UNIMPLEMENTED;
+    }
+    void store(const uint256_t &account, const uint256_t &address, const uint256_t& v) {
+        throw UNIMPLEMENTED;
+    }
+};
+
+class _Block : public Block {
+public:
+    uint32_t timestamp() {
+        return 0; // eos block
+    }
+    uint32_t number() {
+        return 0; // eos block
+    }
+    uint256_t coinbase() {
+        return 0; // static
+    }
+    uint256_t difficulty() {
+        return 0; // static
+    }
+};
+
 static void raw(const uint8_t *buffer, uint32_t size)
 {
     struct txn txn = decode_txn(buffer, size);
-    vm_run();
+    _Block block;
+    _Storage storage;
+    vm_run(block, storage);
 }
 
 /* main */
