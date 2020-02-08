@@ -7,7 +7,9 @@ enum Error {
     MEMORY_EXAUSTED = 1,
     ILLEGAL_TARGET,
     ILLEGAL_UPDATE,
+    INVALID_ENCODING,
     INVALID_OPCODE,
+    INVALID_TRANSACTION,
     STACK_OVERFLOW,
     STACK_UNDERFLOW,
     UNIMPLEMENTED,
@@ -249,6 +251,163 @@ uint256_t sha3(const uint8_t *buffer, uint32_t size)
     uint8_t output[64];
     sha3(buffer, size, false, 1088, 0x01, output);
     return word(output, 32);
+}
+
+struct txn {
+    uint256_t nonce;
+    uint256_t gasprice;
+    uint256_t gaslimit;
+    uint256_t to;
+    uint256_t value;
+    uint8_t *data;
+    uint32_t data_size;
+    bool is_signed;
+    uint256_t v;
+    uint256_t r;
+    uint256_t s;
+};
+
+uint256_t parse_nlzint(const uint8_t *&b, uint32_t &s, uint32_t l)
+{
+    if (l == 0) return 0;
+    if (s < l) throw INVALID_ENCODING;
+    if (b[0] == 0) throw INVALID_ENCODING;
+    if (l > 32) throw INVALID_ENCODING;
+    uint256_t v = word(b, l);
+    b += l; s -= l;
+    return v;
+}
+
+uint256_t parse_nlzint(const uint8_t *b, uint32_t s)
+{
+    return parse_nlzint(b, s, s);
+}
+
+uint32_t parse_varlen(const uint8_t *&b, uint32_t &s, bool &is_list)
+{
+	if (s < 1) throw INVALID_ENCODING;
+    uint8_t n = b[0];
+    if (n < 0x80) { is_list = false; return 1; }
+    b++; s--;
+	if (n >= 0xc0 + 56) {
+		uint32_t l = parse_nlzint(b, s, n - (0xc0 + 56) + 1).cast32();
+		if (l < 56) throw INVALID_ENCODING;
+        is_list = true; return l;
+    }
+	if (n >= 0xc0) { is_list = true; return n - 0xc0; }
+	if (n >= 0x80 + 56) {
+		uint32_t l = parse_nlzint(b, s, n - (0x80 + 56) + 1).cast32();
+		if (l < 56) throw INVALID_ENCODING;
+        is_list = true; return l;
+    }
+	if (n == 0x81) {
+        if (s < 1) throw INVALID_ENCODING;
+        uint8_t n = b[0];
+        if (n < 0x80) throw INVALID_ENCODING;
+    }
+    is_list = false; return n - 0x80;
+}
+
+struct rlp {
+    bool is_list;
+    uint32_t size;
+    union {
+        uint8_t *data;
+        struct rlp *list;
+    };
+};
+
+void free_rlp(struct rlp &rlp)
+{
+    if (rlp.is_list) {
+        for (uint32_t i; i < rlp.size; i++) free_rlp(rlp.list[i]);
+        delete rlp.list;
+        rlp.size = 0;
+        rlp.list = nullptr;
+    } else {
+        delete rlp.data;
+        rlp.size = 0;
+        rlp.data = nullptr;
+    }
+}
+
+void parse_rlp(const uint8_t *&b, uint32_t &s, struct rlp &rlp)
+{
+    bool is_list;
+	uint32_t l = parse_varlen(b, s, is_list);
+	if (l > s) throw INVALID_ENCODING;
+    const uint8_t *_b = b;
+    uint32_t _s = l;
+    b += l; s -= l;
+    if (is_list) {
+        uint32_t size = 0;
+        struct rlp *list = nullptr;
+        while (_s > 0) {
+            try {
+                struct rlp *new_list = new struct rlp[size + 1];
+                if (new_list == nullptr) throw MEMORY_EXAUSTED;
+                for (uint32_t i = 0; i < size; i++) new_list[i] = list[i];
+                delete list;
+                list = new_list;
+                parse_rlp(_b, _s, list[size]);
+            } catch (Error e) {
+                for (uint32_t i = 0; i < size; i++) free_rlp(list[i]);
+                delete list;
+                throw e;
+            }
+            size++;
+        }
+        rlp.is_list = is_list;
+        rlp.size = size;
+        rlp.list = list;
+    } else {
+        uint32_t size = _s;
+        uint8_t *data = new uint8_t[size];
+        if (data == nullptr) throw MEMORY_EXAUSTED;
+        for (uint32_t i = 0; i < size; i++) data[i] = _b[i];
+        rlp.is_list = is_list;
+        rlp.size = size;
+        rlp.data = data;
+    }
+}
+
+struct txn decode_txn(const uint8_t *buffer, uint32_t size)
+{
+    struct rlp rlp;
+    parse_rlp(buffer, size, rlp);
+    struct txn txn = { 0, 0, 0, 0, 0, nullptr, 0, 0, 0, 0 };
+    try {
+        if (size > 0) throw INVALID_TRANSACTION;
+        if (rlp.size != 6 && rlp.size != 9) throw INVALID_TRANSACTION;
+        if (!rlp.is_list) throw INVALID_TRANSACTION;
+        for (uint32_t i = 0; i < rlp.size; i++) {
+            if (rlp.list[i].is_list) throw INVALID_TRANSACTION;
+        }
+        txn.nonce = parse_nlzint(rlp.list[0].data, rlp.list[0].size);
+        txn.gasprice = parse_nlzint(rlp.list[1].data, rlp.list[1].size);
+        txn.gaslimit = parse_nlzint(rlp.list[2].data, rlp.list[2].size);
+        if (rlp.list[3].size > 0) {
+            if (rlp.list[3].size != 20) throw INVALID_TRANSACTION;
+            txn.to = word(rlp.list[3].data, rlp.list[3].size);
+        }
+        txn.value = parse_nlzint(rlp.list[4].data, rlp.list[4].size);
+        txn.data_size = rlp.list[5].size;
+        txn.data = new uint8_t[txn.data_size];
+        if (txn.data == nullptr) throw MEMORY_EXAUSTED;
+        for (uint32_t i = 0; i < txn.data_size; i++) txn.data[i] = rlp.list[5].data[i];
+        txn.is_signed = rlp.size > 6;
+        if (txn.is_signed) {
+            txn.v = parse_nlzint(rlp.list[6].data, rlp.list[6].size);
+            txn.r = parse_nlzint(rlp.list[7].data, rlp.list[7].size);
+            txn.s = parse_nlzint(rlp.list[8].data, rlp.list[8].size);
+        }
+    } catch (Error e) {
+        delete txn.data;
+        free_rlp(rlp);
+        throw e;
+    }
+    free_rlp(rlp);
+    return txn;
 }
 
 enum Opcode : uint8_t {
