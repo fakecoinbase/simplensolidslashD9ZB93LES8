@@ -15,6 +15,19 @@ enum Error {
     UNIMPLEMENTED,
 };
 
+static const char *errors[UNIMPLEMENTED+1] = {
+    nullptr,
+    "MEMORY_EXAUSTED",
+    "ILLEGAL_TARGET",
+    "ILLEGAL_UPDATE",
+    "INVALID_ENCODING",
+    "INVALID_OPCODE",
+    "INVALID_TRANSACTION",
+    "STACK_OVERFLOW",
+    "STACK_UNDERFLOW",
+    "UNIMPLEMENTED",
+};
+
 class uint256_t {
 private:
     static constexpr int W = 8;
@@ -111,26 +124,28 @@ std::ostream &operator<<(std::ostream &os, const uint256_t &v) {
     return os;
 }
 
-const uint256_t word(const uint8_t *data, int size)
+static const uint256_t word(const uint8_t *data, int size)
 {
     uint256_t v = 0;
     for (int i = 0; i < size; i++) { v <<= 8; v += data[i]; }
     return v;
 }
 
-void word(const uint256_t &v, uint8_t *data, int size)
+static void word(const uint256_t &v, uint8_t *data, int size)
 {
     for (int i = 0; i < size; i++) {
         data[size - i - 1] = (v >> 8 * i).cast32() & 0xff;
     }
 }
 
-inline uint64_t rot(uint64_t x, int y)
+/* crypto */
+
+static inline uint64_t rot(uint64_t x, int y)
 {
     return y > 0 ? (x >> (64 - y)) ^ (x << y) : x;
 }
 
-inline uint64_t b2w(const uint8_t *b)
+static inline uint64_t b2w(const uint8_t *b)
 {
     return 0
         | ((uint64_t)b[7] << 56)
@@ -143,7 +158,7 @@ inline uint64_t b2w(const uint8_t *b)
         | (uint64_t)b[0];
 }
 
-inline void w2b(uint64_t w, uint8_t *b)
+static inline void w2b(uint64_t w, uint8_t *b)
 {
     b[0] = (uint8_t)w;
     b[1] = (uint8_t)(w >> 8);
@@ -155,7 +170,7 @@ inline void w2b(uint64_t w, uint8_t *b)
     b[7] = (uint8_t)(w >> 56);
 }
 
-void sha3(const uint8_t *message, uint32_t size, bool compressed, uint32_t r, uint8_t eof, uint8_t *output)
+static void sha3(const uint8_t *message, uint32_t size, bool compressed, uint32_t r, uint8_t eof, uint8_t *output)
 {
     if (!compressed) {
         uint32_t bitsize = 8 * size;
@@ -246,12 +261,14 @@ void sha3(const uint8_t *message, uint32_t size, bool compressed, uint32_t r, ui
     w2b(s[2][1], &output[56]);
 }
 
-uint256_t sha3(const uint8_t *buffer, uint32_t size)
+static uint256_t sha3(const uint8_t *buffer, uint32_t size)
 {
     uint8_t output[64];
     sha3(buffer, size, false, 1088, 0x01, output);
     return word(output, 32);
 }
+
+/* decoder */
 
 struct txn {
     uint256_t nonce;
@@ -412,151 +429,35 @@ struct txn decode_txn(const uint8_t *buffer, uint32_t size)
     return txn;
 }
 
+/* interpreter */
+
 enum Opcode : uint8_t {
-    STOP = 0x00,
-    ADD = 0x01,
-    MUL = 0x02,
-    SUB = 0x03,
-    DIV = 0x04,
-    SDIV = 0x05,
-    MOD = 0x06,
-    SMOD = 0x07,
-    ADDMOD = 0x08,
-    MULMOD = 0x09,
-    EXP = 0x0a,
-    SIGNEXTEND = 0x0b,
+    STOP = 0x00, ADD, MUL, SUB, DIV, SDIV, MOD, SMOD,
+    ADDMOD, MULMOD, EXP, SIGNEXTEND,
     // 0x0c .. 0x0f
-    LT = 0x10,
-    GT = 0x11,
-    SLT = 0x12,
-    SGT = 0x13,
-    EQ = 0x14,
-    ISZERO = 0x15,
-    AND = 0x16,
-    OR = 0x17,
-    XOR = 0x18,
-    NOT = 0x19,
-    BYTE = 0x1a,
-    SHL = 0x1b,
-    SHR = 0x1c,
-    SAR = 0x1d,
+    LT = 0x10, GT, SLT, SGT, EQ, ISZERO, AND, OR,
+    XOR, NOT, BYTE, SHL, SHR, SAR,
     // 0x1e .. 0x1f
     SHA3 = 0x20,
     // 0x21 .. 0x2f
-    ADDRESS = 0x30,
-    BALANCE = 0x31,
-    ORIGIN = 0x32,
-    CALLER = 0x33,
-    CALLVALUE = 0x34,
-    CALLDATALOAD = 0x35,
-    CALLDATASIZE = 0x36,
-    CALLDATACOPY = 0x37,
-    CODESIZE = 0x38,
-    CODECOPY = 0x39,
-    GASPRICE = 0x3a,
-    EXTCODESIZE = 0x3b,
-    EXTCODECOPY = 0x3c,
-    RETURNDATASIZE = 0x3d,
-    RETURNDATACOPY = 0x3e,
-    EXTCODEHASH = 0x3f,
-    BLOCKHASH = 0x40,
-    COINBASE = 0x41,
-    TIMESTAMP = 0x42,
-    NUMBER = 0x43,
-    DIFFICULTY = 0x44,
-    GASLIMIT = 0x45,
-	CHAINID = 0x46,
-	SELFBALANCE = 0x47,
+    ADDRESS = 0x30, BALANCE, ORIGIN, CALLER, CALLVALUE, CALLDATALOAD, CALLDATASIZE, CALLDATACOPY,
+    CODESIZE, CODECOPY, GASPRICE, EXTCODESIZE, EXTCODECOPY, RETURNDATASIZE, RETURNDATACOPY, EXTCODEHASH,
+    BLOCKHASH, COINBASE, TIMESTAMP, NUMBER, DIFFICULTY, GASLIMIT, CHAINID, SELFBALANCE,
     // 0x48 .. 0x4f
-    POP = 0x50,
-    MLOAD = 0x51,
-    MSTORE = 0x52,
-    MSTORE8 = 0x53,
-    SLOAD = 0x54,
-    SSTORE = 0x55,
-    JUMP = 0x56,
-    JUMPI = 0x57,
-    PC = 0x58,
-    MSIZE = 0x59,
-    GAS = 0x5a,
-    JUMPDEST = 0x5b,
+    POP = 0x50, MLOAD, MSTORE, MSTORE8, SLOAD, SSTORE, JUMP, JUMPI,
+    PC, MSIZE, GAS, JUMPDEST,
     // 0x5c .. 0x5f
-    PUSH1 = 0x60,
-    PUSH2 = 0x61,
-    PUSH3 = 0x62,
-    PUSH4 = 0x63,
-    PUSH5 = 0x64,
-    PUSH6 = 0x65,
-    PUSH7 = 0x66,
-    PUSH8 = 0x67,
-    PUSH9 = 0x68,
-    PUSH10 = 0x69,
-    PUSH11 = 0x6a,
-    PUSH12 = 0x6b,
-    PUSH13 = 0x6c,
-    PUSH14 = 0x6d,
-    PUSH15 = 0x6e,
-    PUSH16 = 0x6f,
-    PUSH17 = 0x70,
-    PUSH18 = 0x71,
-    PUSH19 = 0x72,
-    PUSH20 = 0x73,
-    PUSH21 = 0x74,
-    PUSH22 = 0x75,
-    PUSH23 = 0x76,
-    PUSH24 = 0x77,
-    PUSH25 = 0x78,
-    PUSH26 = 0x79,
-    PUSH27 = 0x7a,
-    PUSH28 = 0x7b,
-    PUSH29 = 0x7c,
-    PUSH30 = 0x7d,
-    PUSH31 = 0x7e,
-    PUSH32 = 0x7f,
-    DUP1 = 0x80,
-    DUP2 = 0x81,
-    DUP3 = 0x82,
-    DUP4 = 0x83,
-    DUP5 = 0x84,
-    DUP6 = 0x85,
-    DUP7 = 0x86,
-    DUP8 = 0x87,
-    DUP9 = 0x88,
-    DUP10 = 0x89,
-    DUP11 = 0x8a,
-    DUP12 = 0x8b,
-    DUP13 = 0x8c,
-    DUP14 = 0x8d,
-    DUP15 = 0x8e,
-    DUP16 = 0x8f,
-    SWAP1 = 0x90,
-    SWAP2 = 0x91,
-    SWAP3 = 0x92,
-    SWAP4 = 0x93,
-    SWAP5 = 0x94,
-    SWAP6 = 0x95,
-    SWAP7 = 0x96,
-    SWAP8 = 0x97,
-    SWAP9 = 0x98,
-    SWAP10 = 0x99,
-    SWAP11 = 0x9a,
-    SWAP12 = 0x9b,
-    SWAP13 = 0x9c,
-    SWAP14 = 0x9d,
-    SWAP15 = 0x9e,
-    SWAP16 = 0x9f,
-    LOG0 = 0xa0,
-    LOG1 = 0xa1,
-    LOG2 = 0xa2,
-    LOG3 = 0xa3,
-    LOG4 = 0xa4,
+    PUSH1 = 0x60, PUSH2, PUSH3, PUSH4, PUSH5, PUSH6, PUSH7, PUSH8,
+    PUSH9, PUSH10, PUSH11, PUSH12, PUSH13, PUSH14, PUSH15, PUSH16,
+    PUSH17, PUSH18, PUSH19, PUSH20, PUSH21, PUSH22, PUSH23, PUSH24,
+    PUSH25, PUSH26, PUSH27, PUSH28, PUSH29, PUSH30, PUSH31, PUSH32,
+    DUP1, DUP2, DUP3, DUP4, DUP5, DUP6, DUP7, DUP8,
+    DUP9, DUP10, DUP11, DUP12, DUP13, DUP14, DUP15, DUP16,
+    SWAP1, SWAP2, SWAP3, SWAP4, SWAP5, SWAP6, SWAP7, SWAP8,
+    SWAP9, SWAP10, SWAP11, SWAP12, SWAP13, SWAP14, SWAP15, SWAP16,
+    LOG0, LOG1, LOG2, LOG3, LOG4,
     // 0xa5 .. 0xef
-    CREATE = 0xf0,
-    CALL = 0xf1,
-    CALLCODE = 0xf2,
-    RETURN = 0xf3,
-    DELEGATECALL = 0xf4,
-    CREATE2 = 0xf5,
+    CREATE = 0xf0, CALL, CALLCODE, RETURN, DELEGATECALL, CREATE2,
     // 0xf6 .. 0xf9
     STATICCALL = 0xfa,
     // 0xfb .. 0xfc
@@ -718,7 +619,7 @@ uint256_t block_difficulty()
     throw UNIMPLEMENTED;
 }
 
-void vm_run()
+static void vm_run()
 {
     uint256_t gas;
     uint256_t gas_limit;
@@ -1160,12 +1061,46 @@ void vm_run()
     }
 }
 
-int main(int argc, char *argv[])
+static void raw(const uint8_t *buffer, uint32_t size)
 {
+    struct txn txn = decode_txn(buffer, size);
+    vm_run();
+}
+
+/* main */
+
+static inline int hex(char c)
+{
+    if ('0' <= c && c <= '9') return c - '0';
+    if ('A' <= c && c <= 'F') return c - 'A' + 10;
+    if ('a' <= c && c <= 'f') return c - 'a' + 10;
+    return -1;
+}
+
+static inline int parse_hex(const char *hexstr, uint8_t *buffer, uint32_t size)
+{
+    for (int i = 0; i < size; i++) {
+        int hi = hex(hexstr[2*i]);
+        int lo = hex(hexstr[2*i+1]);
+        if (hi < 0 || lo < 0) return 0;
+        buffer[i] = hi << 4 | lo;
+    }
+    return 1;
+}
+
+int main(int argc, const char *argv[])
+{
+    const char *progname = argv[0];
+    if (argc < 2) { std::cerr << "usage: " << progname << " <hex>" << std::endl; return 1; }
+    const char *hexstr = argv[1];
+    int len = std::strlen(hexstr);
+    uint32_t size = len / 2;
+    uint8_t buffer[size];
+    if (len % 2 > 0 || !parse_hex(hexstr, buffer, size)) { std::cerr << progname << ": invalid input" << std::endl; return 1; }
     try {
-        vm_run();
+        raw(buffer, size);
     } catch (Error e) {
-        std::cout << "error: " << e << std::endl;
+        std::cerr << progname << ": error " << errors[e] << std::endl; return 1;
     }
     return 0;
 }
