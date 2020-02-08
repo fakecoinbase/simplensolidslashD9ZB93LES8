@@ -85,6 +85,7 @@ public:
     //   leave the Account Table entry’s balance negative
     [[eosio::action]]
     void withdraw(const name& account, const uint128_t amount) {
+        require_auth(account);
         print("Unimplemented");
     }
 
