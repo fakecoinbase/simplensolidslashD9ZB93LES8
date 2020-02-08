@@ -118,9 +118,132 @@ void word(const uint256_t &v, uint8_t *data, int size)
     }
 }
 
-uint256_t sha3(uint8_t *buffer, uint32_t size)
+inline uint64_t rot(uint64_t x, int y)
 {
-    throw UNIMPLEMENTED;
+    return y > 0 ? (x >> (64 - y)) ^ (x << y) : x;
+}
+
+inline uint64_t b2w(const uint8_t *b)
+{
+    return 0
+        | ((uint64_t)b[7] << 56)
+        | ((uint64_t)b[6] << 48)
+        | ((uint64_t)b[5] << 40)
+        | ((uint64_t)b[4] << 32)
+        | ((uint64_t)b[3] << 24)
+        | ((uint64_t)b[2] << 16)
+        | ((uint64_t)b[1] << 8)
+        | (uint64_t)b[0];
+}
+
+inline void w2b(uint64_t w, uint8_t *b)
+{
+    b[0] = (uint8_t)w;
+    b[1] = (uint8_t)(w >> 8);
+    b[2] = (uint8_t)(w >> 16);
+    b[3] = (uint8_t)(w >> 24);
+    b[4] = (uint8_t)(w >> 32);
+    b[5] = (uint8_t)(w >> 40);
+    b[6] = (uint8_t)(w >> 48);
+    b[7] = (uint8_t)(w >> 56);
+}
+
+void sha3(const uint8_t *message, uint32_t size, bool compressed, uint32_t r, uint8_t eof, uint8_t *output)
+{
+    if (!compressed) {
+        uint32_t bitsize = 8 * size;
+        uint32_t padding = (r - bitsize % r) / 8;
+        uint32_t b_len = size + padding;
+        uint8_t *b = new uint8_t[b_len];
+        if (b == nullptr) throw MEMORY_EXAUSTED;
+        for (uint32_t i = 0; i < size; i++) b[i] = message[i];
+        for (uint32_t i = size; i < b_len; i++) b[i] = 0;
+        b[size] |= eof;
+        b[b_len-1] |= 0x80;
+        sha3(b, b_len, true, r, eof, output);
+        delete b;
+        return;
+    }
+    const uint64_t RC[24] = {
+        0x0000000000000001L, 0x0000000000008082L, 0x800000000000808aL,
+        0x8000000080008000L, 0x000000000000808bL, 0x0000000080000001L,
+        0x8000000080008081L, 0x8000000000008009L, 0x000000000000008aL,
+        0x0000000000000088L, 0x0000000080008009L, 0x000000008000000aL,
+        0x000000008000808bL, 0x800000000000008bL, 0x8000000000008089L,
+        0x8000000000008003L, 0x8000000000008002L, 0x8000000000000080L,
+        0x000000000000800aL, 0x800000008000000aL, 0x8000000080008081L,
+        0x8000000000008080L, 0x0000000080000001L, 0x8000000080008008L,
+    };
+    const uint8_t R[5][5] = {
+        { 0, 36,  3, 41, 18},
+        { 1, 44, 10, 45,  2},
+        {62,  6, 43, 15, 61},
+        {28, 55, 25, 21, 56},
+        {27, 20, 39,  8, 14},
+    };
+    uint64_t s[5][5];
+    for (int y = 0; y < 5; y++) {
+        for (int x = 0; x < 5; x++) {
+            s[x][y] = 0;
+        }
+    }
+    uint32_t k = r / 64;
+    for (int j = 0; j < size/8; j += k) {
+        uint64_t w[25];
+        for (int i = 0; i < k; i++) {
+            w[i] = b2w(&message[8*(j+i)]);
+        }
+        for (int i = k; i < 25; i++) {
+            w[i] = 0;
+        }
+        for (int y = 0; y < 5; y++) {
+            for (int x = 0; x < 5; x++) {
+                s[x][y] ^= w[5 * y + x];
+            }
+        }
+        for (int j = 0; j < 24; j++) {
+            uint64_t c[5];
+            for (int x = 0; x < 5; x++) {
+                c[x] = s[x][0] ^ s[x][1] ^ s[x][2] ^ s[x][3] ^ s[x][4];
+            }
+            uint64_t d[5];
+            for (int x = 0; x < 5; x++) {
+                d[x] = c[(x + 4) % 5] ^ rot(c[(x + 1) % 5], 1);
+            }
+            for (int x = 0; x < 5; x++) {
+                for (int y = 0; y < 5; y++) {
+                    s[x][y] ^= d[x];
+                }
+            }
+            uint64_t b[5][5];
+            for (int x = 0; x < 5; x++) {
+                for (int y = 0; y < 5; y++) {
+					b[y][(2 * x + 3 * y) % 5] = rot(s[x][y], R[x][y]);
+                }
+            }
+            for (int x = 0; x < 5; x++) {
+                for (int y = 0; y < 5; y++) {
+                    s[x][y] = b[x][y] ^ (~b[(x + 1) % 5][y] & b[(x + 2) % 5][y]);
+                }
+            }
+            s[0][0] ^= RC[j];
+        }
+    }
+    w2b(s[0][0], &output[0]);
+    w2b(s[1][0], &output[8]);
+    w2b(s[2][0], &output[16]);
+    w2b(s[3][0], &output[24]);
+    w2b(s[4][0], &output[32]);
+    w2b(s[0][1], &output[40]);
+    w2b(s[1][1], &output[48]);
+    w2b(s[2][1], &output[56]);
+}
+
+uint256_t sha3(const uint8_t *buffer, uint32_t size)
+{
+    uint8_t output[64];
+    sha3(buffer, size, false, 1088, 0x01, output);
+    return word(output, 32);
 }
 
 enum Opcode : uint8_t {
@@ -873,10 +996,6 @@ void vm_run()
 
 int main(int argc, char *argv[])
 {
-    uint256_t x = 0xa8b4c2d1;
-    std::cout << x << std::endl;
-    std::cout << (x << (217)) << std::endl;
-    std::cout << ((x << (217)) >> 219) << std::endl;
     try {
         vm_run();
     } catch (Error e) {
