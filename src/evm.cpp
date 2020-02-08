@@ -1,9 +1,11 @@
 #include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <stdint.h>
 
 enum Error {
     MEMORY_EXAUSTED = 1,
+    ILLEGAL_TARGET,
     INVALID_OPCODE,
     STACK_OVERFLOW,
     STACK_UNDERFLOW,
@@ -26,6 +28,7 @@ public:
     inline uint256_t(uint32_t v) { data[0] = v; for (int i = 1; i < W; i++) data[i] = 0; }
     inline uint256_t(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] = v.data[i]; }
     inline uint256_t& operator=(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] = v.data[i]; return *this; }
+    inline uint64_t cast32() const { return data[0]; }
     inline const uint256_t sigflip() const { uint256_t v = *this; v.data[W-1] ^= 0x80000000; }
     inline const uint256_t operator~() const { uint256_t v; for (int i = 0; i < W; i++) v.data[i] = ~data[i]; return v; }
     inline const uint256_t operator-() const { uint256_t v = ~(*this); return ++v; }
@@ -51,8 +54,28 @@ public:
     inline uint256_t& operator&=(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] &= v.data[i]; return *this; }
     inline uint256_t& operator|=(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] |= v.data[i]; return *this; }
     inline uint256_t& operator^=(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] ^= v.data[i]; return *this; }
-    inline uint256_t& operator>>=(int n) { throw UNIMPLEMENTED; }
-    inline uint256_t& operator<<=(int n) { throw UNIMPLEMENTED; }
+    inline uint256_t& operator<<=(int n) {
+        int index = n / 32;
+        int shift = n % 32;
+        for (int i = W - 1; i >= 0; i--) {
+            uint32_t w = 0;
+            if (i >= index) w |= data[i - index] << shift;
+            if (i >= index + 1 && shift > 0) w |= data[i - index - 1] >> (32 - shift);
+            data[i] = w;
+        }
+        return *this;
+    }
+    inline uint256_t& operator>>=(int n) {
+        int index = n / 32;
+        int shift = n % 32;
+        for (int i = 0; i < W; i++) {
+            uint32_t w = 0;
+            if (W > i + index) w |= data[i + index] >> shift;
+            if (W > i + index + 1 && shift > 0) w |= data[i + index + 1] << (32 - shift);
+            data[i] = w;
+        }
+        return *this;
+    }
     inline const uint256_t sigext(const uint256_t& v1) const { throw UNIMPLEMENTED; }
     friend inline const uint256_t operator+(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) += v2; }
     friend inline const uint256_t operator-(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) -= v2; }
@@ -62,24 +85,41 @@ public:
     friend inline const uint256_t operator&(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) &= v2; }
     friend inline const uint256_t operator|(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) |= v2; }
     friend inline const uint256_t operator^(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) ^= v2; }
-    friend inline const uint256_t operator>>(const uint256_t& v, int n) { return uint256_t(v) >>= n; }
     friend inline const uint256_t operator<<(const uint256_t& v, int n) { return uint256_t(v) <<= n; }
+    friend inline const uint256_t operator>>(const uint256_t& v, int n) { return uint256_t(v) >>= n; }
     friend inline bool operator==(const uint256_t& v1, const uint256_t& v2) { return v1.cmp(v2) == 0; }
     friend inline bool operator!=(const uint256_t& v1, const uint256_t& v2) { return v1.cmp(v2) != 0; }
     friend inline bool operator<(const uint256_t& v1, const uint256_t& v2) { return v1.cmp(v2) < 0; }
     friend inline bool operator>(const uint256_t& v1, const uint256_t& v2) { return v1.cmp(v2) > 0; }
     friend inline bool operator<=(const uint256_t& v1, const uint256_t& v2) { return v1.cmp(v2) <= 0; }
     friend inline bool operator>=(const uint256_t& v1, const uint256_t& v2) { return v1.cmp(v2) >= 0; }
+    friend std::ostream& operator<<(std::ostream&, const uint256_t&);
 };
+
+std::ostream &operator<<(std::ostream &os, const uint256_t &v) {
+    for (int i = uint256_t::W - 1; i >= 0; i--) {
+        os << std::hex << std::setw(8) << std::setfill('0') << v.data[i];
+    }
+    return os;
+}
 
 const uint256_t word(const uint8_t *data, int size)
 {
     uint256_t v = 0;
-    for (int i = 0; i < size; i++) {
-        v <<= 8;
-        v += data[i];
-    }
+    for (int i = 0; i < size; i++) { v <<= 8; v += data[i]; }
     return v;
+}
+
+void word(const uint256_t &v, uint8_t *data, int size)
+{
+    for (int i = 0; i < size; i++) {
+        data[size - i - 1] = (v >> 8 * i).cast32() & 0xff;
+    }
+}
+
+uint256_t sha3(uint8_t *buffer, uint32_t size)
+{
+    throw UNIMPLEMENTED;
 }
 
 enum Opcode : uint8_t {
@@ -107,9 +147,9 @@ enum Opcode : uint8_t {
     XOR = 0x18,
     NOT = 0x19,
     BYTE = 0x1a,
-//    SHL = 0x1b,
-//    SHR = 0x1c,
-//    SAR = 0x1d,
+    SHL = 0x1b,
+    SHR = 0x1c,
+    SAR = 0x1d,
     // 0x1e .. 0x1f
     SHA3 = 0x20,
     // 0x21 .. 0x2f
@@ -128,14 +168,16 @@ enum Opcode : uint8_t {
     EXTCODECOPY = 0x3c,
     RETURNDATASIZE = 0x3d,
     RETURNDATACOPY = 0x3e,
-//    EXTCODEHASH = 0x3f,
+    EXTCODEHASH = 0x3f,
     BLOCKHASH = 0x40,
     COINBASE = 0x41,
     TIMESTAMP = 0x42,
     NUMBER = 0x43,
     DIFFICULTY = 0x44,
     GASLIMIT = 0x45,
-    // 0x46 .. 0x4f
+	CHAINID = 0x46,
+	SELFBALANCE = 0x47,
+    // 0x48 .. 0x4f
     POP = 0x50,
     MLOAD = 0x51,
     MSTORE = 0x52,
@@ -224,12 +266,12 @@ enum Opcode : uint8_t {
     CALLCODE = 0xf2,
     RETURN = 0xf3,
     DELEGATECALL = 0xf4,
-//    CREATE2 = 0xf5,
+    CREATE2 = 0xf5,
     // 0xf6 .. 0xf9
     STATICCALL = 0xfa,
     // 0xfb .. 0xfc
     REVERT = 0xfd,
-    INVALID = 0xfe,
+    // 0xfe .. 0xfe
     SELFDESTRUCT = 0xff,
 };
 
@@ -237,12 +279,12 @@ static const char *opcodes[256] = {
     "STOP", "ADD", "MUL", "SUB", "DIV", "SDIV", "MOD", "SMOD",
     "ADDMOD", "MULMOD", "EXP", "SIGNEXTEND", "?", "?", "?", "?",
     "LT", "GT", "SLT", "SGT", "EQ", "ISZERO", "AND", "OR",
-    "XOR", "NOT", "BYTE", "?SHL", "?SHR", "?SAR", "?", "?",
+    "XOR", "NOT", "BYTE", "SHL", "SHR", "SAR", "?", "?",
     "SHA3", "?", "?", "?", "?", "?", "?", "?",
     "?", "?", "?", "?", "?", "?", "?", "?",
     "ADDRESS", "BALANCE", "ORIGIN", "CALLER", "CALLVALUE", "CALLDATALOAD", "CALLDATASIZE", "CALLDATACOPY",
-    "CODESIZE", "CODECOPY", "GASPRICE", "EXTCODESIZE", "EXTCODECOPY", "RETURNDATASIZE", "RETURNDATACOPY", "?EXTCODEHASH",
-    "BLOCKHASH", "COINBASE", "TIMESTAMP", "NUMBER", "DIFFICULTY", "GASLIMIT", "?", "?",
+    "CODESIZE", "CODECOPY", "GASPRICE", "EXTCODESIZE", "EXTCODECOPY", "RETURNDATASIZE", "RETURNDATACOPY", "EXTCODEHASH",
+    "BLOCKHASH", "COINBASE", "TIMESTAMP", "NUMBER", "DIFFICULTY", "GASLIMIT", "CHAINID", "SELFBALANCE",
     "?", "?", "?", "?", "?", "?", "?", "?",
     "POP", "MLOAD", "MSTORE", "MSTORE8", "SLOAD", "SSTORE", "JUMP", "JUMPI",
     "PC", "MSIZE", "GAS", "JUMPDEST", "?", "?", "?", "?",
@@ -264,8 +306,8 @@ static const char *opcodes[256] = {
     "?", "?", "?", "?", "?", "?", "?", "?",
     "?", "?", "?", "?", "?", "?", "?", "?",
     "?", "?", "?", "?", "?", "?", "?", "?",
-    "CREATE", "CALL", "CALLCODE", "RETURN", "DELEGATECALL", "?CREATE2", "?", "?",
-    "?", "?", "STATICCALL", "?", "?", "REVERT", "INVALID", "SELFDESTRUCT",
+    "CREATE", "CALL", "CALLCODE", "RETURN", "DELEGATECALL", "CREATE2", "?", "?",
+    "?", "?", "STATICCALL", "?", "?", "REVERT", "?", "SELFDESTRUCT",
 };
 
 class Stack {
@@ -288,6 +330,10 @@ private:
     uint32_t page_count = 0;
     uint8_t **pages;
 public:
+    ~Memory() {
+        for (uint32_t i = 0; i < page_count; i++) delete pages[i];
+        delete pages;
+    }
     inline uint32_t size() const { return limit; }
     inline uint8_t operator [](uint32_t i) const {
         uint32_t page_index = i / P;
@@ -315,6 +361,26 @@ public:
         if (i > limit) limit = i;
         return pages[page_index][byte_index];
     }
+    inline uint256_t load(uint32_t offset) const {
+        uint8_t buffer[32];
+        dump(offset, 32, buffer);
+        return word(buffer, 32);
+    }
+    inline void store(uint32_t offset, const uint256_t& v) {
+        uint8_t buffer[32];
+        word(v, buffer, 32);
+        burn(offset, 32, buffer);
+    }
+    inline void dump(uint32_t offset, uint32_t size, uint8_t *buffer) const {
+        for (uint32_t i = 0; i < size; i++) {
+            buffer[i] = (*this)[offset+i];
+        }
+    }
+    inline void burn(uint32_t offset, uint32_t size, uint8_t *buffer) {
+        for (uint32_t i = 0; i < size; i++) {
+            (*this)[offset+i] = buffer[i];
+        }
+    }
 };
 
 uint256_t get_balance(uint256_t address)
@@ -329,6 +395,7 @@ uint256_t code_size_at(uint256_t address)
 
 void vm_run()
 {
+    uint256_t gas;
     uint256_t gas_limit;
     uint256_t owner_address;
     uint256_t origin_address;
@@ -354,25 +421,44 @@ void vm_run()
         case MUL: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 * v2); pc++; break; }
         case SUB: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 - v2); pc++; break; }
         case DIV: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 / v2); pc++; break; }
-        case SDIV: { /* implement */ break; }
+        case SDIV: throw UNIMPLEMENTED;
         case MOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 % v2); pc++; break; }
-        case SMOD: { /* implement */ break; }
+        case SMOD: throw UNIMPLEMENTED;
         case ADDMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push((v1 + v2) % v3); pc++; break; }
         case MULMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push((v1 * v2) % v3); pc++; break; }
-        case EXP: { /* implement */ break; }
+        case EXP: throw UNIMPLEMENTED;
         case SIGNEXTEND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2.sigext(v1)); pc++; break; }
-        case LT: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = v1 < v2; stack.push(v3); pc++; break; }
-        case GT: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = v1 > v2; stack.push(v3); pc++; break; }
-        case SLT: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = v1.sigflip() < v2.sigflip(); stack.push(v3); pc++; break; }
-        case SGT: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = v1.sigflip() > v2.sigflip(); stack.push(v3); pc++; break; }
-        case EQ: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = v1 == v2; stack.push(v3); pc++; break; }
-        case ISZERO: { uint256_t v1 = stack.pop(), v2 = v1 == 0; stack.push(v2); pc++; break; }
-        case AND: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = v1 & v2; stack.push(v3); pc++; break; }
-        case OR: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = v1 | v2; stack.push(v3); pc++; break; }
-        case XOR: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = v1 ^ v2; stack.push(v3); pc++; break; }
+        case LT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < v2); pc++; break; }
+        case GT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > v2); pc++; break; }
+        case SLT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1.sigflip() < v2.sigflip()); pc++; break; }
+        case SGT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1.sigflip() > v2.sigflip()); pc++; break; }
+        case EQ: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 == v2); pc++; break; }
+        case ISZERO: { uint256_t v1 = stack.pop(); stack.push(v1 == 0); pc++; break; }
+        case AND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 & v2); pc++; break; }
+        case OR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 | v2); pc++; break; }
+        case XOR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 ^ v2); pc++; break; }
         case NOT: { uint256_t v1 = stack.pop(), v2 = ~v1; stack.push(v2); pc++; break; }
-        case BYTE: { /* implement */ break; }
-        case SHA3: { /* implement */ break; }
+        case BYTE: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop();
+            uint8_t buffer[32];
+            word(v2, buffer, 32);
+            stack.push(v1 < 32 ? buffer[v1.cast32()] : 0);
+            pc++;
+        }
+        case SHL: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2 << v1.cast32()); pc++; break; }
+        case SHR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2 >> v1.cast32()); pc++; break; }
+        case SAR: throw UNIMPLEMENTED;
+        case SHA3: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop();
+            uint32_t offset = v1.cast32(), size = v2.cast32();
+            uint8_t *buffer = new uint8_t[size];
+            if (buffer == nullptr) throw MEMORY_EXAUSTED;
+            memory.dump(offset, size, buffer);
+            uint256_t v3 = sha3(buffer, size);
+            stack.push(v3);
+            pc++;
+            break;
+        }
         case ADDRESS: {
             uint256_t v1 = owner_address;
             stack.push(v1);
@@ -398,17 +484,17 @@ void vm_run()
             pc++;
             break;
         }
-        case CALLVALUE: { /* implement */ break; }
-        case CALLDATALOAD: { /* implement */ break; }
-        case CALLDATASIZE: { /* implement */ break; }
-        case CALLDATACOPY: { /* implement */ break; }
+        case CALLVALUE: throw UNIMPLEMENTED;
+        case CALLDATALOAD: throw UNIMPLEMENTED;
+        case CALLDATASIZE: throw UNIMPLEMENTED;
+        case CALLDATACOPY: throw UNIMPLEMENTED;
         case CODESIZE: {
             uint256_t v1 = code_size;
             stack.push(v1);
             pc++;
             break;
         }
-        case CODECOPY: { /* implement */ break; }
+        case CODECOPY: throw UNIMPLEMENTED;
         case GASPRICE: {
             uint256_t v1 = gas_price;
             stack.push(v1);
@@ -422,47 +508,57 @@ void vm_run()
             pc++;
             break;
         }
-        case EXTCODECOPY: { /* implement */ break; }
-        case RETURNDATASIZE: { /* implement */ break; }
-        case RETURNDATACOPY: { /* implement */ break; }
-        case BLOCKHASH: { /* implement */ break; }
-        case COINBASE: { /* implement */ break; }
-        case TIMESTAMP: { /* implement */ break; }
-        case NUMBER: { /* implement */ break; }
-        case DIFFICULTY: { /* implement */ break; }
+        case EXTCODECOPY: throw UNIMPLEMENTED;
+        case RETURNDATASIZE: throw UNIMPLEMENTED;
+        case RETURNDATACOPY: throw UNIMPLEMENTED;
+        case EXTCODEHASH: throw UNIMPLEMENTED;
+        case BLOCKHASH: throw UNIMPLEMENTED;
+        case COINBASE: throw UNIMPLEMENTED;
+        case TIMESTAMP: throw UNIMPLEMENTED;
+        case NUMBER: throw UNIMPLEMENTED;
+        case DIFFICULTY: throw UNIMPLEMENTED;
         case GASLIMIT: {
             uint256_t v1 = gas_limit;
             stack.push(v1);
             pc++;
             break;
         }
+        case CHAINID: throw UNIMPLEMENTED;
+        case SELFBALANCE: throw UNIMPLEMENTED;
         case POP: { stack.pop(); pc++; break; }
         case MLOAD: {
             uint256_t v1 = stack.pop();
-            uint256_t v2 = /*mem.load(v1)*/0;
+            uint256_t v2 = memory.load(v1.cast32());
             stack.push(v2);
             pc++;
             break;
         }
-        case MSTORE: { /* implement */ break; }
-        case MSTORE8: { /* implement */ break; }
-        case SLOAD: { /* implement */ break; }
-        case SSTORE: { /* implement */ break; }
+        case MSTORE: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop();
+            memory.store(v1.cast32(), v2);
+            pc++;
+            break;
+        }
+        case MSTORE8: throw UNIMPLEMENTED;
+        case SLOAD: throw UNIMPLEMENTED;
+        case SSTORE: throw UNIMPLEMENTED;
         case JUMP: {
             uint256_t v1 = stack.pop();
-            // pc = v1;
+            pc = v1.cast32();
+            uint8_t opc = pc <= code_size ? code[pc] : STOP;
+            if (opc != JUMPDEST) throw ILLEGAL_TARGET;
             break;
         }
         case JUMPI: {
             uint256_t v1 = stack.pop();
             uint256_t v2 = stack.pop();
-            pc = v1 != 0 ? /*v1*/0 : pc + 1;
+            pc = v1 != 0 ? v2.cast32() : pc + 1;
             break;
         }
         case PC: { stack.push(pc); pc++; break; }
         case MSIZE: { stack.push(memory.size()); pc++; break; }
-        case GAS: { /* implement */ break; }
-        case JUMPDEST: { /* implement */ break; }
+        case GAS: { stack.push(gas); pc++; break; }
+        case JUMPDEST: { pc++; break; }
         case PUSH1: { const int n = 1; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
         case PUSH2: { const int n = 2; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
         case PUSH3: { const int n = 3; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
@@ -527,25 +623,80 @@ void vm_run()
         case SWAP14: { uint256_t v1 = stack[-1]; stack[-1] = stack[-15]; stack[-15] = v1; pc++; break; }
         case SWAP15: { uint256_t v1 = stack[-1]; stack[-1] = stack[-16]; stack[-16] = v1; pc++; break; }
         case SWAP16: { uint256_t v1 = stack[-1]; stack[-1] = stack[-17]; stack[-17] = v1; pc++; break; }
-        case LOG0: { /* implement */ break; }
-        case LOG1: { /* implement */ break; }
-        case LOG2: { /* implement */ break; }
-        case LOG3: { /* implement */ break; }
-        case LOG4: { /* implement */ break; }
-        case CREATE: { /* implement */ break; }
-        case CALL: { /* implement */ break; }
-        case CALLCODE: { /* implement */ break; }
-        case RETURN: {
-            /* implement */
+        case LOG0: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
-            // uint8_t *ret = memory.read(v1, v2);
+            uint32_t offset = v1.cast32(), size = v2.cast32();
+            uint8_t *buffer = new uint8_t[size];
+            if (buffer == nullptr) throw MEMORY_EXAUSTED;
+            memory.dump(offset, size, buffer);
+            // log owner_address, buffer
+            pc++;
+            break;
+        }
+        case LOG1: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
+            uint32_t offset = v1.cast32(), size = v2.cast32();
+            uint8_t *buffer = new uint8_t[size];
+            if (buffer == nullptr) throw MEMORY_EXAUSTED;
+            memory.dump(offset, size, buffer);
+            // log owner_address, v3, buffer
+            pc++;
+            break;
+        }
+        case LOG2: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
+            uint32_t offset = v1.cast32(), size = v2.cast32();
+            uint8_t *buffer = new uint8_t[size];
+            if (buffer == nullptr) throw MEMORY_EXAUSTED;
+            memory.dump(offset, size, buffer);
+            // log owner_address, v3, v4, buffer
+            pc++;
+            break;
+        }
+        case LOG3: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop(), v5 = stack.pop();
+            uint32_t offset = v1.cast32(), size = v2.cast32();
+            uint8_t *buffer = new uint8_t[size];
+            if (buffer == nullptr) throw MEMORY_EXAUSTED;
+            memory.dump(offset, size, buffer);
+            // log owner_address, v3, v4, v5, buffer
+            pc++;
+            break;
+        }
+        case LOG4: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop(), v5 = stack.pop(), v6 = stack.pop();
+            uint32_t offset = v1.cast32(), size = v2.cast32();
+            uint8_t *buffer = new uint8_t[size];
+            if (buffer == nullptr) throw MEMORY_EXAUSTED;
+            memory.dump(offset, size, buffer);
+            // log owner_address, v3, v4, v5, v6, buffer
+            pc++;
+            break;
+        }
+        case CREATE: throw UNIMPLEMENTED;
+        case CALL: throw UNIMPLEMENTED;
+        case CALLCODE: throw UNIMPLEMENTED;
+        case RETURN: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop();
+            uint32_t offset = v1.cast32(), size = v2.cast32();
+            uint8_t *buffer = new uint8_t[size];
+            if (buffer == nullptr) throw MEMORY_EXAUSTED;
+            memory.dump(offset, size, buffer);
             pc++;
             return;
         }
-        case DELEGATECALL: { /* implement */ break; }
-        case STATICCALL: { /* implement */ break; }
-        case REVERT: { /* implement */ break; }
-        case INVALID: { throw INVALID_OPCODE; }
+        case DELEGATECALL: throw UNIMPLEMENTED;
+        case CREATE2: throw UNIMPLEMENTED;
+        case STATICCALL: throw UNIMPLEMENTED;
+        case REVERT: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop();
+            uint32_t offset = v1.cast32(), size = v2.cast32();
+            uint8_t *buffer = new uint8_t[size];
+            if (buffer == nullptr) throw MEMORY_EXAUSTED;
+            memory.dump(offset, size, buffer);
+            pc++;
+            return;
+        }
         case SELFDESTRUCT: { return; }
         default: throw INVALID_OPCODE;
         }
@@ -554,6 +705,10 @@ void vm_run()
 
 int main(int argc, char *argv[])
 {
+    uint256_t x = 0xa8b4c2d1;
+    std::cout << x << std::endl;
+    std::cout << (x << (217)) << std::endl;
+    std::cout << ((x << (217)) >> 219) << std::endl;
     try {
         vm_run();
     } catch (Error e) {
