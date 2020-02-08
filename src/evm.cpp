@@ -6,6 +6,7 @@
 enum Error {
     MEMORY_EXAUSTED = 1,
     ILLEGAL_TARGET,
+    ILLEGAL_UPDATE,
     INVALID_OPCODE,
     STACK_OVERFLOW,
     STACK_UNDERFLOW,
@@ -376,21 +377,56 @@ public:
             buffer[i] = (*this)[offset+i];
         }
     }
-    inline void burn(uint32_t offset, uint32_t size, uint8_t *buffer) {
+    inline void burn(uint32_t offset, uint32_t size, const uint8_t *buffer) {
         for (uint32_t i = 0; i < size; i++) {
             (*this)[offset+i] = buffer[i];
         }
     }
 };
 
-uint256_t get_balance(uint256_t address)
+uint256_t balance_of(uint256_t address)
 {
-    return 0;
+    throw UNIMPLEMENTED;
 }
 
-uint256_t code_size_at(uint256_t address)
+uint32_t code_size_at(uint256_t address)
 {
-    return 0;
+    throw UNIMPLEMENTED;
+}
+
+const uint8_t *code_at(uint256_t address)
+{
+    throw UNIMPLEMENTED;
+}
+
+uint32_t block_timestamp()
+{
+    throw UNIMPLEMENTED;
+}
+
+uint256_t block_coinbase()
+{
+    throw UNIMPLEMENTED;
+}
+
+uint256_t block_hash(uint32_t index)
+{
+    throw UNIMPLEMENTED;
+}
+
+uint256_t code_hash_at(uint256_t address)
+{
+    throw UNIMPLEMENTED;
+}
+
+uint32_t block_number()
+{
+    throw UNIMPLEMENTED;
+}
+
+uint256_t block_difficulty()
+{
+    throw UNIMPLEMENTED;
 }
 
 void vm_run()
@@ -403,7 +439,7 @@ void vm_run()
     uint8_t input[1];
     uint256_t caller_address;
     // transaction value
-    uint8_t code[] = { PUSH2, 0x00, 0x00, PUSH3, 0x00, 0x00, 0x00, ADD, PUSH1, 0x00, RETURN };
+    const uint8_t code[] = { PUSH2, 0x00, 0x00, PUSH3, 0x00, 0x00, 0x00, ADD, PUSH1, 0x00, RETURN };
     uint32_t code_size = 11;
     // block header
     uint32_t call_depth;
@@ -467,7 +503,7 @@ void vm_run()
         }
         case BALANCE: {
             uint256_t v1 = stack.pop();
-            uint256_t v2 = get_balance(v1);
+            uint256_t v2 = balance_of(v1);
             stack.push(v2);
             pc++;
             break;
@@ -484,17 +520,53 @@ void vm_run()
             pc++;
             break;
         }
-        case CALLVALUE: throw UNIMPLEMENTED;
-        case CALLDATALOAD: throw UNIMPLEMENTED;
-        case CALLDATASIZE: throw UNIMPLEMENTED;
-        case CALLDATACOPY: throw UNIMPLEMENTED;
+        case CALLVALUE: {
+            uint256_t call_value = 0 /*getCallValue()*/;
+            stack.push(call_value);
+            pc++;
+            break;
+        }
+        case CALLDATALOAD: {
+            uint256_t v1 = stack.pop();
+            uint256_t value = 0/*getDataValue(v1)*/;
+            stack.push(value);
+            pc++;
+            break;
+        }
+        case CALLDATASIZE: {
+            uint256_t data_size = 0/*getDataSize()*/;
+            stack.push(data_size);
+            pc++;
+            break;
+        }
+        case CALLDATACOPY: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
+            uint32_t offset1 = v1.cast32();
+            uint32_t offset2 = v2.cast32();
+            uint32_t size = v3.cast32();
+            const uint8_t *data = nullptr/*getData()*/;
+            uint32_t data_size = 0/*getDataSize()*/;
+            if (offset2 + size > data_size) size = data_size - offset2;
+            memory.burn(offset1, size, &data[offset2]);
+            pc++;
+            break;
+        }
         case CODESIZE: {
             uint256_t v1 = code_size;
             stack.push(v1);
             pc++;
             break;
         }
-        case CODECOPY: throw UNIMPLEMENTED;
+        case CODECOPY: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
+            uint32_t offset1 = v1.cast32();
+            uint32_t offset2 = v2.cast32();
+            uint32_t size = v3.cast32();
+            if (offset2 + size > code_size) size = code_size - offset2;
+            memory.burn(offset1, size, &code[offset2]);
+            pc++;
+            break;
+        }
         case GASPRICE: {
             uint256_t v1 = gas_price;
             stack.push(v1);
@@ -508,15 +580,76 @@ void vm_run()
             pc++;
             break;
         }
-        case EXTCODECOPY: throw UNIMPLEMENTED;
-        case RETURNDATASIZE: throw UNIMPLEMENTED;
-        case RETURNDATACOPY: throw UNIMPLEMENTED;
-        case EXTCODEHASH: throw UNIMPLEMENTED;
-        case BLOCKHASH: throw UNIMPLEMENTED;
-        case COINBASE: throw UNIMPLEMENTED;
-        case TIMESTAMP: throw UNIMPLEMENTED;
-        case NUMBER: throw UNIMPLEMENTED;
-        case DIFFICULTY: throw UNIMPLEMENTED;
+        case EXTCODECOPY: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
+            uint32_t address = v1.cast32();
+            uint32_t offset1 = v2.cast32();
+            uint32_t offset2 = v3.cast32();
+            uint32_t size = v4.cast32();
+            const uint8_t *code = code_at(address);
+            uint32_t code_size = code_size_at(address);
+            if (offset2 + size > code_size) size = code_size - offset2;
+            memory.burn(offset1, size, &code[offset2]);
+            pc++;
+            break;
+        }
+        case RETURNDATASIZE: {
+            uint256_t return_size = 0/*getReturnDataBufferSize()*/;
+            stack.push(return_size);
+            pc++;
+            break;
+        }
+        case RETURNDATACOPY: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
+            uint32_t offset1 = v1.cast32();
+            uint32_t offset2 = v2.cast32();
+            uint32_t size = v3.cast32();
+            uint32_t return_size = 0/*getReturnDataBufferSize()*/;
+            const uint8_t *return_data = nullptr/*getReturnDataBuffer()*/;
+            if (offset2 + size > return_size) size = return_size - offset2;
+            memory.burn(offset1, size, &return_data[offset2]);
+            pc++;
+            break;
+        }
+        case EXTCODEHASH: {
+            uint256_t v1 = stack.pop();
+            uint256_t hash = code_hash_at(v1);
+            stack.push(hash);
+            pc++;
+            break;
+        }
+        case BLOCKHASH: {
+            uint256_t v1 = stack.pop();
+            uint32_t index = v1.cast32();
+            uint256_t hash = block_hash(index);
+            stack.push(hash);
+            pc++;
+            break;
+        }
+        case COINBASE: {
+            uint256_t coinbase = block_coinbase();
+            stack.push(coinbase);
+            pc++;
+            break;
+        }
+        case TIMESTAMP: {
+            uint32_t timestamp = block_timestamp();
+            stack.push(timestamp);
+            pc++;
+            break;
+        }
+        case NUMBER: {
+            uint32_t number = block_number();
+            stack.push(number);
+            pc++;
+            break;
+        }
+        case DIFFICULTY: {
+            uint256_t difficulty = block_difficulty();
+            stack.push(difficulty);
+            pc++;
+            break;
+        }
         case GASLIMIT: {
             uint256_t v1 = gas_limit;
             stack.push(v1);
@@ -539,9 +672,28 @@ void vm_run()
             pc++;
             break;
         }
-        case MSTORE8: throw UNIMPLEMENTED;
-        case SLOAD: throw UNIMPLEMENTED;
-        case SSTORE: throw UNIMPLEMENTED;
+        case MSTORE8: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop();
+            uint8_t buffer[1];
+            buffer[0] = v2.cast32() & 0xff;
+            memory.burn(v1.cast32(), 1, buffer);
+            pc++;
+            break;
+        }
+        case SLOAD: {
+            uint256_t v1 = stack.pop();
+            uint256_t value = 0/*storage.load(v1)*/;
+            stack.push(value);
+            pc++;
+            break;
+        }
+        case SSTORE: {
+            if (false/*isStaticCall()*/) throw ILLEGAL_UPDATE;
+            uint256_t v1 = stack.pop(), v2 = stack.pop();
+            // storage.store(v1, v2);
+            pc++;
+            break;
+        }
         case JUMP: {
             uint256_t v1 = stack.pop();
             pc = v1.cast32();
