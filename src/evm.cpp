@@ -31,6 +31,7 @@ public:
     inline uint256_t& operator=(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] = v.data[i]; return *this; }
     inline uint64_t cast32() const { return data[0]; }
     inline const uint256_t sigflip() const { uint256_t v = *this; v.data[W-1] ^= 0x80000000; }
+    inline const uint256_t sar(int n) const { throw UNIMPLEMENTED; }
     inline const uint256_t operator~() const { uint256_t v; for (int i = 0; i < W; i++) v.data[i] = ~data[i]; return v; }
     inline const uint256_t operator-() const { uint256_t v = ~(*this); return ++v; }
     inline uint256_t& operator++() { for (int i = 0; i < W; i++) if (++data[i] != 0) break; return *this; }
@@ -77,7 +78,11 @@ public:
         }
         return *this;
     }
-    inline const uint256_t sigext(const uint256_t& v1) const { throw UNIMPLEMENTED; }
+    inline const uint256_t sigext(int n) const {
+        int shift = 8 * (31 - n % 32);
+        uint256_t t = *this << shift;
+        return t.sar(shift);
+    }
     friend inline const uint256_t operator+(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) += v2; }
     friend inline const uint256_t operator-(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) -= v2; }
     friend inline const uint256_t operator*(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) *= v2; }
@@ -586,7 +591,7 @@ void vm_run()
         case ADDMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push((v1 + v2) % v3); pc++; break; }
         case MULMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push((v1 * v2) % v3); pc++; break; }
         case EXP: throw UNIMPLEMENTED;
-        case SIGNEXTEND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2.sigext(v1)); pc++; break; }
+        case SIGNEXTEND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2.sigext(v1.cast32())); pc++; break; }
         case LT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < v2); pc++; break; }
         case GT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > v2); pc++; break; }
         case SLT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1.sigflip() < v2.sigflip()); pc++; break; }
@@ -606,7 +611,7 @@ void vm_run()
         }
         case SHL: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2 << v1.cast32()); pc++; break; }
         case SHR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2 >> v1.cast32()); pc++; break; }
-        case SAR: throw UNIMPLEMENTED;
+        case SAR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2.sar(v1.cast32())); pc++; break; }
         case SHA3: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t offset = v1.cast32(), size = v2.cast32();
