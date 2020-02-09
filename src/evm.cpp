@@ -180,14 +180,12 @@ static void sha3(const uint8_t *message, uint32_t size, bool compressed, uint32_
         uint32_t bitsize = 8 * size;
         uint32_t padding = (r - bitsize % r) / 8;
         uint32_t b_len = size + padding;
-        uint8_t *b = new uint8_t[b_len];
-        if (b == nullptr) throw MEMORY_EXAUSTED;
+        uint8_t b[b_len];
         for (uint32_t i = 0; i < size; i++) b[i] = message[i];
         for (uint32_t i = size; i < b_len; i++) b[i] = 0;
         b[size] |= eof;
         b[b_len-1] |= 0x80;
         sha3(b, b_len, true, r, eof, output);
-        delete b;
         return;
     }
     const uint64_t RC[24] = {
@@ -620,25 +618,21 @@ public:
     virtual uint256_t hash(uint32_t number) = 0;
 };
 
-static void vm_run(Block &block, Storage &storage, const uint8_t *code, const uint32_t code_size)
+static void vm_run(Block &block, Storage &storage, const uint8_t *code, const uint32_t code_size, const uint8_t *call_data, const uint32_t call_size, uint32_t call_depth)
 {
+    if (call_depth == 1024) return;
     uint256_t gas;
     uint256_t gas_limit;
+    uint256_t gas_price;
     uint256_t owner_address;
     uint256_t origin_address;
-    uint256_t gas_price;
-    uint8_t input[1];
     uint256_t caller_address;
     // transaction value
     // block header
-    uint32_t call_depth;
     // permissions
 
     uint256_t call_value;
     bool is_static;
-
-    const uint8_t *call_data = nullptr;
-    const uint32_t call_size = 0;
 
     const uint8_t *return_data = nullptr;
     const uint32_t return_size = 0;
@@ -685,11 +679,10 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
         case SHA3: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t offset = v1.cast32(), size = v2.cast32();
-            uint8_t *buffer = new uint8_t[size];
+            uint8_t buffer[size];
             if (buffer == nullptr) throw MEMORY_EXAUSTED;
             memory.dump(offset, size, buffer);
             uint256_t v3 = sha3(buffer, size);
-            delete buffer;
             stack.push(v3);
             pc++;
             break;
@@ -866,11 +859,9 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t offset = v1.cast32();
             uint32_t size = v2.cast32();
-            uint8_t *buffer = new uint8_t[size];
-            if (buffer == nullptr) throw MEMORY_EXAUSTED;
+            uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             // log owner_address, buffer
-            delete buffer;
             pc++;
             break;
         }
@@ -878,11 +869,9 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
             uint32_t offset = v1.cast32();
             uint32_t size = v2.cast32();
-            uint8_t *buffer = new uint8_t[size];
-            if (buffer == nullptr) throw MEMORY_EXAUSTED;
+            uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             // log owner_address, v3, buffer
-            delete buffer;
             pc++;
             break;
         }
@@ -890,11 +879,9 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             uint32_t offset = v1.cast32();
             uint32_t size = v2.cast32();
-            uint8_t *buffer = new uint8_t[size];
-            if (buffer == nullptr) throw MEMORY_EXAUSTED;
+            uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             // log owner_address, v3, v4, buffer
-            delete buffer;
             pc++;
             break;
         }
@@ -902,11 +889,9 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop(), v5 = stack.pop();
             uint32_t offset = v1.cast32();
             uint32_t size = v2.cast32();
-            uint8_t *buffer = new uint8_t[size];
-            if (buffer == nullptr) throw MEMORY_EXAUSTED;
+            uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             // log owner_address, v3, v4, v5, buffer
-            delete buffer;
             pc++;
             break;
         }
@@ -914,11 +899,9 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop(), v5 = stack.pop(), v6 = stack.pop();
             uint32_t offset = v1.cast32();
             uint32_t size = v2.cast32();
-            uint8_t *buffer = new uint8_t[size];
-            if (buffer == nullptr) throw MEMORY_EXAUSTED;
+            uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             // log owner_address, v3, v4, v5, v6, buffer
-            delete buffer;
             pc++;
             break;
         }
@@ -931,15 +914,34 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
             pc++;
             break;
         }
-        case CALL: throw UNIMPLEMENTED;
+        case CALL: {
+            uint256_t call_gas = stack.pop();
+            uint256_t code_address = stack.pop();
+            uint256_t value = stack.pop();
+            uint256_t in_offset = stack.pop();
+            uint256_t in_size = stack.pop();
+            uint256_t out_offset = stack.pop();
+            uint256_t out_size = stack.pop();
+            if (is_static && value != 0) throw ILLEGAL_UPDATE;
+
+            uint32_t call_size = in_size.cast32();
+            uint8_t call_data[call_size];
+            memory.dump(in_offset.cast32(), call_size, call_data);
+
+            // program.callToAddress(opc, call_gas, code_address, value, in_offset, in_size, out_offset, out_size);
+            const uint8_t *code = storage.code(code_address);
+            const uint32_t code_size = storage.code_size(code_address);
+            vm_run(block, storage, code, code_size, call_data, call_size, call_depth+1);
+
+            pc++;
+            break;
+        }
         case CALLCODE: throw UNIMPLEMENTED;
         case RETURN: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t offset = v1.cast32(), size = v2.cast32();
-            uint8_t *buffer = new uint8_t[size];
-            if (buffer == nullptr) throw MEMORY_EXAUSTED;
+            uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            // delete buffer;
             pc++;
             return;
         }
@@ -957,10 +959,8 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
         case REVERT: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t offset = v1.cast32(), size = v2.cast32();
-            uint8_t *buffer = new uint8_t[size];
-            if (buffer == nullptr) throw MEMORY_EXAUSTED;
+            uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            // delete buffer;
             pc++;
             return;
         }
@@ -1027,7 +1027,9 @@ static void raw(const uint8_t *buffer, uint32_t size)
         const uint8_t *code = storage.code(txn.to);
         if (code != nullptr) {
             uint32_t code_size = storage.code_size(txn.to);
-            vm_run(block, storage, code, code_size);
+            const uint8_t *call_data = nullptr;
+            uint32_t call_size = 0;
+            vm_run(block, storage, code, code_size, call_data, call_size, 0);
         } else {
             // token transfer
         }
