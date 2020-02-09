@@ -11,7 +11,9 @@ enum Error {
     ILLEGAL_UPDATE,
     INVALID_ENCODING,
     INVALID_OPCODE,
+    INVALID_SIZE,
     INVALID_TRANSACTION,
+    OUTOFBOUND_INDEX,
     STACK_OVERFLOW,
     STACK_UNDERFLOW,
     UNIMPLEMENTED,
@@ -24,19 +26,27 @@ static const char *errors[UNIMPLEMENTED+1] = {
     "ILLEGAL_UPDATE",
     "INVALID_ENCODING",
     "INVALID_OPCODE",
+    "INVALID_SIZE",
     "INVALID_TRANSACTION",
+    "OUTOFBOUND_INDEX",
     "STACK_OVERFLOW",
     "STACK_UNDERFLOW",
     "UNIMPLEMENTED",
 };
 
-/* uint256 */
+/* uintX_t */
 
-class uint256_t {
+const uint32_t _WORD = 0xdeadbeef;
+const bool BIGENDIAN = ((const uint8_t*)&_WORD)[0] == 0xde;
+
+template<int X>
+class uintX_t {
 private:
-    static constexpr int W = 8;
+    template<int Y> friend class uintX_t;
+    static constexpr int B = X / 8;
+    static constexpr int W = X / 32;
     uint32_t data[W];
-    inline int cmp(const uint256_t& v) const {
+    inline int cmp(const uintX_t& v) const {
         for (int i = 0; i < W; i++) {
             if (data[i] < v.data[i]) return -1;
             if (data[i] > v.data[i]) return 1;
@@ -44,20 +54,23 @@ private:
         return 0;
     }
 public:
-    inline uint256_t() { for (int i = 0; i < W; i++) data[i] = 0; }
-    inline uint256_t(uint32_t v) { data[0] = v; for (int i = 1; i < W; i++) data[i] = 0; }
-    inline uint256_t(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] = v.data[i]; }
-    inline uint256_t& operator=(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] = v.data[i]; return *this; }
+    inline uintX_t() {}
+    inline uintX_t(uint32_t v) { data[0] = v; for (int i = 1; i < W; i++) data[i] = 0; }
+    template<int Y> inline uintX_t(const uintX_t<Y> &v) {
+        int s = v.W < W ? v.W : W;
+        for (int i = 0; i < s; i++) data[i] = v.data[i];
+        for (int i = s; i < W; i++) data[i] = 0;
+    }
+    inline uintX_t& operator=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] = v.data[i]; return *this; }
     inline uint64_t cast32() const { return data[0]; }
-    inline const uint256_t sigflip() const { uint256_t v = *this; v.data[W-1] ^= 0x80000000; return v; }
-    inline const uint256_t sar(int n) const { throw UNIMPLEMENTED; }
-    inline const uint256_t operator~() const { uint256_t v; for (int i = 0; i < W; i++) v.data[i] = ~data[i]; return v; }
-    inline const uint256_t operator-() const { uint256_t v = ~(*this); return ++v; }
-    inline uint256_t& operator++() { for (int i = 0; i < W; i++) if (++data[i] != 0) break; return *this; }
-    inline uint256_t& operator--() { for (int i = 0; i < W; i++) if (data[i]-- != 0) break; return *this; }
-    inline const uint256_t operator++(int) { const uint256_t v = *this; ++(*this); return v; }
-    inline const uint256_t operator--(int) { const uint256_t v = *this; --(*this); return v; }
-    inline uint256_t& operator+=(const uint256_t& v)
+    inline const uintX_t sigflip() const { uintX_t v = *this; v.data[W-1] ^= 0x80000000; return v; }
+    inline const uintX_t operator~() const { uintX_t v; for (int i = 0; i < W; i++) v.data[i] = ~data[i]; return v; }
+    inline const uintX_t operator-() const { uintX_t v = ~(*this); return ++v; }
+    inline uintX_t& operator++() { for (int i = 0; i < W; i++) if (++data[i] != 0) break; return *this; }
+    inline uintX_t& operator--() { for (int i = 0; i < W; i++) if (data[i]-- != 0) break; return *this; }
+    inline const uintX_t operator++(int) { const uintX_t v = *this; ++(*this); return v; }
+    inline const uintX_t operator--(int) { const uintX_t v = *this; --(*this); return v; }
+    inline uintX_t& operator+=(const uintX_t& v)
     {
         uint64_t carry = 0;
         for (int i = 0; i < W; i++)
@@ -68,14 +81,29 @@ public:
         }
         return *this;
     }
-    inline uint256_t& operator-=(const uint256_t& v) { *this += -v; return *this; }
-    inline uint256_t& operator*=(const uint256_t& v) { throw UNIMPLEMENTED; }
-    inline uint256_t& operator/=(const uint256_t& v) { throw UNIMPLEMENTED; }
-    inline uint256_t& operator%=(const uint256_t& v) { throw UNIMPLEMENTED; }
-    inline uint256_t& operator&=(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] &= v.data[i]; return *this; }
-    inline uint256_t& operator|=(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] |= v.data[i]; return *this; }
-    inline uint256_t& operator^=(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] ^= v.data[i]; return *this; }
-    inline uint256_t& operator<<=(int n) {
+    inline uintX_t& operator-=(const uintX_t& v) { *this += -v; return *this; }
+    inline uintX_t& operator*=(const uintX_t& v) {
+        uintX_t t = *this;
+        *this = 0;
+        for (int j = 0; j < W; j++) {
+            uint64_t base = v.data[j];
+            uint64_t carry = 0;
+            for (int i = j; i < W; i++) {
+                uint64_t n = data[i] + base * t.data[i-j] + carry;
+                data[i] = n & 0xffffffff;
+                carry = n >> 32;
+            }
+        }
+        return *this;
+    }
+    inline uintX_t& operator/=(const uintX_t& v) { throw UNIMPLEMENTED; }
+    inline uintX_t& operator%=(const uintX_t& v) { *this -= (*this / v) * v; return *this; }
+    inline uintX_t& operator&=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] &= v.data[i]; return *this; }
+    inline uintX_t& operator|=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] |= v.data[i]; return *this; }
+    inline uintX_t& operator^=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] ^= v.data[i]; return *this; }
+    inline uintX_t& operator<<=(int n) {
+        if (n < 0 || n >= 8*B) throw OUTOFBOUND_INDEX;
+        if (n == 0) return *this;
         int index = n / 32;
         int shift = n % 32;
         for (int i = W - 1; i >= 0; i--) {
@@ -86,7 +114,9 @@ public:
         }
         return *this;
     }
-    inline uint256_t& operator>>=(int n) {
+    inline uintX_t& operator>>=(int n) {
+        if (n < 0 || n >= 8*B) throw OUTOFBOUND_INDEX;
+        if (n == 0) return *this;
         int index = n / 32;
         int shift = n % 32;
         for (int i = 0; i < W; i++) {
@@ -97,43 +127,105 @@ public:
         }
         return *this;
     }
-    inline const uint256_t sigext(int n) const {
-        int shift = 8 * (31 - n % 32);
-        uint256_t t = *this << shift;
-        return t.sar(shift);
+    inline const uintX_t sigext(int n) const {
+        if (n < 0 || n >= B) throw OUTOFBOUND_INDEX;
+        int shift = 8 * n;
+        uintX_t t = *this << shift;
+        return sar(t, shift);
     }
-    friend inline const uint256_t operator+(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) += v2; }
-    friend inline const uint256_t operator-(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) -= v2; }
-    friend inline const uint256_t operator*(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) *= v2; }
-    friend inline const uint256_t operator/(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) /= v2; }
-    friend inline const uint256_t operator%(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) %= v2; }
-    friend inline const uint256_t operator&(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) &= v2; }
-    friend inline const uint256_t operator|(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) |= v2; }
-    friend inline const uint256_t operator^(const uint256_t& v1, const uint256_t& v2) { return uint256_t(v1) ^= v2; }
-    friend inline const uint256_t operator<<(const uint256_t& v, int n) { return uint256_t(v) <<= n; }
-    friend inline const uint256_t operator>>(const uint256_t& v, int n) { return uint256_t(v) >>= n; }
-    friend inline bool operator==(const uint256_t& v1, const uint256_t& v2) { return v1.cmp(v2) == 0; }
-    friend inline bool operator!=(const uint256_t& v1, const uint256_t& v2) { return v1.cmp(v2) != 0; }
-    friend inline bool operator<(const uint256_t& v1, const uint256_t& v2) { return v1.cmp(v2) < 0; }
-    friend inline bool operator>(const uint256_t& v1, const uint256_t& v2) { return v1.cmp(v2) > 0; }
-    friend inline bool operator<=(const uint256_t& v1, const uint256_t& v2) { return v1.cmp(v2) <= 0; }
-    friend inline bool operator>=(const uint256_t& v1, const uint256_t& v2) { return v1.cmp(v2) >= 0; }
-    friend std::ostream& operator<<(std::ostream&, const uint256_t&);
+    friend inline const uintX_t operator+(const uintX_t& v1, const uintX_t& v2) { return uintX_t(v1) += v2; }
+    friend inline const uintX_t operator-(const uintX_t& v1, const uintX_t& v2) { return uintX_t(v1) -= v2; }
+    friend inline const uintX_t operator*(const uintX_t& v1, const uintX_t& v2) { return uintX_t(v1) *= v2; }
+    friend inline const uintX_t operator/(const uintX_t& v1, const uintX_t& v2) { return uintX_t(v1) /= v2; }
+    friend inline const uintX_t operator%(const uintX_t& v1, const uintX_t& v2) { return uintX_t(v1) %= v2; }
+    friend inline const uintX_t operator&(const uintX_t& v1, const uintX_t& v2) { return uintX_t(v1) &= v2; }
+    friend inline const uintX_t operator|(const uintX_t& v1, const uintX_t& v2) { return uintX_t(v1) |= v2; }
+    friend inline const uintX_t operator^(const uintX_t& v1, const uintX_t& v2) { return uintX_t(v1) ^= v2; }
+    friend inline const uintX_t operator<<(const uintX_t& v, int n) { return uintX_t(v) <<= n; }
+    friend inline const uintX_t operator>>(const uintX_t& v, int n) { return uintX_t(v) >>= n; }
+    friend inline bool operator==(const uintX_t& v1, const uintX_t& v2) { return v1.cmp(v2) == 0; }
+    friend inline bool operator!=(const uintX_t& v1, const uintX_t& v2) { return v1.cmp(v2) != 0; }
+    friend inline bool operator<(const uintX_t& v1, const uintX_t& v2) { return v1.cmp(v2) < 0; }
+    friend inline bool operator>(const uintX_t& v1, const uintX_t& v2) { return v1.cmp(v2) > 0; }
+    friend inline bool operator<=(const uintX_t& v1, const uintX_t& v2) { return v1.cmp(v2) <= 0; }
+    friend inline bool operator>=(const uintX_t& v1, const uintX_t& v2) { return v1.cmp(v2) >= 0; }
+    inline uint8_t operator[](int n) const {
+        if (n < 0 || n >= B) throw OUTOFBOUND_INDEX;
+        n = B - 1 - n;
+        int i = n / 4;
+        int j = n % 4;
+        int shift = 8*j;
+        return (uint8_t)(data[i] >> shift);
+    }
+    inline uint8_t& operator[](int n) {
+        if (n < 0 || n >= B) throw OUTOFBOUND_INDEX;
+        n = B - 1 - n;
+        int i = n / 4;
+        int j = n % 4;
+        if (BIGENDIAN) j = 3 - j;
+        return ((uint8_t*)&data[i])[j];
+    }
+    static inline const uintX_t sar(const uintX_t &v, int n) {
+        if (n < 0 || n >= 8*B) throw OUTOFBOUND_INDEX;
+        if (n == 0) return v;
+        uintX_t t = v;
+        bool is_neg = (t[0] & 0x80) > 0;
+        if (is_neg) t = ~t;
+        t >>= n;
+        if (is_neg) t = ~t;
+        return t;
+    }
+    static inline const uintX_t addmod(const uintX_t &v1, const uintX_t &v2, const uintX_t &v3) {
+        uintX_t<B+32> _v1 = v1;
+        uintX_t<B+32> _v2 = v2;
+        uintX_t<B+32> _v3 = v3;
+        return (_v1 + _v2) % _v3;
+    }
+    static inline const uintX_t mulmod(const uintX_t &v1, const uintX_t &v2, const uintX_t &v3) {
+        uintX_t<2*B> _v1 = v1;
+        uintX_t<2*B> _v2 = v2;
+        uintX_t<2*B> _v3 = v3;
+        return (_v1 * _v2) % _v3;
+    }
+    static inline const uintX_t from(const char *buffer) { return from((const uint8_t*)buffer); }
+    static inline const uintX_t from(const uint8_t *buffer) { return from(buffer, B); }
+    static inline const uintX_t from(const uint8_t *buffer, int size) {
+        if (size < 0 || size > B) throw INVALID_SIZE;
+        uintX_t v = 0;
+        for (int j = 0; j < size; j++) {
+            int i = j + B - size;
+            v[i] = buffer[j];
+        }
+        return v;
+    }
+    friend std::ostream& operator<<(std::ostream &os, const uintX_t &v) {
+        for (int i = 0; i < B; i++) {
+            os << std::hex << std::setw(2) << std::setfill('0') << (uint32_t)v[i];
+        }
+        return os;
+    }
 };
 
-std::ostream &operator<<(std::ostream &os, const uint256_t &v) {
-    for (int i = uint256_t::W - 1; i >= 0; i--) {
-        os << std::hex << std::setw(8) << std::setfill('0') << v.data[i];
-    }
-    return os;
-}
+class uint160_t : public uintX_t<160> {
+public:
+    inline uint160_t() {}
+    inline uint160_t(uint32_t v) : uintX_t(v) {}
+    inline uint160_t(const uintX_t& v) : uintX_t(v) {}
+};
 
-static inline const uint256_t word(const uint8_t *data, int size)
-{
-    uint256_t v = 0;
-    for (int i = 0; i < size; i++) { v <<= 8; v += data[i]; }
-    return v;
-}
+class uint256_t : public uintX_t<256> {
+public:
+    inline uint256_t() {}
+    inline uint256_t(uint32_t v) : uintX_t(v) {}
+    inline uint256_t(const uintX_t& v) : uintX_t(v) {}
+};
+
+class uint512_t : public uintX_t<512> {
+public:
+    inline uint512_t() {}
+    inline uint512_t(uint32_t v) : uintX_t(v) {}
+    inline uint512_t(const uintX_t& v) : uintX_t(v) {}
+};
 
 static inline void word(const uint256_t &v, uint8_t *data, int size)
 {
@@ -267,7 +359,7 @@ static uint256_t sha3(const uint8_t *buffer, uint32_t size)
 {
     uint8_t output[64];
     sha3(buffer, size, false, 1088, 0x01, output);
-    return word(output, 32);
+    return uint256_t::from(output);
 }
 
 /* decoder */
@@ -293,7 +385,7 @@ uint256_t parse_nlzint(const uint8_t *&b, uint32_t &s, uint32_t l)
     if (s < l) throw INVALID_ENCODING;
     if (b[0] == 0) throw INVALID_ENCODING;
     if (l > 32) throw INVALID_ENCODING;
-    uint256_t v = word(b, l);
+    uint256_t v = uint256_t::from(b, l);
     b += l; s -= l;
     return v;
 }
@@ -409,7 +501,7 @@ struct txn decode_txn(const uint8_t *buffer, uint32_t size)
         txn.has_to = rlp.list[3].size > 0;
         if (txn.has_to) {
             if (rlp.list[3].size != 20) throw INVALID_TRANSACTION;
-            txn.to = word(rlp.list[3].data, rlp.list[3].size);
+            txn.to = uint256_t::from(rlp.list[3].data, rlp.list[3].size);
         }
         txn.value = parse_nlzint(rlp.list[4].data, rlp.list[4].size);
         txn.data_size = rlp.list[5].size;
@@ -511,8 +603,8 @@ private:
 public:
     inline const uint256_t pop() { if (top == 0) throw STACK_UNDERFLOW;  return data[--top]; }
     inline void push(const uint256_t& v) { if (top == L) throw STACK_OVERFLOW; data[top++] = v; }
-    inline uint256_t operator [](int i) const { return data[i < 0 ? top - i: i]; }
-    inline uint256_t& operator [](int i) { return data[i < 0 ? top - i: i]; }
+    inline uint256_t operator[](int i) const { return data[i < 0 ? top - i: i]; }
+    inline uint256_t& operator[](int i) { return data[i < 0 ? top - i: i]; }
 };
 
 class Memory {
@@ -528,14 +620,14 @@ public:
         delete pages;
     }
     inline uint32_t size() const { return limit; }
-    inline uint8_t operator [](uint32_t i) const {
+    inline uint8_t operator[](uint32_t i) const {
         uint32_t page_index = i / P;
         uint32_t byte_index = i % P;
         if (page_index >= page_count) return 0;
         if (pages[page_index] == nullptr) return 0;
         return pages[page_index][byte_index];
     }
-    inline uint8_t& operator [](uint32_t i) {
+    inline uint8_t& operator[](uint32_t i) {
         uint32_t page_index = i / P;
         uint32_t byte_index = i % P;
         if (page_index >= page_count) {
@@ -557,7 +649,7 @@ public:
     inline uint256_t load(uint32_t offset) const {
         uint8_t buffer[32];
         dump(offset, 32, buffer);
-        return word(buffer, 32);
+        return uint256_t::from(buffer);
     }
     inline void store(uint32_t offset, const uint256_t& v) {
         uint8_t buffer[32];
@@ -651,11 +743,33 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
         case MUL: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 * v2); pc++; break; }
         case SUB: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 - v2); pc++; break; }
         case DIV: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 / v2); pc++; break; }
-        case SDIV: throw UNIMPLEMENTED;
+        case SDIV: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop();
+            bool is_neg1 = (v1[0] & 0x80) > 0;
+            bool is_neg2 = (v2[0] & 0x80) > 0;
+            if (is_neg1) v1 = -v1;
+            if (is_neg2) v2 = -v2;
+            uint256_t v3 = v1 / v2;
+            if (is_neg1 != is_neg2) v3 = -v3;
+            stack.push(v3);
+            pc++;
+            break;
+        }
         case MOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 % v2); pc++; break; }
-        case SMOD: throw UNIMPLEMENTED;
-        case ADDMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push((v1 + v2) % v3); pc++; break; }
-        case MULMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push((v1 * v2) % v3); pc++; break; }
+        case SMOD: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop();
+            bool is_neg1 = (v1[0] & 0x80) > 0;
+            bool is_neg2 = (v2[0] & 0x80) > 0;
+            if (is_neg1) v1 = -v1;
+            if (is_neg2) v2 = -v2;
+            uint256_t v3 = v1 % v2;
+            if (is_neg1) v3 = -v3;
+            stack.push(v3);
+            pc++;
+            break;
+        }
+        case ADDMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(uint256_t::addmod(v1, v2, v3)); pc++; break; }
+        case MULMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(uint256_t::mulmod(v1, v2, v3)); pc++; break; }
         case EXP: throw UNIMPLEMENTED;
         case SIGNEXTEND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2.sigext(v1.cast32())); pc++; break; }
         case LT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < v2); pc++; break; }
@@ -668,16 +782,10 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
         case OR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 | v2); pc++; break; }
         case XOR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 ^ v2); pc++; break; }
         case NOT: { uint256_t v1 = stack.pop(), v2 = ~v1; stack.push(v2); pc++; break; }
-        case BYTE: {
-            uint256_t v1 = stack.pop(), v2 = stack.pop();
-            uint8_t buffer[32];
-            word(v2, buffer, 32);
-            stack.push(v1 < 32 ? buffer[v1.cast32()] : 0);
-            pc++;
-        }
+        case BYTE: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2[v1.cast32()]); pc++; }
         case SHL: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2 << v1.cast32()); pc++; break; }
         case SHR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2 >> v1.cast32()); pc++; break; }
-        case SAR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2.sar(v1.cast32())); pc++; break; }
+        case SAR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(uint256_t::sar(v2, v1.cast32())); pc++; break; }
         case SHA3: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t offset = v1.cast32(), size = v2.cast32();
@@ -793,38 +901,38 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
         case MSIZE: { stack.push(memory.size()); pc++; break; }
         case GAS: { stack.push(gas); pc++; break; }
         case JUMPDEST: { pc++; break; }
-        case PUSH1: { const int n = 1; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH2: { const int n = 2; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH3: { const int n = 3; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH4: { const int n = 4; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH5: { const int n = 5; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH6: { const int n = 6; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH7: { const int n = 7; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH8: { const int n = 8; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH9: { const int n = 9; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH10: { const int n = 10; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH11: { const int n = 11; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH12: { const int n = 12; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH13: { const int n = 13; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH14: { const int n = 14; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH15: { const int n = 15; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH16: { const int n = 16; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH17: { const int n = 17; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH18: { const int n = 18; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH19: { const int n = 19; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH20: { const int n = 20; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH21: { const int n = 21; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH22: { const int n = 22; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH23: { const int n = 23; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH24: { const int n = 24; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH25: { const int n = 25; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH26: { const int n = 26; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH27: { const int n = 27; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH28: { const int n = 28; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH29: { const int n = 29; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH30: { const int n = 30; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH31: { const int n = 31; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
-        case PUSH32: { const int n = 32; uint256_t v1 = word(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH1: { const int n = 1; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH2: { const int n = 2; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH3: { const int n = 3; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH4: { const int n = 4; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH5: { const int n = 5; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH6: { const int n = 6; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH7: { const int n = 7; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH8: { const int n = 8; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH9: { const int n = 9; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH10: { const int n = 10; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH11: { const int n = 11; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH12: { const int n = 12; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH13: { const int n = 13; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH14: { const int n = 14; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH15: { const int n = 15; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH16: { const int n = 16; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH17: { const int n = 17; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH18: { const int n = 18; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH19: { const int n = 19; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH20: { const int n = 20; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH21: { const int n = 21; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH22: { const int n = 22; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH23: { const int n = 23; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH24: { const int n = 24; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH25: { const int n = 25; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH26: { const int n = 26; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH27: { const int n = 27; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH28: { const int n = 28; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH29: { const int n = 29; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH30: { const int n = 30; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH31: { const int n = 31; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
+        case PUSH32: { const int n = 32; uint256_t v1 = uint256_t::from(&code[pc+1], n); stack.push(v1); pc += 1 + n; break; }
         case DUP1: { uint256_t v1 = stack[-1]; stack.push(v1); pc++; break; }
         case DUP2: { uint256_t v1 = stack[-2]; stack.push(v1); pc++; break; }
         case DUP3: { uint256_t v1 = stack[-3]; stack.push(v1); pc++; break; }
