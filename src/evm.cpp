@@ -64,7 +64,7 @@ public:
         for (int i = s; i < W; i++) data[i] = 0;
     }
     inline uintX_t& operator=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] = v.data[i]; return *this; }
-    inline uint64_t cast32() const { return data[0]; }
+    inline uint32_t cast32() const { return data[0]; }
     inline const uintX_t sigflip() const { uintX_t v = *this; v.data[W-1] ^= 0x80000000; return v; }
     inline const uintX_t operator~() const { uintX_t v; for (int i = 0; i < W; i++) v.data[i] = ~data[i]; return v; }
     inline const uintX_t operator-() const { uintX_t v = ~(*this); return ++v; }
