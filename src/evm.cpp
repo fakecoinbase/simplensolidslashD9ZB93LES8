@@ -175,6 +175,18 @@ public:
         if (is_neg) t = ~t;
         return t;
     }
+    static inline const uintX_t pow(const uintX_t &v1, const uintX_t &v2) {
+        uintX_t x1 = 1;
+        uintX_t x2 = v1;
+        for (int n = 8*B - 1; n >= 0; n--) {
+            int i = n / 32;
+            int j = n % 32;
+            uintX_t t = (v2.data[i] & (1 << j)) == 0 ? x1 : x2;
+            x1 *= t;
+            x2 *= t;
+        }
+        return x1;
+    }
     static inline const uintX_t addmod(const uintX_t &v1, const uintX_t &v2, const uintX_t &v3) {
         uintX_t<B+32> _v1 = v1;
         uintX_t<B+32> _v2 = v2;
@@ -770,7 +782,7 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
         }
         case ADDMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(uint256_t::addmod(v1, v2, v3)); pc++; break; }
         case MULMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(uint256_t::mulmod(v1, v2, v3)); pc++; break; }
-        case EXP: throw UNIMPLEMENTED;
+        case EXP: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(uint256_t::pow(v1, v2)); pc++; break; }
         case SIGNEXTEND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2.sigext(v1.cast32())); pc++; break; }
         case LT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < v2); pc++; break; }
         case GT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > v2); pc++; break; }
