@@ -6,7 +6,8 @@
 /* error */
 
 enum Error {
-    MEMORY_EXAUSTED = 1,
+    DIVIDES_ZERO = 1,
+    MEMORY_EXAUSTED,
     ILLEGAL_TARGET,
     ILLEGAL_UPDATE,
     INVALID_ENCODING,
@@ -21,6 +22,7 @@ enum Error {
 
 static const char *errors[UNIMPLEMENTED+1] = {
     nullptr,
+    "DIVIDES_ZERO",
     "MEMORY_EXAUSTED",
     "ILLEGAL_TARGET",
     "ILLEGAL_UPDATE",
@@ -47,7 +49,7 @@ private:
     static constexpr int W = X / 32;
     uint32_t data[W];
     inline int cmp(const uintX_t& v) const {
-        for (int i = 0; i < W; i++) {
+        for (int i = W-1; i >= 0; i--) {
             if (data[i] < v.data[i]) return -1;
             if (data[i] > v.data[i]) return 1;
         }
@@ -75,7 +77,7 @@ public:
         uint64_t carry = 0;
         for (int i = 0; i < W; i++)
         {
-            uint64_t n = data[i] + v.data[i] + carry;
+            uint64_t n = data[i] + (v.data[i] + carry);
             data[i] = n & 0xffffffff;
             carry = n >> 32;
         }
@@ -96,8 +98,8 @@ public:
         }
         return *this;
     }
-    inline uintX_t& operator/=(const uintX_t& v) { throw UNIMPLEMENTED; }
-    inline uintX_t& operator%=(const uintX_t& v) { *this -= (*this / v) * v; return *this; }
+    inline uintX_t& operator/=(const uintX_t& v) { uintX_t t1 = *this, t2; divmod(t1, v, *this, t2); return *this; }
+    inline uintX_t& operator%=(const uintX_t& v) { uintX_t t1 = *this, t2; divmod(t1, v, t2, *this); return *this; }
     inline uintX_t& operator&=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] &= v.data[i]; return *this; }
     inline uintX_t& operator|=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] |= v.data[i]; return *this; }
     inline uintX_t& operator^=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] ^= v.data[i]; return *this; }
@@ -175,6 +177,30 @@ public:
         if (is_neg) t = ~t;
         return t;
     }
+    static inline void divmod(const uintX_t &num, const uintX_t &div, uintX_t &quo, uintX_t &rem) {
+        if (div == 0) throw DIVIDES_ZERO;
+        quo = 0;
+        rem = num;
+        int shift = 0;
+        uintX_t<X+32> _num = num;
+        uintX_t<X+32> _div = div;
+        while (_div < _num) {
+            _div <<= 32;
+            shift += 32;
+        }
+        if (shift == 0) return;
+        while (shift >= 0) {
+            if (_num >= _div) {
+                _num -= _div;
+                int i = shift / 32;
+                int j = shift % 32;
+                quo.data[i] |= 1 << j;
+            }
+            _div >>= 1;
+            shift--;
+        }
+        rem = _num;
+    }
     static inline const uintX_t pow(const uintX_t &v1, const uintX_t &v2) {
         uintX_t x1 = 1;
         uintX_t x2 = v1;
@@ -188,15 +214,15 @@ public:
         return x1;
     }
     static inline const uintX_t addmod(const uintX_t &v1, const uintX_t &v2, const uintX_t &v3) {
-        uintX_t<B+32> _v1 = v1;
-        uintX_t<B+32> _v2 = v2;
-        uintX_t<B+32> _v3 = v3;
+        uintX_t<X+32> _v1 = v1;
+        uintX_t<X+32> _v2 = v2;
+        uintX_t<X+32> _v3 = v3;
         return (_v1 + _v2) % _v3;
     }
     static inline const uintX_t mulmod(const uintX_t &v1, const uintX_t &v2, const uintX_t &v3) {
-        uintX_t<2*B> _v1 = v1;
-        uintX_t<2*B> _v2 = v2;
-        uintX_t<2*B> _v3 = v3;
+        uintX_t<2*X> _v1 = v1;
+        uintX_t<2*X> _v2 = v2;
+        uintX_t<2*X> _v3 = v3;
         return (_v1 * _v2) % _v3;
     }
     static inline const uintX_t from(const char *buffer) { return from((const uint8_t*)buffer); }
