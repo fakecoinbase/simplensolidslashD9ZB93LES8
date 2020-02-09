@@ -1,4 +1,4 @@
-CPPC=g++ -std=c++11 -Os
+CPPC=g++ -std=c++14 -pedantic -Wall -Wno-vla -Wno-unused-variable -Wno-unused-but-set-variable -Os
 CPPFLAGS=
 
 CL=g++ -s

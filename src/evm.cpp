@@ -49,7 +49,7 @@ public:
     inline uint256_t(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] = v.data[i]; }
     inline uint256_t& operator=(const uint256_t& v) { for (int i = 0; i < W; i++) data[i] = v.data[i]; return *this; }
     inline uint64_t cast32() const { return data[0]; }
-    inline const uint256_t sigflip() const { uint256_t v = *this; v.data[W-1] ^= 0x80000000; }
+    inline const uint256_t sigflip() const { uint256_t v = *this; v.data[W-1] ^= 0x80000000; return v; }
     inline const uint256_t sar(int n) const { throw UNIMPLEMENTED; }
     inline const uint256_t operator~() const { uint256_t v; for (int i = 0; i < W; i++) v.data[i] = ~data[i]; return v; }
     inline const uint256_t operator-() const { uint256_t v = ~(*this); return ++v; }
@@ -128,14 +128,14 @@ std::ostream &operator<<(std::ostream &os, const uint256_t &v) {
     return os;
 }
 
-static const uint256_t word(const uint8_t *data, int size)
+static inline const uint256_t word(const uint8_t *data, int size)
 {
     uint256_t v = 0;
     for (int i = 0; i < size; i++) { v <<= 8; v += data[i]; }
     return v;
 }
 
-static void word(const uint256_t &v, uint8_t *data, int size)
+static inline void word(const uint256_t &v, uint8_t *data, int size)
 {
     for (int i = 0; i < size; i++) {
         data[size - i - 1] = (v >> 8 * i).cast32() & 0xff;
@@ -212,9 +212,9 @@ static void sha3(const uint8_t *message, uint32_t size, bool compressed, uint32_
         }
     }
     uint32_t k = r / 64;
-    for (int j = 0; j < size/8; j += k) {
+    for (uint32_t j = 0; j < size/8; j += k) {
         uint64_t w[25];
-        for (int i = 0; i < k; i++) {
+        for (uint32_t i = 0; i < k; i++) {
             w[i] = b2w(&message[8*(j+i)]);
         }
         for (int i = k; i < 25; i++) {
@@ -340,7 +340,7 @@ struct rlp {
 void free_rlp(struct rlp &rlp)
 {
     if (rlp.is_list) {
-        for (uint32_t i; i < rlp.size; i++) free_rlp(rlp.list[i]);
+        for (uint32_t i = 0; i < rlp.size; i++) free_rlp(rlp.list[i]);
         delete rlp.list;
         rlp.size = 0;
         rlp.list = nullptr;
@@ -584,6 +584,13 @@ struct account {
     uint256_t code_hash;
 };
 
+struct substate {
+    uint256_t *destruct;
+    void *log_series;
+    uint256_t *touched;
+    uint256_t refund;
+};
+
 class Storage {
 protected:
     virtual struct account *find_account(const uint256_t &address) = 0;
@@ -618,24 +625,19 @@ public:
     virtual uint256_t hash(uint32_t number) = 0;
 };
 
-static void vm_run(Block &block, Storage &storage, const uint8_t *code, const uint32_t code_size, const uint8_t *call_data, const uint32_t call_size, uint32_t call_depth)
+static void vm_run(Block &block, Storage &storage, const uint8_t *code, const uint32_t code_size, const uint8_t *call_data, const uint32_t call_size, uint8_t *return_data, const uint8_t return_size, uint32_t depth)
 {
-    if (call_depth == 1024) return;
+    if (depth == 1024) return;
     uint256_t gas;
     uint256_t gas_limit;
     uint256_t gas_price;
     uint256_t owner_address;
     uint256_t origin_address;
     uint256_t caller_address;
-    // transaction value
-    // block header
+    uint256_t call_value;
     // permissions
 
-    uint256_t call_value;
-    bool is_static;
-
-    const uint8_t *return_data = nullptr;
-    const uint32_t return_size = 0;
+    bool is_static = false;
 
     uint32_t pc = 0;
     Stack stack;
@@ -924,14 +926,18 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
             uint256_t out_size = stack.pop();
             if (is_static && value != 0) throw ILLEGAL_UPDATE;
 
-            uint32_t call_size = in_size.cast32();
+            const uint32_t return_size = out_size.cast32();
+            uint8_t return_data[return_size];
+
+            const uint32_t call_size = in_size.cast32();
             uint8_t call_data[call_size];
             memory.dump(in_offset.cast32(), call_size, call_data);
 
-            // program.callToAddress(opc, call_gas, code_address, value, in_offset, in_size, out_offset, out_size);
             const uint8_t *code = storage.code(code_address);
             const uint32_t code_size = storage.code_size(code_address);
-            vm_run(block, storage, code, code_size, call_data, call_size, call_depth+1);
+            vm_run(block, storage, code, code_size, call_data, call_size, return_data, return_size, depth+1);
+
+            memory.burn(out_offset.cast32(), return_size, return_data);
 
             pc++;
             break;
@@ -1024,12 +1030,14 @@ static void raw(const uint8_t *buffer, uint32_t size)
     struct txn txn = decode_txn(buffer, size);
     // call
     if (txn.has_to) {
+        const uint32_t code_size = storage.code_size(txn.to);
         const uint8_t *code = storage.code(txn.to);
         if (code != nullptr) {
-            uint32_t code_size = storage.code_size(txn.to);
+            const uint32_t call_size = 0;
             const uint8_t *call_data = nullptr;
-            uint32_t call_size = 0;
-            vm_run(block, storage, code, code_size, call_data, call_size, 0);
+            const uint32_t return_size = 0;
+            uint8_t *return_data = nullptr;
+            vm_run(block, storage, code, code_size, call_data, call_size, return_data, return_size, 0);
         } else {
             // token transfer
         }
@@ -1050,7 +1058,7 @@ static inline int hex(char c)
 
 static inline int parse_hex(const char *hexstr, uint8_t *buffer, uint32_t size)
 {
-    for (int i = 0; i < size; i++) {
+    for (uint32_t i = 0; i < size; i++) {
         int hi = hex(hexstr[2*i]);
         int lo = hex(hexstr[2*i+1]);
         if (hi < 0 || lo < 0) return 0;
