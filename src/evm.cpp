@@ -236,6 +236,14 @@ public:
         }
         return v;
     }
+    static inline void to(const uintX_t &v, uint8_t *buffer) { to(v, buffer, B); }
+    static inline void to(const uintX_t &v, uint8_t *buffer, int size) {
+        if (size < 0 || size > B) throw INVALID_SIZE;
+        for (int j = 0; j < size; j++) {
+            int i = j + B - size;
+            buffer[j] = v[i];
+        }
+    }
     friend std::ostream& operator<<(std::ostream &os, const uintX_t &v) {
         for (int i = 0; i < B; i++) {
             os << std::hex << std::setw(2) << std::setfill('0') << (uint32_t)v[i];
@@ -264,13 +272,6 @@ public:
     inline uint512_t(uint32_t v) : uintX_t(v) {}
     inline uint512_t(const uintX_t& v) : uintX_t(v) {}
 };
-
-static inline void word(const uint256_t &v, uint8_t *data, int size)
-{
-    for (int i = 0; i < size; i++) {
-        data[size - i - 1] = (v >> 8 * i).cast32() & 0xff;
-    }
-}
 
 /* crypto */
 
@@ -691,7 +692,7 @@ public:
     }
     inline void store(uint32_t offset, const uint256_t& v) {
         uint8_t buffer[32];
-        word(v, buffer, 32);
+        uint256_t::to(v, buffer);
         burn(offset, 32, buffer);
     }
     inline void dump(uint32_t offset, uint32_t size, uint8_t *buffer) const {
