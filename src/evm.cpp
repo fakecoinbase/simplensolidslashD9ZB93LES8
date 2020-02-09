@@ -1203,15 +1203,15 @@ static inline int hex(char c)
     return -1;
 }
 
-static inline int parse_hex(const char *hexstr, uint8_t *buffer, uint32_t size)
+static inline bool parse_hex(const char *hexstr, uint8_t *buffer, uint32_t size)
 {
     for (uint32_t i = 0; i < size; i++) {
         int hi = hex(hexstr[2*i]);
         int lo = hex(hexstr[2*i+1]);
-        if (hi < 0 || lo < 0) return 0;
+        if (hi < 0 || lo < 0) return false;
         buffer[i] = hi << 4 | lo;
     }
-    return 1;
+    return true;
 }
 
 int main(int argc, const char *argv[])
