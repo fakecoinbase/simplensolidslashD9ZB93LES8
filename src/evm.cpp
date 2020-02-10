@@ -104,7 +104,7 @@ public:
     inline uintX_t& operator|=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] |= v.data[i]; return *this; }
     inline uintX_t& operator^=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] ^= v.data[i]; return *this; }
     inline uintX_t& operator<<=(int n) {
-        if (n < 0 || n >= 8*B) throw OUTOFBOUND_INDEX;
+        if (n < 0 || n >= X) throw OUTOFBOUND_INDEX;
         if (n == 0) return *this;
         int index = n / 32;
         int shift = n % 32;
@@ -117,7 +117,7 @@ public:
         return *this;
     }
     inline uintX_t& operator>>=(int n) {
-        if (n < 0 || n >= 8*B) throw OUTOFBOUND_INDEX;
+        if (n < 0 || n >= X) throw OUTOFBOUND_INDEX;
         if (n == 0) return *this;
         int index = n / 32;
         int shift = n % 32;
@@ -168,7 +168,7 @@ public:
         return ((uint8_t*)&data[i])[j];
     }
     static inline const uintX_t sar(const uintX_t &v, int n) {
-        if (n < 0 || n >= 8*B) throw OUTOFBOUND_INDEX;
+        if (n < 0 || n >= X) throw OUTOFBOUND_INDEX;
         if (n == 0) return v;
         uintX_t t = v;
         bool is_neg = (t[0] & 0x80) > 0;
@@ -204,7 +204,7 @@ public:
     static inline const uintX_t pow(const uintX_t &v1, const uintX_t &v2) {
         uintX_t x1 = 1;
         uintX_t x2 = v1;
-        for (int n = 8*B - 1; n >= 0; n--) {
+        for (int n = X - 1; n >= 0; n--) {
             int i = n / 32;
             int j = n % 32;
             uintX_t t = (v2.data[i] & (1 << j)) == 0 ? x1 : x2;
@@ -225,7 +225,8 @@ public:
         uintX_t<2*X> _v3 = v3;
         return (_v1 * _v2) % _v3;
     }
-    static inline const uintX_t from(const char *buffer) { return from((const uint8_t*)buffer); }
+    static inline const uintX_t from(const char *buffer) { return from(buffer, B); }
+    static inline const uintX_t from(const char *buffer, int size) { return from((const uint8_t*)buffer, size); }
     static inline const uintX_t from(const uint8_t *buffer) { return from(buffer, B); }
     static inline const uintX_t from(const uint8_t *buffer, int size) {
         if (size < 0 || size > B) throw INVALID_SIZE;
@@ -400,6 +401,135 @@ static uint256_t sha3(const uint8_t *buffer, uint32_t size)
     sha3(buffer, size, false, 1088, 0x01, output);
     return uint256_t::from(output);
 }
+
+/* secp256k1 */
+
+const uint256_t _N[2] = {
+    uint256_t::from("\xfe\xff\xff\xfc\x2f", 5).sigext(27),
+    uint256_t::from("\xfe\xba\xae\xdc\xe6\xaf\x48\xa0\x3b\xbf\xd2\x5e\x8c\xd0\x36\x41\x41", 17).sigext(15),
+};
+
+template<int N>
+class modN_t {
+private:
+    static inline const uint256_t &n() { return _N[N]; }
+    uint256_t u;
+public:
+    inline const uint256_t &as256() const { return u; }
+    inline modN_t() {}
+    inline modN_t(uint32_t v) : u(v) {}
+    inline modN_t(const uint256_t &v) : u(v % n()) {}
+    inline modN_t(const modN_t &v) : u(v.u) {}
+    inline modN_t& operator=(const modN_t& v) { u = v.u; return *this; }
+    inline const modN_t operator-() const { return modN_t(n() - u); }
+    inline modN_t& operator++() { *this += modN_t(1); return *this; }
+    inline modN_t& operator--() { *this -= modN_t(1); return *this; }
+    inline const modN_t operator++(int) { const modN_t v = *this; ++(*this); return v; }
+    inline const modN_t operator--(int) { const modN_t v = *this; --(*this); return v; }
+    inline modN_t& operator+=(const modN_t& v) { *this = *this + v; return *this; }
+    inline modN_t& operator-=(const modN_t& v) { *this = *this - v; return *this; }
+    inline modN_t& operator*=(const modN_t& v) { *this = *this * v; return *this; }
+    friend inline const modN_t operator+(const modN_t& v1, const modN_t& v2) { return modN_t(uint256_t::addmod(v1.u, v2.u, n())); }
+    friend inline const modN_t operator-(const modN_t& v1, const modN_t& v2) { return v1 + (-v2); }
+    friend inline const modN_t operator*(const modN_t& v1, const modN_t& v2) { return modN_t(uint256_t::mulmod(v1.u, v2.u, n())); }
+    friend inline bool operator==(const modN_t& v1, const modN_t& v2) { return v1.u == v2.u; }
+    friend inline bool operator!=(const modN_t& v1, const modN_t& v2) { return v1.u != v2.u; }
+    static inline const modN_t pow(const modN_t &v1, const modN_t &v2) {
+        modN_t x1 = 1;
+        modN_t x2 = v1;
+        for (int n = 256 - 1; n >= 0; n--) {
+            int i = 31 - n / 8;
+            int j = n % 8;
+            modN_t t = (v2.u[i] & (1 << j)) == 0 ? x1 : x2;
+            x1 *= t;
+            x2 *= t;
+        }
+        return x1;
+    }
+};
+
+class mod_t : public modN_t<0> {
+public:
+    inline mod_t() {}
+    inline mod_t(uint32_t v) : modN_t(v) {}
+    inline mod_t(const uint256_t &v) : modN_t(v) {}
+    inline mod_t(const modN_t &v) : modN_t(v) {}
+};
+
+class mud_t : public modN_t<1> {
+public:
+    inline mud_t() {}
+    inline mud_t(uint32_t v) : modN_t(v) {}
+    inline mud_t(const uint256_t &v) : modN_t(v) {}
+    inline mud_t(const modN_t &v) : modN_t(v) {}
+};
+
+class point_t {
+private:
+    static inline const mod_t a() { return 0; }
+    static inline const mod_t b() { return 7; }
+    static inline const point_t g() {
+        const uint256_t gx = uint256_t::from("\x79\xbe\x66\x7e\xf9\xdc\xbb\xac\x55\xa0\x62\x95\xce\x87\x0b\x07\x02\x9b\xfc\xdb\x2d\xce\x28\xd9\x59\xf2\x81\x5b\x16\xf8\x17\x98");
+        const uint256_t gy = uint256_t::from("\x48\x3a\xda\x77\x26\xa3\xc4\x65\x5d\xa4\xfb\xfc\x0e\x11\x08\xa8\xfd\x17\xb4\x48\xa6\x85\x54\x19\x9c\x47\xd0\x8f\xfb\x10\xd4\xb8");
+        return point_t(gx, gy);
+    }
+    static inline const point_t inf() { point_t p(0, 0); p.is_inf = true; return p; }
+    bool is_inf;
+    mod_t x;
+    mod_t y;
+public:
+    inline point_t() {}
+    inline point_t(const mod_t &_x, const mod_t &_y): is_inf(false), x(_x), y(_y) {}
+    inline point_t(const point_t &p) : is_inf(p.is_inf), x(p.x), y(p.y) {}
+    inline point_t& operator=(const point_t& p) { is_inf = p.is_inf; x = p.x; y = p.y; return *this; }
+    inline point_t& operator+=(const point_t& p) { *this = *this + p; return *this; }
+    friend inline const point_t operator+(const point_t& p1, const point_t& p2) {
+        if (p1.is_inf) return p2;
+        if (p2.is_inf) return p1;
+        mod_t x1 = p1.x, y1 = p1.y;
+        mod_t x2 = p2.x, y2 = p2.y;
+        mod_t l;
+        if (x1 == x2) {
+            if (y1 != y2) return inf();
+            if (y1 == 0) return inf();
+            l = (3 * (x1 * x1) + a()) * mod_t::pow(y1 * y1, -(mod_t)2);
+        } else {
+            l = (y2 - y1) * mod_t::pow(x2 - x1, -(mod_t)2);
+        }
+        mod_t x3 = l * l - x1 - x2;
+        mod_t y3 = l * (x1 - x3) - y1;
+        return point_t(x3, y3);
+    }
+    friend inline const point_t operator*(const point_t& p, const uint256_t& e) {
+        if (e == 0) return inf();
+        if (e == 1) return p;
+        point_t q = (p + p) * (e / 2);
+        if (e % 2 == 1) q += p;
+        return q;
+    }
+    friend inline bool operator==(const point_t& p1, const point_t& p2) { return p1.is_inf == p2.is_inf && p1.x == p2.x && p1.y == p2.y; }
+    friend inline bool operator!=(const point_t& p1, const point_t& p2) { return !(p1 == p2); }
+
+    static bool verify(const point_t &p, const uint256_t &h, const uint256_t &r, const uint256_t &s) {
+        mud_t w = mud_t::pow(s, -(mud_t)2);
+        mud_t u = h * w;
+        mud_t v = r * w;
+        point_t q = g() * u.as256() + p * v.as256();
+        return r == q.x;
+    }
+
+    static point_t recover(const uint256_t &h, const uint256_t &r, const uint256_t &s, bool is_odd) {
+        mod_t x = r;
+        mod_t y = mod_t::pow(x * x * x + a() * x + b(), mod_t(((-(mod_t)1).as256() + 2) / 4));
+        if (is_odd == (y.as256() % 2 == 0)) y = -y;
+        point_t q(r, y);
+        mud_t u = -mud_t(h);
+        mud_t v = mud_t::pow(r, -(mud_t)2);
+        point_t p = g() * u.as256() + q * s;
+        return p * v.as256();
+    }
+
+};
 
 /* decoder */
 
