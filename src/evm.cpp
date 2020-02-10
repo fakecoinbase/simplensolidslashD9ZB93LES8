@@ -10,6 +10,7 @@ enum Error {
     MEMORY_EXAUSTED,
     ILLEGAL_TARGET,
     ILLEGAL_UPDATE,
+    INSUFFICIENT_SPACE,
     INVALID_ENCODING,
     INVALID_OPCODE,
     INVALID_SIGNATURE,
@@ -27,6 +28,7 @@ static const char *errors[UNIMPLEMENTED+1] = {
     "MEMORY_EXAUSTED",
     "ILLEGAL_TARGET",
     "ILLEGAL_UPDATE",
+    "INSUFFICIENT_SPACE",
     "INVALID_ENCODING",
     "INVALID_OPCODE",
     "INVALID_SIGNATURE",
@@ -831,7 +833,23 @@ struct txn {
     uint256_t s;
 };
 
-uint256_t parse_nlzint(const uint8_t *&b, uint32_t &s, uint32_t l)
+static uint32_t dump_nlzint(uint256_t v, uint8_t *b, uint32_t s)
+{
+    uint32_t l = 32;
+    while (l > 0 && v[32 - l] == 0) l--;
+    if (b != nullptr) {
+        if (s < l) throw INSUFFICIENT_SPACE;
+        uint256_t::to(v, &b[s - l], l);
+    }
+    return l;
+}
+
+static uint32_t dump_nlzint(uint256_t v)
+{
+    return dump_nlzint(v, nullptr, 0);
+}
+
+static uint256_t parse_nlzint(const uint8_t *&b, uint32_t &s, uint32_t l)
 {
     if (l == 0) return 0;
     if (s < l) throw INVALID_ENCODING;
@@ -842,12 +860,28 @@ uint256_t parse_nlzint(const uint8_t *&b, uint32_t &s, uint32_t l)
     return v;
 }
 
-uint256_t parse_nlzint(const uint8_t *b, uint32_t s)
+static uint256_t parse_nlzint(const uint8_t *b, uint32_t s)
 {
     return parse_nlzint(b, s, s);
 }
 
-uint32_t parse_varlen(const uint8_t *&b, uint32_t &s, bool &is_list)
+static uint32_t dump_varlen(uint8_t base, uint8_t c, uint32_t n, uint8_t *b, uint32_t s)
+{
+    if (base == 0x80 && c < 0x80 && n == 1) return 0;
+    uint32_t size = 0;
+	if (n > 55) {
+        size += dump_nlzint(n, b, s - size);
+        n = 55 + size;
+    }
+    if (b != nullptr) {
+        if (s - size < 1) throw INSUFFICIENT_SPACE;
+        b[s - size - 1] = base + n;
+    }
+    size += 1;
+    return size;
+}
+
+static uint32_t parse_varlen(const uint8_t *&b, uint32_t &s, bool &is_list)
 {
 	if (s < 1) throw INVALID_ENCODING;
     uint8_t n = b[0];
@@ -881,7 +915,7 @@ struct rlp {
     };
 };
 
-void free_rlp(struct rlp &rlp)
+static void free_rlp(struct rlp &rlp)
 {
     if (rlp.is_list) {
         for (uint32_t i = 0; i < rlp.size; i++) free_rlp(rlp.list[i]);
@@ -895,7 +929,32 @@ void free_rlp(struct rlp &rlp)
     }
 }
 
-void parse_rlp(const uint8_t *&b, uint32_t &s, struct rlp &rlp)
+static uint32_t dump_rlp(const struct rlp &rlp, uint8_t *b, uint32_t s)
+{
+    uint32_t size = 0;
+    if (rlp.is_list) {
+        uint8_t c = 0;
+        for (uint32_t i = 0; i < rlp.size; i++) {
+            uint32_t j = rlp.size - (i + 1);
+            size += dump_rlp(rlp.list[j], b, s - size);
+        }
+        size += dump_varlen(0xc0, c, size, b, s - size);
+    } else {
+        uint8_t c = rlp.size > 0 ? rlp.data[0] : 0;
+        if (b != nullptr) {
+            if (s < rlp.size) throw INSUFFICIENT_SPACE;
+            for (uint32_t i = 0; i < rlp.size; i++) {
+                uint32_t j = (s - rlp.size) + i;
+                b[j] = rlp.data[i];
+            }
+        }
+        size += rlp.size;
+        size += dump_varlen(0x80, c, size, b, s - size);
+    }
+    return size;
+}
+
+static void parse_rlp(const uint8_t *&b, uint32_t &s, struct rlp &rlp)
 {
     bool is_list;
 	uint32_t l = parse_varlen(b, s, is_list);
@@ -935,7 +994,64 @@ void parse_rlp(const uint8_t *&b, uint32_t &s, struct rlp &rlp)
     }
 }
 
-struct txn decode_txn(const uint8_t *buffer, uint32_t size)
+static uint32_t encode_txn(const struct txn &txn, uint8_t *buffer, uint32_t size)
+{
+    struct rlp rlp;
+    rlp.is_list = true;
+    rlp.size = txn.is_signed ? 9 : 6;
+    rlp.list = new struct rlp[rlp.size];
+    if (rlp.list == nullptr) throw MEMORY_EXAUSTED;
+    for (uint32_t i = 0; i < rlp.size; i++) {
+        rlp.list[i].is_list = false;
+        rlp.list[i].size = 0;
+        rlp.list[i].data = nullptr;
+    }
+    try {
+        rlp.list[0].size = dump_nlzint(txn.nonce);
+        rlp.list[1].size = dump_nlzint(txn.gasprice);
+        rlp.list[2].size = dump_nlzint(txn.gaslimit);
+        rlp.list[3].size = txn.has_to ? 20 : 0;
+        rlp.list[4].size = dump_nlzint(txn.value);
+        rlp.list[5].size = txn.data_size;
+        if (txn.is_signed) {
+            rlp.list[6].size = dump_nlzint(txn.v);
+            rlp.list[7].size = dump_nlzint(txn.r);
+            rlp.list[8].size = dump_nlzint(txn.s);
+        }
+        for (uint32_t i = 0; i < rlp.size; i++) {
+            if (rlp.list[i].size > 0) {
+                rlp.list[i].data = new uint8_t[rlp.list[i].size];
+                if (rlp.list == nullptr) throw MEMORY_EXAUSTED;
+            }
+        }
+        dump_nlzint(txn.nonce, rlp.list[0].data, rlp.list[0].size);
+        dump_nlzint(txn.gasprice, rlp.list[1].data, rlp.list[1].size);
+        dump_nlzint(txn.gaslimit, rlp.list[2].data, rlp.list[2].size);
+        if (txn.has_to) {
+            uint256_t::to(txn.to, rlp.list[3].data, rlp.list[3].size);
+        }
+        dump_nlzint(txn.value, rlp.list[4].data, rlp.list[4].size);
+        for (uint32_t i = 0; i < txn.data_size; i++) rlp.list[5].data[i] = txn.data[i];
+        if (txn.is_signed) {
+            dump_nlzint(txn.v, rlp.list[6].data, rlp.list[6].size);
+            dump_nlzint(txn.r, rlp.list[7].data, rlp.list[7].size);
+            dump_nlzint(txn.s, rlp.list[8].data, rlp.list[8].size);
+        }
+        uint32_t result = dump_rlp(rlp, buffer, size);
+        free_rlp(rlp);
+        return result;
+    } catch (Error e) {
+        free_rlp(rlp);
+        throw e;
+    }
+}
+
+static uint32_t encode_txn(const struct txn &txn)
+{
+    return encode_txn(txn, nullptr, 0);
+}
+
+static struct txn decode_txn(const uint8_t *buffer, uint32_t size)
 {
     struct rlp rlp;
     parse_rlp(buffer, size, rlp);
