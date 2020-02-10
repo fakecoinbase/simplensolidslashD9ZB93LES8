@@ -1358,6 +1358,27 @@ static inline bool parse_hex(const char *hexstr, uint8_t *buffer, uint32_t size)
 
 int main(int argc, const char *argv[])
 {
+/*
+    uint256_t h = uint256_t::from("\xda\xf5\xa7\x79\xae\x97\x2f\x97\x21\x97\x30\x3d\x7b\x57\x47\x46\xc7\xef\x83\xea\xda\xc0\xf2\x79\x1a\xd2\x3d\xb9\x2e\x4c\x8e\x53");
+    uint256_t r = uint256_t::from("\x28\xef\x61\x34\x0b\xd9\x39\xbc\x21\x95\xfe\x53\x75\x67\x86\x60\x03\xe1\xa1\x5d\x3c\x71\xff\x63\xe1\x59\x06\x20\xaa\x63\x62\x76");
+    uint256_t s = uint256_t::from("\x67\xcb\xe9\xd8\x99\x7f\x76\x1a\xec\xb7\x03\x30\x4b\x38\x00\xcc\xf5\x55\xc9\xf3\xdc\x64\x21\x4b\x29\x7f\xb1\x96\x6a\x3b\x6d\x83");
+    bool is_odd = false;
+    std::cerr << h << std::endl;
+    std::cerr << r << std::endl;
+    std::cerr << s << std::endl;
+    std::cerr << (is_odd ? "True" : "False") << std::endl;
+    point_t p = point_t::recover(h, r, s, is_odd);
+    std::cerr << p << std::endl;
+    bool is_ok = point_t::verify(p, h, r, s);
+    std::cerr << (is_ok ? "True" : "False") << std::endl;
+
+// daf5a779ae972f972197303d7b574746c7ef83eadac0f2791ad23db92e4c8e53
+// 28ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276
+// 67cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83
+// False
+// 4bc2a31265153f07e70e0bab08724e6b85e217f8cd628ceb62974247bb493382 ce28cab79ad7119ee1ad3ebcdb98a16805211530ecc6cfefa1b88e6dff99232a
+// True
+*/
     const char *progname = argv[0];
     if (argc < 2) { std::cerr << "usage: " << progname << " <hex>" << std::endl; return 1; }
     const char *hexstr = argv[1];
