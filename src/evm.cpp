@@ -1277,12 +1277,12 @@ public:
 
 class Block {
 public:
-    virtual uint256_t chainid() = 0;
+    virtual uint32_t chainid() = 0;
     virtual uint32_t timestamp() = 0;
     virtual uint32_t number() = 0;
-    virtual uint256_t coinbase() = 0;
-    virtual uint256_t difficulty() = 0;
-    virtual uint256_t hash(uint32_t number) = 0;
+    virtual const uint256_t& coinbase() = 0;
+    virtual const uint256_t& difficulty() = 0;
+    virtual const uint256_t& hash(uint32_t number) = 0;
 };
 
 static void vm_run(Block &block, Storage &storage, const uint8_t *code, const uint32_t code_size, const uint8_t *call_data, const uint32_t call_size, uint8_t *return_data, const uint8_t return_size, uint32_t depth)
@@ -1668,8 +1668,8 @@ public:
 
 class _Block : public Block {
 public:
-    uint256_t chainid() {
-        return 0; // configurable
+    uint32_t chainid() {
+        return 1; // configurable
     }
     uint32_t timestamp() {
         return 0; // eos block
@@ -1677,14 +1677,17 @@ public:
     uint32_t number() {
         return 0; // eos block
     }
-    uint256_t coinbase() {
-        return 0; // static
+    const uint256_t& coinbase() {
+        static uint256_t t = 0; // static
+        return t;
     }
-    uint256_t difficulty() {
-        return 0; // static
+    const uint256_t& difficulty() {
+        static uint256_t t = 0; // static
+        return t;
     }
-    uint256_t hash(uint32_t number) {
-        return 0; // static
+    const uint256_t& hash(uint32_t number) {
+        static uint256_t t = 0; // static
+        return t;
     }
 };
 
@@ -1703,7 +1706,33 @@ static void raw(const uint8_t *buffer, uint32_t size)
 {
     _Block block;
     _Storage storage;
+
     struct txn txn = decode_txn(buffer, size);
+    if (!txn.is_signed) throw INVALID_TRANSACTION;
+
+    uint32_t offset = 8 + 2 * block.chainid();
+    if (txn.v != 27 && txn.v != 28 && txn.v != 27 + offset && txn.v != 28 + offset) throw INVALID_TRANSACTION;
+
+    uint256_t h;
+    {
+        uint256_t v = txn.v;
+        uint256_t r = txn.r;
+        uint256_t s = txn.s;
+        txn.is_signed = v > 28;
+        txn.v = block.chainid();
+        txn.r = 0;
+        txn.s = 0;
+        uint32_t unsigned_size = encode_txn(txn);
+        uint8_t unsigned_buffer[unsigned_size];
+        encode_txn(txn, unsigned_buffer, unsigned_size);
+        h = sha3(unsigned_buffer, unsigned_size);
+        txn.is_signed = true;
+        txn.v = v > 28 ? v - offset : v;
+        txn.r = r;
+        txn.s = s;
+    }
+    uint256_t a = ecrecover(h, txn.v, txn.r, txn.s);
+
     // call
     if (txn.has_to) {
         const uint32_t code_size = storage.code_size(txn.to);
