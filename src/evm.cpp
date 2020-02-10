@@ -12,6 +12,7 @@ enum Error {
     ILLEGAL_UPDATE,
     INVALID_ENCODING,
     INVALID_OPCODE,
+    INVALID_SIGNATURE,
     INVALID_SIZE,
     INVALID_TRANSACTION,
     OUTOFBOUND_INDEX,
@@ -28,6 +29,7 @@ static const char *errors[UNIMPLEMENTED+1] = {
     "ILLEGAL_UPDATE",
     "INVALID_ENCODING",
     "INVALID_OPCODE",
+    "INVALID_SIGNATURE",
     "INVALID_SIZE",
     "INVALID_TRANSACTION",
     "OUTOFBOUND_INDEX",
@@ -687,9 +689,11 @@ public:
     inline modN_t& operator+=(const modN_t& v) { *this = *this + v; return *this; }
     inline modN_t& operator-=(const modN_t& v) { *this = *this - v; return *this; }
     inline modN_t& operator*=(const modN_t& v) { *this = *this * v; return *this; }
+    inline modN_t& operator/=(const modN_t& v) { *this = *this / v; return *this; }
     friend inline const modN_t operator+(const modN_t& v1, const modN_t& v2) { return modN_t(uint256_t::addmod(v1.u, v2.u, n())); }
     friend inline const modN_t operator-(const modN_t& v1, const modN_t& v2) { return v1 + (-v2); }
     friend inline const modN_t operator*(const modN_t& v1, const modN_t& v2) { return modN_t(uint256_t::mulmod(v1.u, v2.u, n())); }
+    friend inline const modN_t operator/(const modN_t& v1, const modN_t& v2) { return modN_t(v1.u / v2.u); }
     friend inline bool operator==(const modN_t& v1, const modN_t& v2) { return v1.u == v2.u; }
     friend inline bool operator!=(const modN_t& v1, const modN_t& v2) { return v1.u != v2.u; }
     static inline const modN_t pow(const modN_t &v1, const modN_t &v2) {
@@ -740,6 +744,12 @@ private:
     mod_t x;
     mod_t y;
 public:
+    inline uint512_t as512() const {
+        uint8_t buffer[64];
+        uint256_t::to(x.as256(), buffer);
+        uint256_t::to(y.as256(), &buffer[32]);
+        return uint512_t::from(buffer);
+    }
     inline point_t() {}
     inline point_t(const mod_t &_x, const mod_t &_y): is_inf(false), x(_x), y(_y) {}
     inline point_t(const point_t &p) : is_inf(p.is_inf), x(p.x), y(p.y) {}
@@ -775,31 +785,34 @@ public:
     }
     friend inline bool operator==(const point_t& p1, const point_t& p2) { return p1.is_inf == p2.is_inf && p1.x == p2.x && p1.y == p2.y; }
     friend inline bool operator!=(const point_t& p1, const point_t& p2) { return !(p1 == p2); }
-
-    static bool verify(const point_t &p, const uint256_t &h, const uint256_t &r, const uint256_t &s) {
-        mud_t w = mud_t::pow(s, -(mud_t)2);
-        mud_t u = h * w;
-        mud_t v = r * w;
-        point_t q = g() * u.as256() + p * v.as256();
-        return r == q.x;
+    static point_t gen(const uint256_t &u) { return  g() * u; }
+    static point_t find(const mod_t &x, bool is_odd) {
+        mod_t poly = x * x * x + a() * x + b();
+        mod_t y = mod_t::pow(poly, (-(mod_t)3) / 4 + 1);
+        if (is_odd == (y.as256()[31] % 2 == 0)) y = -y;
+        return point_t(x, y);
     }
-
-    static point_t recover(const uint256_t &h, const uint256_t &r, const uint256_t &s, bool is_odd) {
-        mod_t x = r;
-        mod_t y = mod_t::pow(x * x * x + a() * x + b(), mod_t(((-(mod_t)1).as256() + 2) / 4));
-        if (is_odd == (y.as256() % 2 == 0)) y = -y;
-        point_t q(x, y);
-        mud_t u = -mud_t(h);
-        mud_t v = mud_t::pow(r, -(mud_t)2);
-        point_t p = g() * u.as256() + q * s;
-        return p * v.as256();
-    }
-
     friend std::ostream& operator<<(std::ostream &os, const point_t &v) {
         os << v.x << " " << v.y;
         return os;
     }
 };
+
+static uint256_t ecrecover(const uint256_t &h, const uint256_t &v, const uint256_t &r, const uint256_t &s)
+{
+    if (v < 27 || v > 28) throw INVALID_SIGNATURE;
+    if (r == 0 || mod_t(r).as256() != r) throw INVALID_SIGNATURE;
+    if (s == 0 || 2*s < s || mod_t(2*s - 2).as256() != 2*s - 2) throw INVALID_SIGNATURE;
+    point_t q = point_t::find(r, v == 28);
+    mud_t z = mud_t::pow(r, -(mud_t)2);
+    mud_t u = -(mud_t)h;
+    point_t p = point_t::gen(u.as256()) + q * s;
+    point_t t = p * z.as256();
+    uint8_t buffer[64];
+    uint512_t::to(t.as512(), buffer);
+    uint160_t a = (uint160_t)sha3(buffer, 64);
+    return (uint256_t)a;
+}
 
 /* decoder */
 
@@ -1617,25 +1630,21 @@ static inline bool parse_hex(const char *hexstr, uint8_t *buffer, uint32_t size)
 int main(int argc, const char *argv[])
 {
 /*
+    uint256_t v = 27;
     uint256_t h = uint256_t::from("\xda\xf5\xa7\x79\xae\x97\x2f\x97\x21\x97\x30\x3d\x7b\x57\x47\x46\xc7\xef\x83\xea\xda\xc0\xf2\x79\x1a\xd2\x3d\xb9\x2e\x4c\x8e\x53");
     uint256_t r = uint256_t::from("\x28\xef\x61\x34\x0b\xd9\x39\xbc\x21\x95\xfe\x53\x75\x67\x86\x60\x03\xe1\xa1\x5d\x3c\x71\xff\x63\xe1\x59\x06\x20\xaa\x63\x62\x76");
     uint256_t s = uint256_t::from("\x67\xcb\xe9\xd8\x99\x7f\x76\x1a\xec\xb7\x03\x30\x4b\x38\x00\xcc\xf5\x55\xc9\xf3\xdc\x64\x21\x4b\x29\x7f\xb1\x96\x6a\x3b\x6d\x83");
-    bool is_odd = false;
+    std::cerr << v << std::endl;
     std::cerr << h << std::endl;
     std::cerr << r << std::endl;
     std::cerr << s << std::endl;
-    std::cerr << (is_odd ? "True" : "False") << std::endl;
-    point_t p = point_t::recover(h, r, s, is_odd);
-    std::cerr << p << std::endl;
-    bool is_ok = point_t::verify(p, h, r, s);
-    std::cerr << (is_ok ? "True" : "False") << std::endl;
-
+    uint256_t a = ecrecover(h, v, r, s);
+    std::cerr << a << std::endl;
+// 000000000000000000000000000000000000000000000000000000000000001b
 // daf5a779ae972f972197303d7b574746c7ef83eadac0f2791ad23db92e4c8e53
 // 28ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276
 // 67cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83
-// False
-// 4bc2a31265153f07e70e0bab08724e6b85e217f8cd628ceb62974247bb493382 ce28cab79ad7119ee1ad3ebcdb98a16805211530ecc6cfefa1b88e6dff99232a
-// True
+// 0000000000000000000000009d8a62f656a8d1615c1294fd71e9cfb3e4855a4f
 */
     const char *progname = argv[0];
     if (argc < 2) { std::cerr << "usage: " << progname << " <hex>" << std::endl; return 1; }
