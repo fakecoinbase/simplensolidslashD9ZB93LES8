@@ -276,12 +276,9 @@ public:
 
 /* crypto */
 
-static inline uint64_t rot(uint64_t x, int y)
-{
-    return y > 0 ? (x >> (64 - y)) ^ (x << y) : x;
-}
+static inline uint64_t rot(uint64_t x, int y) { return y > 0 ? (x >> (64 - y)) ^ (x << y) : x; }
 
-static inline uint64_t b2w(const uint8_t *b)
+static inline uint64_t b2w64le(const uint8_t *b)
 {
     return 0
         | ((uint64_t)b[7] << 56)
@@ -294,7 +291,7 @@ static inline uint64_t b2w(const uint8_t *b)
         | (uint64_t)b[0];
 }
 
-static inline void w2b(uint64_t w, uint8_t *b)
+static inline void w2b64le(uint64_t w, uint8_t *b)
 {
     b[0] = (uint8_t)w;
     b[1] = (uint8_t)(w >> 8);
@@ -309,7 +306,7 @@ static inline void w2b(uint64_t w, uint8_t *b)
 static void sha3(const uint8_t *message, uint32_t size, bool compressed, uint32_t r, uint8_t eof, uint8_t *output)
 {
     if (!compressed) {
-        uint32_t bitsize = 8 * size;
+        uint64_t bitsize = 8 * size;
         uint32_t padding = (r - bitsize % r) / 8;
         uint32_t b_len = size + padding;
         uint8_t b[b_len];
@@ -320,7 +317,7 @@ static void sha3(const uint8_t *message, uint32_t size, bool compressed, uint32_
         sha3(b, b_len, true, r, eof, output);
         return;
     }
-    const uint64_t RC[24] = {
+    static const uint64_t RC[24] = {
         0x0000000000000001L, 0x0000000000008082L, 0x800000000000808aL,
         0x8000000080008000L, 0x000000000000808bL, 0x0000000080000001L,
         0x8000000080008081L, 0x8000000000008009L, 0x000000000000008aL,
@@ -330,7 +327,7 @@ static void sha3(const uint8_t *message, uint32_t size, bool compressed, uint32_
         0x000000000000800aL, 0x800000008000000aL, 0x8000000080008081L,
         0x8000000000008080L, 0x0000000080000001L, 0x8000000080008008L,
     };
-    const uint8_t R[5][5] = {
+    static const uint8_t R[5][5] = {
         { 0, 36,  3, 41, 18},
         { 1, 44, 10, 45,  2},
         {62,  6, 43, 15, 61},
@@ -347,7 +344,7 @@ static void sha3(const uint8_t *message, uint32_t size, bool compressed, uint32_
     for (uint32_t j = 0; j < size/8; j += k) {
         uint64_t w[25];
         for (uint32_t i = 0; i < k; i++) {
-            w[i] = b2w(&message[8*(j+i)]);
+            w[i] = b2w64le(&message[8*(j+i)]);
         }
         for (int i = k; i < 25; i++) {
             w[i] = 0;
@@ -385,20 +382,145 @@ static void sha3(const uint8_t *message, uint32_t size, bool compressed, uint32_
             s[0][0] ^= RC[j];
         }
     }
-    w2b(s[0][0], &output[0]);
-    w2b(s[1][0], &output[8]);
-    w2b(s[2][0], &output[16]);
-    w2b(s[3][0], &output[24]);
-    w2b(s[4][0], &output[32]);
-    w2b(s[0][1], &output[40]);
-    w2b(s[1][1], &output[48]);
-    w2b(s[2][1], &output[56]);
+    w2b64le(s[0][0], &output[0]);
+    w2b64le(s[1][0], &output[8]);
+    w2b64le(s[2][0], &output[16]);
+    w2b64le(s[3][0], &output[24]);
+    w2b64le(s[4][0], &output[32]);
+    w2b64le(s[0][1], &output[40]);
+    w2b64le(s[1][1], &output[48]);
+    w2b64le(s[2][1], &output[56]);
 }
 
 static uint256_t sha3(const uint8_t *buffer, uint32_t size)
 {
     uint8_t output[64];
     sha3(buffer, size, false, 1088, 0x01, output);
+    return uint256_t::from(output);
+}
+
+static inline uint32_t ch(uint32_t x, uint32_t y, uint32_t z) { return (x & (y ^ z)) ^ z; }
+static inline uint32_t maj(uint32_t x, uint32_t y, uint32_t z) { return (x & y) ^ ((x ^ y) & z); }
+static inline uint32_t rtr(uint32_t x, int y) { return (x >> y) ^ (x << (32 - y)); }
+static inline uint32_t ep0(uint32_t x) { return rtr(x, 2) ^ rtr(x, 13) ^ rtr(x, 22); }
+static inline uint32_t ep1(uint32_t x) { return rtr(x, 6) ^ rtr(x, 11) ^ rtr(x, 25); }
+static inline uint32_t sig0(uint32_t x) { return rtr(x, 7) ^ rtr(x, 18) ^ (x >> 3); }
+static inline uint32_t sig1(uint32_t x) { return rtr(x, 17) ^ rtr(x, 19) ^ (x >> 10); }
+
+static inline uint32_t b2w32be(const uint8_t *b)
+{
+    return 0
+        | ((uint64_t)b[0] << 24)
+        | ((uint64_t)b[1] << 16)
+        | ((uint64_t)b[2] << 8)
+        | (uint64_t)b[3];
+}
+
+static inline void w2b32be(uint32_t w, uint8_t *b)
+{
+    b[3] = (uint8_t)w;
+    b[2] = (uint8_t)(w >> 8);
+    b[1] = (uint8_t)(w >> 16);
+    b[0] = (uint8_t)(w >> 24);
+}
+
+static void sha256(const uint8_t *message, uint32_t size, bool compressed, uint8_t *output)
+{
+    if (!compressed) {
+        uint64_t bitsize = 8 * size;
+        uint32_t modulo = (size + 1 + 8) % 64;
+        uint32_t padding = modulo > 0 ? 64 - modulo : 0;
+        uint32_t b_len = size + 1 + padding + 8;
+        uint8_t b[b_len];
+        for (uint32_t i = 0; i < size; i++) b[i] = message[i];
+        for (uint32_t i = size; i < b_len; i++) b[i] = 0;
+        b[size] = 0x80;
+        w2b32be(bitsize >> 32, &b[b_len-8]);
+        w2b32be(bitsize, &b[b_len-4]);
+        sha256(b, b_len, true, output);
+        return;
+    }
+    static const uint32_t S[8] = {
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+        0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+    };
+    static const uint32_t K[64] = {
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
+        0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+        0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
+        0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+        0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
+        0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
+        0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+        0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+    };
+    uint32_t s0 = S[0];
+    uint32_t s1 = S[1];
+    uint32_t s2 = S[2];
+    uint32_t s3 = S[3];
+    uint32_t s4 = S[4];
+    uint32_t s5 = S[5];
+    uint32_t s6 = S[6];
+    uint32_t s7 = S[7];
+    for (uint32_t j = 0; j < size/4; j += 16) {
+        uint32_t w[64];
+        for (int i = 0; i < 16; i++) {
+            w[i] = b2w32be(&message[4*(j+i)]);
+        }
+        for (int i = 16; i < 64; i++) {
+            w[i] = w[i-16] + sig0(w[i-15]) + w[i-7] + sig1(w[i-2]);
+        }
+        uint32_t a = s0;
+        uint32_t b = s1;
+        uint32_t c = s2;
+        uint32_t d = s3;
+        uint32_t e = s4;
+        uint32_t f = s5;
+        uint32_t g = s6;
+        uint32_t h = s7;
+        for (int i = 0; i < 64; i++) {
+            uint32_t t1 = h + ep1(e) + ch(e, f, g) + K[i] + w[i];
+            uint32_t t2 = ep0(a) + maj(a, b, c);
+            h = g;
+            g = f;
+            f = e;
+            e = d + t1;
+            d = c;
+            c = b;
+            b = a;
+            a = t1 + t2;
+        }
+        s0 += a;
+        s1 += b;
+        s2 += c;
+        s3 += d;
+        s4 += e;
+        s5 += f;
+        s6 += g;
+        s7 += h;
+    }
+    w2b32be(s0, &output[0]);
+    w2b32be(s1, &output[4]);
+    w2b32be(s2, &output[8]);
+    w2b32be(s3, &output[12]);
+    w2b32be(s4, &output[16]);
+    w2b32be(s5, &output[20]);
+    w2b32be(s6, &output[24]);
+    w2b32be(s7, &output[28]);
+}
+
+static uint256_t sha256(const uint8_t *buffer, uint32_t size)
+{
+    uint8_t output[32];
+    sha256(buffer, size, false, output);
     return uint256_t::from(output);
 }
 
