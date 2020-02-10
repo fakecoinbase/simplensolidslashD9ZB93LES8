@@ -184,7 +184,7 @@ public:
         int shift = 0;
         uintX_t<X+32> _num = num;
         uintX_t<X+32> _div = div;
-        while (_div < _num) {
+        while (_div <= _num) {
             _div <<= 32;
             shift += 32;
         }
@@ -446,6 +446,10 @@ public:
         }
         return x1;
     }
+    friend std::ostream& operator<<(std::ostream &os, const modN_t &v) {
+        os << v.u;
+        return os;
+    }
 };
 
 class mod_t : public modN_t<0> {
@@ -492,7 +496,7 @@ public:
         if (x1 == x2) {
             if (y1 != y2) return inf();
             if (y1 == 0) return inf();
-            l = (3 * (x1 * x1) + a()) * mod_t::pow(y1 * y1, -(mod_t)2);
+            l = (3 * (x1 * x1) + a()) * mod_t::pow(2 * y1, -(mod_t)2);
         } else {
             l = (y2 - y1) * mod_t::pow(x2 - x1, -(mod_t)2);
         }
@@ -500,11 +504,15 @@ public:
         mod_t y3 = l * (x1 - x3) - y1;
         return point_t(x3, y3);
     }
-    friend inline const point_t operator*(const point_t& p, const uint256_t& e) {
-        if (e == 0) return inf();
-        if (e == 1) return p;
-        point_t q = (p + p) * (e / 2);
-        if (e % 2 == 1) q += p;
+    friend inline const point_t operator*(const point_t& _p, const uint256_t& e) {
+        point_t p = _p;
+        point_t q = inf();
+        for (int n = 0; n < 256; n++) {
+            int i = 31 - n / 8;
+            int j = n % 8;
+            if ((e[i] & (1 << j)) > 0) q += p;
+            p += p;
+        }
         return q;
     }
     friend inline bool operator==(const point_t& p1, const point_t& p2) { return p1.is_inf == p2.is_inf && p1.x == p2.x && p1.y == p2.y; }
@@ -522,13 +530,17 @@ public:
         mod_t x = r;
         mod_t y = mod_t::pow(x * x * x + a() * x + b(), mod_t(((-(mod_t)1).as256() + 2) / 4));
         if (is_odd == (y.as256() % 2 == 0)) y = -y;
-        point_t q(r, y);
+        point_t q(x, y);
         mud_t u = -mud_t(h);
         mud_t v = mud_t::pow(r, -(mud_t)2);
         point_t p = g() * u.as256() + q * s;
         return p * v.as256();
     }
 
+    friend std::ostream& operator<<(std::ostream &os, const point_t &v) {
+        os << v.x << " " << v.y;
+        return os;
+    }
 };
 
 /* decoder */
