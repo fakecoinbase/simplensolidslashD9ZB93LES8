@@ -1437,34 +1437,6 @@ static inline uint32_t opcode_gas(Release release, uint8_t opc)
 
 /*
 
-Memory Gas
-
-SHA3 memorySha3
-CALLDATACOPY memoryCallDataCopy
-CODECOPY memoryCodeCopy
-EXTCODECOPY memoryExtCodeCopy
-MLOAD memoryMLoad
-MSTORE memoryMStore
-MSTORE8 memoryMStore8
-LOG0 memoryLog
-LOG1 memoryLog
-LOG2 memoryLog
-LOG3 memoryLog
-LOG4 memoryLog
-CREATE memoryCreate
-CALL memoryCall
-CALLCODE memoryCall
-RETURN memoryReturn
-DELEGATECALL memoryDelegateCall
-STATICCALL memoryStaticCall
-RETURNDATACOPY memoryReturnDataCopy
-REVERT memoryRevert
-CREATE2 memoryCreate2
-
-*/
-
-/*
-
 Dynamic Gas
 
 
