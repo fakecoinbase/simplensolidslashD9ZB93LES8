@@ -1091,6 +1091,44 @@ static struct txn decode_txn(const uint8_t *buffer, uint32_t size)
     return txn;
 }
 
+/* gas */
+
+enum gas : uint32_t {
+    G_zero = 0,
+    G_base = 2,
+    G_verylow = 3,
+    G_low = 5,
+    G_mid = 8,
+    G_high = 10,
+    G_extcode = 700,
+    G_balance = 400,
+    G_sload = 200,
+    G_jumpdest = 1,
+    G_sset = 20000,
+    G_sreset = 5000,
+    G_create = 32000,
+    G_codedeposit = 200,
+    G_call = 700,
+    G_callvalue = 9000,
+    G_callstipend = 2300,
+    G_newaccount = 25000,
+    G_exp = 10,
+    G_expbyte = 50,
+    G_memory = 3,
+    G_txcreate = 32000,
+    G_txdatazero = 4,
+    G_txdatanonzero = 68,
+    G_transaction = 21000,
+    G_log = 375,
+    G_logdata = 8,
+    G_logtopic = 375,
+    G_sha3 = 30,
+    G_sha3word = 6,
+    G_copy = 3,
+    G_blockhash = 20,
+    G_quaddivisor = 20,
+};
+
 /* interpreter */
 
 enum Opcode : uint8_t {
@@ -1255,6 +1293,10 @@ class Storage {
 protected:
     virtual struct account *find_account(const uint256_t &address) = 0;
 public:
+    inline uint256_t nonce(const uint256_t &v) {
+        struct account *account = find_account(v);
+        return account == nullptr ? 0 : account->nonce;
+    }
     inline uint256_t balance(const uint256_t &v) {
         struct account *account = find_account(v);
         return account == nullptr ? 0 : account->balance;
@@ -1281,22 +1323,21 @@ public:
     virtual uint32_t timestamp() = 0;
     virtual uint32_t number() = 0;
     virtual const uint256_t& coinbase() = 0;
+    virtual const uint256_t& gaslimit() = 0;
     virtual const uint256_t& difficulty() = 0;
     virtual const uint256_t& hash(uint32_t number) = 0;
 };
 
-static void vm_run(Block &block, Storage &storage, const uint8_t *code, const uint32_t code_size, const uint8_t *call_data, const uint32_t call_size, uint8_t *return_data, const uint8_t return_size, uint32_t depth)
+static void vm_run(Block &block, Storage &storage,
+    const uint256_t &origin_address, const uint256_t &gas_price,
+    const uint256_t &owner_address, const uint8_t *code, const uint32_t code_size,
+    const uint256_t &caller_address, const uint256_t &call_value, const uint8_t *call_data, const uint32_t call_size,
+    uint8_t *return_data, const uint8_t return_size, uint32_t depth)
 {
     if (depth == 1024) return;
-    uint256_t gas;
-    uint256_t gas_limit;
-    uint256_t gas_price;
-    uint256_t owner_address;
-    uint256_t origin_address;
-    uint256_t caller_address;
-    uint256_t call_value;
-    // permissions
 
+    uint256_t gas;
+    // permissions
     bool is_static = false;
 
     uint32_t pc = 0;
@@ -1310,36 +1351,36 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
         case ADD: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 + v2); pc++; break; }
         case MUL: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 * v2); pc++; break; }
         case SUB: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 - v2); pc++; break; }
-        case DIV: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 / v2); pc++; break; }
+        case DIV: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2 == 0 ? 0 : v1 / v2); pc++; break; }
         case SDIV: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             bool is_neg1 = (v1[0] & 0x80) > 0;
             bool is_neg2 = (v2[0] & 0x80) > 0;
             if (is_neg1) v1 = -v1;
             if (is_neg2) v2 = -v2;
-            uint256_t v3 = v1 / v2;
+            uint256_t v3 = v2 == 0 ? 0 : v1 / v2;
             if (is_neg1 != is_neg2) v3 = -v3;
             stack.push(v3);
             pc++;
             break;
         }
-        case MOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 % v2); pc++; break; }
+        case MOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2 == 0 ? 0 : v1 % v2); pc++; break; }
         case SMOD: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             bool is_neg1 = (v1[0] & 0x80) > 0;
             bool is_neg2 = (v2[0] & 0x80) > 0;
             if (is_neg1) v1 = -v1;
             if (is_neg2) v2 = -v2;
-            uint256_t v3 = v1 % v2;
+            uint256_t v3 = v2 == 0 ? 0 : v1 % v2;
             if (is_neg1) v3 = -v3;
             stack.push(v3);
             pc++;
             break;
         }
-        case ADDMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(uint256_t::addmod(v1, v2, v3)); pc++; break; }
-        case MULMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(uint256_t::mulmod(v1, v2, v3)); pc++; break; }
+        case ADDMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(v3 == 0 ? 0 : uint256_t::addmod(v1, v2, v3)); pc++; break; }
+        case MULMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(v3 == 0 ? 0 : uint256_t::mulmod(v1, v2, v3)); pc++; break; }
         case EXP: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(uint256_t::pow(v1, v2)); pc++; break; }
-        case SIGNEXTEND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2.sigext(v1.cast32())); pc++; break; }
+        case SIGNEXTEND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < 32 ? v2.sigext(v1.cast32()) : v2); pc++; break; }
         case LT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < v2); pc++; break; }
         case GT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > v2); pc++; break; }
         case SLT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1.sigflip() < v2.sigflip()); pc++; break; }
@@ -1349,16 +1390,15 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
         case AND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 & v2); pc++; break; }
         case OR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 | v2); pc++; break; }
         case XOR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 ^ v2); pc++; break; }
-        case NOT: { uint256_t v1 = stack.pop(), v2 = ~v1; stack.push(v2); pc++; break; }
-        case BYTE: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2[v1.cast32()]); pc++; }
-        case SHL: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2 << v1.cast32()); pc++; break; }
-        case SHR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2 >> v1.cast32()); pc++; break; }
-        case SAR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(uint256_t::sar(v2, v1.cast32())); pc++; break; }
+        case NOT: { uint256_t v1 = stack.pop(); stack.push(~v1); pc++; break; }
+        case BYTE: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < 32 ? v2[v1.cast32()] : 0); pc++; }
+        case SHL: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > 255 ? 0 : v2 << v1.cast32()); pc++; break; }
+        case SHR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > 255 ? 0 : v2 >> v1.cast32()); pc++; break; }
+        case SAR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > 255 ? ((v2[0] & 0x80) > 0 ? ~(uint256_t)0 : 0) : uint256_t::sar(v2, v1.cast32())); pc++; break; }
         case SHA3: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
-            if (buffer == nullptr) throw MEMORY_EXAUSTED;
             memory.dump(offset, size, buffer);
             uint256_t v3 = sha3(buffer, size);
             stack.push(v3);
@@ -1370,7 +1410,15 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
         case ORIGIN: { stack.push(origin_address); pc++; break; }
         case CALLER: { stack.push(caller_address); pc++; break; }
         case CALLVALUE: { stack.push(call_value); pc++; break; }
-        case CALLDATALOAD: { uint256_t v1 = stack.pop(); stack.push(call_data[v1.cast32()]); pc++; break; /* review */}
+        case CALLDATALOAD: {
+            uint256_t v1 = stack.pop();
+            uint32_t offset = v1.cast32();
+            uint32_t size = 32;
+            if (offset + size > call_size) size = call_size - offset;
+            stack.push(uint256_t::from(&call_data[offset], size));
+            pc++;
+            break;
+        }
         case CALLDATASIZE: { stack.push(call_size); pc++; break; }
         case CALLDATACOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
@@ -1420,12 +1468,12 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
             break;
         }
         case EXTCODEHASH: { uint256_t v1 = stack.pop(); stack.push(storage.code_hash(v1)); pc++; break; }
-        case BLOCKHASH: { uint256_t v1 = stack.pop(); stack.push(block.hash(v1.cast32())); pc++; break; }
+        case BLOCKHASH: { uint256_t v1 = stack.pop(); stack.push(v1 < block.number()-256 || v1 >= block.number() ? 0 : block.hash(v1.cast32())); pc++; break; }
         case COINBASE: { stack.push(block.coinbase()); pc++; break; }
         case TIMESTAMP: { stack.push(block.timestamp()); pc++; break; }
         case NUMBER: { stack.push(block.number()); pc++; break; }
         case DIFFICULTY: { stack.push(block.difficulty()); pc++; break; }
-        case GASLIMIT: { stack.push(gas_limit); pc++; break; }
+        case GASLIMIT: { stack.push(block.gaslimit()); pc++; break; }
         case CHAINID: { stack.push(block.chainid()); pc++; break; }
         case SELFBALANCE: { stack.push(storage.balance(owner_address)); pc++; break; }
         case POP: { stack.pop(); pc++; break; }
@@ -1611,7 +1659,7 @@ static void vm_run(Block &block, Storage &storage, const uint8_t *code, const ui
 
             const uint8_t *code = storage.code(code_address);
             const uint32_t code_size = storage.code_size(code_address);
-            vm_run(block, storage, code, code_size, call_data, call_size, return_data, return_size, depth+1);
+            vm_run(block, storage, origin_address, gas_price, code_address, code, code_size, caller_address, call_value, call_data, call_size, return_data, return_size, depth+1);
 
             memory.burn(out_offset.cast32(), return_size, return_data);
 
@@ -1681,6 +1729,10 @@ public:
         static uint256_t t = 0; // static
         return t;
     }
+    const uint256_t& gaslimit() {
+        static uint256_t t = 10000000; // static
+        return t;
+    }
     const uint256_t& difficulty() {
         static uint256_t t = 0; // static
         return t;
@@ -1702,7 +1754,7 @@ struct message {
     uint32_t out_size;
 };
 
-static void raw(const uint8_t *buffer, uint32_t size)
+static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
 {
     _Block block;
     _Storage storage;
@@ -1731,10 +1783,33 @@ static void raw(const uint8_t *buffer, uint32_t size)
         txn.r = r;
         txn.s = s;
     }
-    uint256_t a = ecrecover(h, txn.v, txn.r, txn.s);
 
-    // call
+    uint256_t intrinsic_gas = G_transaction;
+    if (txn.has_to) intrinsic_gas += G_txcreate;
+    uint32_t zero_count = 0;
+    for (uint32_t i = 0; i < txn.data_size; i++) if (txn.data[i] == 0) zero_count++;
+    intrinsic_gas += zero_count * G_txdatazero;
+    intrinsic_gas += (txn.data_size - zero_count) * G_txdatanonzero;
+    if (txn.gaslimit < intrinsic_gas) throw INVALID_TRANSACTION;
+
+    uint256_t from = ecrecover(h, txn.v, txn.r, txn.s);
+    uint256_t nonce = storage.balance(from);
+    if (txn.nonce != nonce) throw INVALID_TRANSACTION;
+    uint256_t balance = storage.balance(from);
+    if (balance < txn.gaslimit * txn.gasprice + txn.value) throw INVALID_TRANSACTION;
+
+    // NO TRANSACTION FAILURE FROM HERE
+    nonce += 1;
+    balance -= txn.gaslimit * txn.gasprice;
+    uint256_t gas = txn.gaslimit - intrinsic_gas;
+
+    // message call
     if (txn.has_to) {
+        uint256_t to_balance = storage.balance(txn.to);
+
+        balance -= txn.value;
+        to_balance += txn.value;
+
         const uint32_t code_size = storage.code_size(txn.to);
         const uint8_t *code = storage.code(txn.to);
         if (code != nullptr) {
@@ -1742,13 +1817,18 @@ static void raw(const uint8_t *buffer, uint32_t size)
             const uint8_t *call_data = nullptr;
             const uint32_t return_size = 0;
             uint8_t *return_data = nullptr;
-            vm_run(block, storage, code, code_size, call_data, call_size, return_data, return_size, 0);
-        } else {
-            // token transfer
+            vm_run(block, storage, from, txn.gasprice, txn.to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, 0);
         }
-    } else {
-        // contract creation
     }
+
+    // contract creation
+    if (!txn.has_to) {
+        // TODO
+    }
+
+    // after execution refund remaing gas multiplies by txn.gasprice
+    // after execution delete self destruct accounts
+    // after execution delete touched accounts that were zeroed
 }
 
 /* main */
@@ -1799,7 +1879,7 @@ int main(int argc, const char *argv[])
     uint8_t buffer[size];
     if (len % 2 > 0 || !parse_hex(hexstr, buffer, size)) { std::cerr << progname << ": invalid input" << std::endl; return 1; }
     try {
-        raw(buffer, size);
+        raw(buffer, size, 0);
     } catch (Error e) {
         std::cerr << progname << ": error " << errors[e] << std::endl; return 1;
     }
