@@ -93,6 +93,7 @@ public:
         *this = 0;
         for (int j = 0; j < W; j++) {
             uint64_t base = v.data[j];
+            if (base == 0) continue;
             uint64_t carry = 0;
             for (int i = j; i < W; i++) {
                 uint64_t n = data[i] + base * t.data[i-j] + carry;
@@ -695,7 +696,7 @@ public:
     friend inline const modN_t operator+(const modN_t& v1, const modN_t& v2) { return modN_t(uint256_t::addmod(v1.u, v2.u, n())); }
     friend inline const modN_t operator-(const modN_t& v1, const modN_t& v2) { return v1 + (-v2); }
     friend inline const modN_t operator*(const modN_t& v1, const modN_t& v2) { return modN_t(uint256_t::mulmod(v1.u, v2.u, n())); }
-    friend inline const modN_t operator/(const modN_t& v1, const modN_t& v2) { return modN_t(v1.u / v2.u); }
+    friend inline const modN_t operator/(const modN_t& v1, const modN_t& v2) { return v1.u * pow(v2.u, -(modN_t)2); }
     friend inline bool operator==(const modN_t& v1, const modN_t& v2) { return v1.u == v2.u; }
     friend inline bool operator!=(const modN_t& v1, const modN_t& v2) { return v1.u != v2.u; }
     static inline const modN_t pow(const modN_t &v1, const modN_t &v2) {
@@ -766,9 +767,9 @@ public:
         if (x1 == x2) {
             if (y1 != y2) return inf();
             if (y1 == 0) return inf();
-            l = (3 * (x1 * x1) + a()) * mod_t::pow(2 * y1, -(mod_t)2);
+            l = (3 * (x1 * x1) + a()) / (2 * y1);
         } else {
-            l = (y2 - y1) * mod_t::pow(x2 - x1, -(mod_t)2);
+            l = (y2 - y1) / (x2 - x1);
         }
         mod_t x3 = l * l - x1 - x2;
         mod_t y3 = l * (x1 - x3) - y1;
@@ -790,7 +791,7 @@ public:
     static point_t gen(const uint256_t &u) { return  g() * u; }
     static point_t find(const mod_t &x, bool is_odd) {
         mod_t poly = x * x * x + a() * x + b();
-        mod_t y = mod_t::pow(poly, (-(mod_t)3) / 4 + 1);
+        mod_t y = mod_t::pow(poly, (mod_t)1 / 4);
         if (is_odd == (y.as256()[31] % 2 == 0)) y = -y;
         return point_t(x, y);
     }
@@ -806,7 +807,7 @@ static uint256_t ecrecover(const uint256_t &h, const uint256_t &v, const uint256
     if (r == 0 || mod_t(r).as256() != r) throw INVALID_SIGNATURE;
     if (s == 0 || 2*s < s || mod_t(2*s - 2).as256() != 2*s - 2) throw INVALID_SIGNATURE;
     point_t q = point_t::find(r, v == 28);
-    mud_t z = mud_t::pow(r, -(mud_t)2);
+    mud_t z = 1 / (mud_t)r;
     mud_t u = -(mud_t)h;
     point_t p = point_t::gen(u.as256()) + q * s;
     point_t t = p * z.as256();
