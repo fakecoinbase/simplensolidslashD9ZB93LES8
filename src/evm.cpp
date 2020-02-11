@@ -1885,8 +1885,14 @@ private:
 public:
     inline const uint256_t pop() { if (top == 0) throw STACK_UNDERFLOW;  return data[--top]; }
     inline void push(const uint256_t& v) { if (top == L) throw STACK_OVERFLOW; data[top++] = v; }
-    inline uint256_t operator[](int i) const { return data[i < 0 ? top - i: i]; }
-    inline uint256_t& operator[](int i) { return data[i < 0 ? top - i: i]; }
+    inline uint256_t operator[](int i) const {
+        if (i < -top || i >= top) throw OUTOFBOUND_INDEX;
+        return data[i < 0 ? top - i: i];
+    }
+    inline uint256_t& operator[](int i) {
+        if (i < -top || i >= top) throw OUTOFBOUND_INDEX;
+        return data[i < 0 ? top - i: i];
+    }
 };
 
 class Memory {
