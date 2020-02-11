@@ -7,6 +7,7 @@
 
 enum Error {
     DIVIDES_ZERO = 1,
+    GAS_EXAUSTED, // VM
     MEMORY_EXAUSTED,
     ILLEGAL_TARGET, // VM
     ILLEGAL_UPDATE, // VM
@@ -26,6 +27,7 @@ enum Error {
 static const char *errors[UNIMPLEMENTED+1] = {
     nullptr,
     "DIVIDES_ZERO",
+    "GAS_EXAUSTED",
     "MEMORY_EXAUSTED",
     "ILLEGAL_TARGET",
     "ILLEGAL_UPDATE",
@@ -1428,7 +1430,7 @@ static const uint32_t is_gas[3][GasCreate2+1] = {
 };
 static uint8_t is_gas_index[ISTANBUL+1] = { 0, 0, 1, 1, 1, 1, 2 };
 
-static inline uint32_t gas(Release release, uint8_t opc)
+static inline uint32_t opcode_gas(Release release, uint8_t opc)
 {
     return is_gas[is_gas_index[release]][constgas[opc]];
 }
@@ -1465,32 +1467,413 @@ CREATE2 memoryCreate2
 
 Dynamic Gas
 
-EXP gasExpFrontier
-CALLDATACOPY gasCallDataCopy
-CODECOPY gasCodeCopy
-EXTCODECOPY gasExtCodeCopy
-MLOAD gasMLoad
-MSTORE gasMStore
-MSTORE8 gasMStore8
-SSTORE gasSStore
+
+CALLDATACOPY memoryCopierGas(2)
+CODECOPY memoryCopierGas(2)
+EXTCODECOPY memoryCopierGas(3)
+RETURNDATACOPY memoryCopierGas(2)
+
+MLOAD pureMemoryGascost
+MSTORE pureMemoryGascost
+MSTORE8 pureMemoryGascost
+CREATE pureMemoryGascost
+RETURN pureMemoryGascost
+REVERT pureMemoryGascost
+
 LOG0 makeGasLog(0)
 LOG1 makeGasLog(1)
 LOG2 makeGasLog(2)
 LOG3 makeGasLog(3)
 LOG4 makeGasLog(4)
-CREATE gasCreate
+
+SHA3 gasSHA3
+CREATE2 gasCreate2
 CALL gasCall
 CALLCODE gasCallCode
-RETURN gasReturn
 SELFDESTRUCT gasSelfdestruct
 DELEGATECALL gasDelegateCall
 STATICCALL gasStaticCall
-RETURNDATACOPY gasReturnDataCopy
-REVERT gasRevert
-CREATE2 gasCreate2
 
+EXP gasExpFrontier
 TangerineWhistle -> SpuriousDragon EXP gasExpEIP158
+
+SSTORE gasSStore
 Constantinople -> Istanbul SSTORE gasSStoreEIP2200
+
+func gasExpEIP158(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
+	expByteLen := uint64((stack.data[stack.len()-2].BitLen() + 7) / 8)
+
+	var (
+		gas      = expByteLen * params.ExpByteEIP158 // no overflow check required. Max is 256 * ExpByte gas
+		overflow bool
+	)
+	if gas, overflow = math.SafeAdd(gas, params.ExpGas); overflow {
+		return 0, errGasUintOverflow
+	}
+	return gas, nil
+}
+
+func gasSStoreEIP2200(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
+	// If we fail the minimum gas availability invariant, fail (0)
+	if contract.Gas <= params.SstoreSentryGasEIP2200 {
+		return 0, errors.New("not enough gas for reentrancy sentry")
+	}
+	// Gas sentry honoured, do the actual gas calculation based on the stored value
+	var (
+		y, x    = stack.Back(1), stack.Back(0)
+		current = evm.StateDB.GetState(contract.Address(), common.BigToHash(x))
+	)
+	value := common.BigToHash(y)
+
+	if current == value { // noop (1)
+		return params.SstoreNoopGasEIP2200, nil
+	}
+	original := evm.StateDB.GetCommittedState(contract.Address(), common.BigToHash(x))
+	if original == current {
+		if original == (common.Hash{}) { // create slot (2.1.1)
+			return params.SstoreInitGasEIP2200, nil
+		}
+		if value == (common.Hash{}) { // delete slot (2.1.2b)
+			evm.StateDB.AddRefund(params.SstoreClearRefundEIP2200)
+		}
+		return params.SstoreCleanGasEIP2200, nil // write existing slot (2.1.2)
+	}
+	if original != (common.Hash{}) {
+		if current == (common.Hash{}) { // recreate slot (2.2.1.1)
+			evm.StateDB.SubRefund(params.SstoreClearRefundEIP2200)
+		} else if value == (common.Hash{}) { // delete slot (2.2.1.2)
+			evm.StateDB.AddRefund(params.SstoreClearRefundEIP2200)
+		}
+	}
+	if original == value {
+		if original == (common.Hash{}) { // reset to original inexistent slot (2.2.2.1)
+			evm.StateDB.AddRefund(params.SstoreInitRefundEIP2200)
+		} else { // reset to original existing slot (2.2.2.2)
+			evm.StateDB.AddRefund(params.SstoreCleanRefundEIP2200)
+		}
+	}
+	return params.SstoreDirtyGasEIP2200, nil // dirty update (2.2)
+}
+
+func memoryGasCost(mem *Memory, newMemSize uint64) (uint64, error) {
+	if newMemSize == 0 {
+		return 0, nil
+	}
+	// The maximum that will fit in a uint64 is max_word_count - 1. Anything above
+	// that will result in an overflow. Additionally, a newMemSize which results in
+	// a newMemSizeWords larger than 0xFFFFFFFF will cause the square operation to
+	// overflow. The constant 0x1FFFFFFFE0 is the highest number that can be used
+	// without overflowing the gas calculation.
+	if newMemSize > 0x1FFFFFFFE0 {
+		return 0, errGasUintOverflow
+	}
+	newMemSizeWords := toWordSize(newMemSize)
+	newMemSize = newMemSizeWords * 32
+
+	if newMemSize > uint64(mem.Len()) {
+		square := newMemSizeWords * newMemSizeWords
+		linCoef := newMemSizeWords * params.MemoryGas
+		quadCoef := square / params.QuadCoeffDiv
+		newTotalFee := linCoef + quadCoef
+
+		fee := newTotalFee - mem.lastGasCost
+		mem.lastGasCost = newTotalFee
+
+		return fee, nil
+	}
+	return 0, nil
+}
+
+func gasSStore(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
+	var (
+		y, x    = stack.Back(1), stack.Back(0)
+		current = evm.StateDB.GetState(contract.Address(), common.BigToHash(x))
+	)
+	// The legacy gas metering only takes into consideration the current state
+	// Legacy rules should be applied if we are in Petersburg (removal of EIP-1283)
+	// OR Constantinople is not active
+	if evm.chainRules.IsPetersburg || !evm.chainRules.IsConstantinople {
+		// This checks for 3 scenario's and calculates gas accordingly:
+		//
+		// 1. From a zero-value address to a non-zero value         (NEW VALUE)
+		// 2. From a non-zero value address to a zero-value address (DELETE)
+		// 3. From a non-zero to a non-zero                         (CHANGE)
+		switch {
+		case current == (common.Hash{}) && y.Sign() != 0: // 0 => non 0
+			return params.SstoreSetGas, nil
+		case current != (common.Hash{}) && y.Sign() == 0: // non 0 => 0
+			evm.StateDB.AddRefund(params.SstoreRefundGas)
+			return params.SstoreClearGas, nil
+		default: // non 0 => non 0 (or 0 => 0)
+			return params.SstoreResetGas, nil
+		}
+	}
+	// The new gas metering is based on net gas costs (EIP-1283):
+	//
+	// 1. If current value equals new value (this is a no-op), 200 gas is deducted.
+	// 2. If current value does not equal new value
+	//   2.1. If original value equals current value (this storage slot has not been changed by the current execution context)
+	//     2.1.1. If original value is 0, 20000 gas is deducted.
+	// 	   2.1.2. Otherwise, 5000 gas is deducted. If new value is 0, add 15000 gas to refund counter.
+	// 	2.2. If original value does not equal current value (this storage slot is dirty), 200 gas is deducted. Apply both of the following clauses.
+	// 	  2.2.1. If original value is not 0
+	//       2.2.1.1. If current value is 0 (also means that new value is not 0), remove 15000 gas from refund counter. We can prove that refund counter will never go below 0.
+	//       2.2.1.2. If new value is 0 (also means that current value is not 0), add 15000 gas to refund counter.
+	// 	  2.2.2. If original value equals new value (this storage slot is reset)
+	//       2.2.2.1. If original value is 0, add 19800 gas to refund counter.
+	// 	     2.2.2.2. Otherwise, add 4800 gas to refund counter.
+	value := common.BigToHash(y)
+	if current == value { // noop (1)
+		return params.NetSstoreNoopGas, nil
+	}
+	original := evm.StateDB.GetCommittedState(contract.Address(), common.BigToHash(x))
+	if original == current {
+		if original == (common.Hash{}) { // create slot (2.1.1)
+			return params.NetSstoreInitGas, nil
+		}
+		if value == (common.Hash{}) { // delete slot (2.1.2b)
+			evm.StateDB.AddRefund(params.NetSstoreClearRefund)
+		}
+		return params.NetSstoreCleanGas, nil // write existing slot (2.1.2)
+	}
+	if original != (common.Hash{}) {
+		if current == (common.Hash{}) { // recreate slot (2.2.1.1)
+			evm.StateDB.SubRefund(params.NetSstoreClearRefund)
+		} else if value == (common.Hash{}) { // delete slot (2.2.1.2)
+			evm.StateDB.AddRefund(params.NetSstoreClearRefund)
+		}
+	}
+	if original == value {
+		if original == (common.Hash{}) { // reset to original inexistent slot (2.2.2.1)
+			evm.StateDB.AddRefund(params.NetSstoreResetClearRefund)
+		} else { // reset to original existing slot (2.2.2.2)
+			evm.StateDB.AddRefund(params.NetSstoreResetRefund)
+		}
+	}
+	return params.NetSstoreDirtyGas, nil
+}
+
+func gasCall(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
+	var (
+		gas            uint64
+		transfersValue = stack.Back(2).Sign() != 0
+		address        = common.BigToAddress(stack.Back(1))
+	)
+	if evm.chainRules.IsEIP158 {
+		if transfersValue && evm.StateDB.Empty(address) {
+			gas += params.CallNewAccountGas
+		}
+	} else if !evm.StateDB.Exist(address) {
+		gas += params.CallNewAccountGas
+	}
+	if transfersValue {
+		gas += params.CallValueTransferGas
+	}
+	memoryGas, err := memoryGasCost(mem, memorySize)
+	if err != nil {
+		return 0, err
+	}
+	var overflow bool
+	if gas, overflow = math.SafeAdd(gas, memoryGas); overflow {
+		return 0, errGasUintOverflow
+	}
+
+	evm.callGasTemp, err = callGas(evm.chainRules.IsEIP150, contract.Gas, gas, stack.Back(0))
+	if err != nil {
+		return 0, err
+	}
+	if gas, overflow = math.SafeAdd(gas, evm.callGasTemp); overflow {
+		return 0, errGasUintOverflow
+	}
+	return gas, nil
+}
+
+func gasCallCode(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
+	memoryGas, err := memoryGasCost(mem, memorySize)
+	if err != nil {
+		return 0, err
+	}
+	var (
+		gas      uint64
+		overflow bool
+	)
+	if stack.Back(2).Sign() != 0 {
+		gas += params.CallValueTransferGas
+	}
+	if gas, overflow = math.SafeAdd(gas, memoryGas); overflow {
+		return 0, errGasUintOverflow
+	}
+	evm.callGasTemp, err = callGas(evm.chainRules.IsEIP150, contract.Gas, gas, stack.Back(0))
+	if err != nil {
+		return 0, err
+	}
+	if gas, overflow = math.SafeAdd(gas, evm.callGasTemp); overflow {
+		return 0, errGasUintOverflow
+	}
+	return gas, nil
+}
+
+func gasDelegateCall(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
+	gas, err := memoryGasCost(mem, memorySize)
+	if err != nil {
+		return 0, err
+	}
+	evm.callGasTemp, err = callGas(evm.chainRules.IsEIP150, contract.Gas, gas, stack.Back(0))
+	if err != nil {
+		return 0, err
+	}
+	var overflow bool
+	if gas, overflow = math.SafeAdd(gas, evm.callGasTemp); overflow {
+		return 0, errGasUintOverflow
+	}
+	return gas, nil
+}
+
+func gasStaticCall(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
+	gas, err := memoryGasCost(mem, memorySize)
+	if err != nil {
+		return 0, err
+	}
+	evm.callGasTemp, err = callGas(evm.chainRules.IsEIP150, contract.Gas, gas, stack.Back(0))
+	if err != nil {
+		return 0, err
+	}
+	var overflow bool
+	if gas, overflow = math.SafeAdd(gas, evm.callGasTemp); overflow {
+		return 0, errGasUintOverflow
+	}
+	return gas, nil
+}
+
+func gasSelfdestruct(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
+	var gas uint64
+	// EIP150 homestead gas reprice fork:
+	if evm.chainRules.IsEIP150 {
+		gas = params.SelfdestructGasEIP150
+		var address = common.BigToAddress(stack.Back(0))
+
+		if evm.chainRules.IsEIP158 {
+			// if empty and transfers value
+			if evm.StateDB.Empty(address) && evm.StateDB.GetBalance(contract.Address()).Sign() != 0 {
+				gas += params.CreateBySelfdestructGas
+			}
+		} else if !evm.StateDB.Exist(address) {
+			gas += params.CreateBySelfdestructGas
+		}
+	}
+
+	if !evm.StateDB.HasSuicided(contract.Address()) {
+		evm.StateDB.AddRefund(params.SelfdestructRefundGas)
+	}
+	return gas, nil
+}
+
+func gasSha3(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
+	gas, err := memoryGasCost(mem, memorySize)
+	if err != nil {
+		return 0, err
+	}
+	wordGas, overflow := bigUint64(stack.Back(1))
+	if overflow {
+		return 0, errGasUintOverflow
+	}
+	if wordGas, overflow = math.SafeMul(toWordSize(wordGas), params.Sha3WordGas); overflow {
+		return 0, errGasUintOverflow
+	}
+	if gas, overflow = math.SafeAdd(gas, wordGas); overflow {
+		return 0, errGasUintOverflow
+	}
+	return gas, nil
+}
+
+func gasCreate2(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
+	gas, err := memoryGasCost(mem, memorySize)
+	if err != nil {
+		return 0, err
+	}
+	wordGas, overflow := bigUint64(stack.Back(2))
+	if overflow {
+		return 0, errGasUintOverflow
+	}
+	if wordGas, overflow = math.SafeMul(toWordSize(wordGas), params.Sha3WordGas); overflow {
+		return 0, errGasUintOverflow
+	}
+	if gas, overflow = math.SafeAdd(gas, wordGas); overflow {
+		return 0, errGasUintOverflow
+	}
+	return gas, nil
+}
+
+func pureMemoryGascost(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
+	return memoryGasCost(mem, memorySize)
+}
+
+func makeGasLog(n uint64) gasFunc {
+	return func(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
+		requestedSize, overflow := bigUint64(stack.Back(1))
+		if overflow {
+			return 0, errGasUintOverflow
+		}
+
+		gas, err := memoryGasCost(mem, memorySize)
+		if err != nil {
+			return 0, err
+		}
+
+		if gas, overflow = math.SafeAdd(gas, params.LogGas); overflow {
+			return 0, errGasUintOverflow
+		}
+		if gas, overflow = math.SafeAdd(gas, n*params.LogTopicGas); overflow {
+			return 0, errGasUintOverflow
+		}
+
+		var memorySizeGas uint64
+		if memorySizeGas, overflow = math.SafeMul(requestedSize, params.LogDataGas); overflow {
+			return 0, errGasUintOverflow
+		}
+		if gas, overflow = math.SafeAdd(gas, memorySizeGas); overflow {
+			return 0, errGasUintOverflow
+		}
+		return gas, nil
+	}
+}
+
+func gasExpFrontier(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
+	expByteLen := uint64((stack.data[stack.len()-2].BitLen() + 7) / 8)
+
+	var (
+		gas      = expByteLen * params.ExpByteFrontier // no overflow check required. Max is 256 * ExpByte gas
+		overflow bool
+	)
+	if gas, overflow = math.SafeAdd(gas, params.ExpGas); overflow {
+		return 0, errGasUintOverflow
+	}
+	return gas, nil
+}
+
+func memoryCopierGas(stackpos int) gasFunc {
+	return func(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
+		// Gas for expanding the memory
+		gas, err := memoryGasCost(mem, memorySize)
+		if err != nil {
+			return 0, err
+		}
+		// And gas for copying data, charged per word at param.CopyGas
+		words, overflow := bigUint64(stack.Back(stackpos))
+		if overflow {
+			return 0, errGasUintOverflow
+		}
+
+		if words, overflow = math.SafeMul(toWordSize(words), params.CopyGas); overflow {
+			return 0, errGasUintOverflow
+		}
+
+		if gas, overflow = math.SafeAdd(gas, words); overflow {
+			return 0, errGasUintOverflow
+		}
+		return gas, nil
+	}
+}
 
 */
 
@@ -1621,7 +2004,7 @@ public:
     virtual const uint256_t& hash(uint32_t number) = 0;
 };
 
-static void vm_run(Block &block, Storage &storage,
+static bool vm_run(Release release, Block &block, Storage &storage,
     const uint256_t &origin_address, const uint256_t &gas_price,
     const uint256_t &owner_address, const uint8_t *code, const uint32_t code_size,
     const uint256_t &caller_address, const uint256_t &call_value, const uint8_t *call_data, const uint32_t call_size,
@@ -1629,18 +2012,25 @@ static void vm_run(Block &block, Storage &storage,
 {
     if (depth == 1024) throw RECURSION_LIMITED;
 
-    uint256_t gas;
     // permissions
     bool is_static = false;
+    uint256_t gas;
 
-    uint32_t pc = 0;
+    if (code_size == 0) return false;
     Stack stack;
     Memory memory;
+    uint32_t pc = 0;
     for (;;) {
         uint8_t opc = pc <= code_size ? code[pc] : STOP;
+        if ((is[release] & (1 << opc)) == 0) throw INVALID_OPCODE;
         std::cout << opcodes[opc] << std::endl;
+
+        uint256_t cost = opcode_gas(release, opc);
+        if (cost > gas) throw GAS_EXAUSTED;
+        gas -= cost;
+
         switch (opc) {
-        case STOP: { /* hreturn = [] */ return; }
+        case STOP: { return false; }
         case ADD: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 + v2); pc++; break; }
         case MUL: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 * v2); pc++; break; }
         case SUB: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 - v2); pc++; break; }
@@ -1953,7 +2343,7 @@ static void vm_run(Block &block, Storage &storage,
             const uint8_t *code = storage.code(code_address);
             const uint32_t code_size = storage.code_size(code_address);
             try {
-                vm_run(block, storage, origin_address, gas_price, code_address, code, code_size, caller_address, call_value, call_data, call_size, return_data, return_size, depth+1);
+                vm_run(release, block, storage, origin_address, gas_price, code_address, code, code_size, caller_address, call_value, call_data, call_size, return_data, return_size, depth+1);
                 stack.push(1);
                 memory.burn(out_offset.cast32(), return_size, return_data);
             } catch (Error e) {
@@ -1969,7 +2359,7 @@ static void vm_run(Block &block, Storage &storage,
             uint32_t offset = v1.cast32(), size = v2.cast32();
             if (size > return_size) size = return_size;
             memory.dump(offset, size, return_data);
-            return;
+            return true;
         }
         case DELEGATECALL: throw UNIMPLEMENTED;
         case CREATE2: {
@@ -1987,14 +2377,14 @@ static void vm_run(Block &block, Storage &storage,
             uint32_t offset = v1.cast32(), size = v2.cast32();
             if (size > return_size) size = return_size;
             memory.dump(offset, size, return_data);
-            return;
+            return true;
         }
         case SELFDESTRUCT: {
             uint256_t v1 = stack.pop();
             uint256_t balance = storage.balance(owner_address);
             // add balance to v1 balance
             // kill contract
-            return;
+            return false;
         }
         default: throw INVALID_OPCODE;
         }
@@ -2118,7 +2508,7 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
             const uint8_t *call_data = nullptr;
             const uint32_t return_size = 0;
             uint8_t *return_data = nullptr;
-            vm_run(block, storage, from, txn.gasprice, txn.to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, 0);
+            vm_run(ISTANBUL, block, storage, from, txn.gasprice, txn.to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, 0);
         }
     }
 
