@@ -8,17 +8,18 @@
 enum Error {
     DIVIDES_ZERO = 1,
     MEMORY_EXAUSTED,
-    ILLEGAL_TARGET,
-    ILLEGAL_UPDATE,
+    ILLEGAL_TARGET, // VM
+    ILLEGAL_UPDATE, // VM
     INSUFFICIENT_SPACE,
     INVALID_ENCODING,
-    INVALID_OPCODE,
+    INVALID_OPCODE, // VM
     INVALID_SIGNATURE,
     INVALID_SIZE,
     INVALID_TRANSACTION,
     OUTOFBOUND_INDEX,
-    STACK_OVERFLOW,
-    STACK_UNDERFLOW,
+    RECURSION_LIMITED, // VM
+    STACK_OVERFLOW, // VM
+    STACK_UNDERFLOW, // VM
     UNIMPLEMENTED,
 };
 
@@ -35,6 +36,7 @@ static const char *errors[UNIMPLEMENTED+1] = {
     "INVALID_SIZE",
     "INVALID_TRANSACTION",
     "OUTOFBOUND_INDEX",
+    "RECURSION_LIMITED",
     "STACK_OVERFLOW",
     "STACK_UNDERFLOW",
     "UNIMPLEMENTED",
@@ -1094,7 +1096,27 @@ static struct txn decode_txn(const uint8_t *buffer, uint32_t size)
 
 /* gas */
 
-enum gas : uint32_t {
+enum GasType : uint8_t {
+    GasNone = 0,
+    GasQuickStep,
+    GasFastestStep,
+    GasFastStep,
+    GasMidStep,
+    GasSlowStep,
+    GasExtStep,
+    GasSha3,
+    GasBalance,
+    GasExtcodeSize,
+    GasExtcodeCopy,
+    GasExtcodeHash,
+    GasSload,
+    GasJumpdest,
+    GasCreate,
+    GasCall,
+    GasCreate2,
+};
+
+enum GasValue : uint32_t {
     G_zero = 0,
     G_base = 2,
     G_verylow = 3,
@@ -1128,6 +1150,34 @@ enum gas : uint32_t {
     G_copy = 3,
     G_blockhash = 20,
     G_quaddivisor = 20,
+
+    _GasNone = 0,
+    _GasQuickStep = 2,
+    _GasFastestStep = 3,
+    _GasFastStep = 5,
+    _GasMidStep = 8,
+    _GasSlowStep = 10,
+    _GasExtStep = 20,
+    _GasSha3 = 30,
+    _GasBalance = 20,
+    _GasExtcodeSize = 20,
+    _GasExtcodeCopy = 20,
+    _GasExtcodeHash = 400,
+    _GasSload = 50,
+    _GasJumpdest = 1,
+    _GasCreate = 32000,
+    _GasCall = 40,
+    _GasCreate2 = 32000,
+
+    _GasBalance_TangerineWhistle = 400,
+    _GasExtcodeSize_TangerineWhistle = 700,
+    _GasExtcodeCopy_TangerineWhistle = 700,
+    _GasSload_TangerineWhistle = 200,
+    _GasCall_TangerineWhistle = 700,
+
+    _GasBalance_Istanbul = 700,
+    _GasExtcodeHash_Istanbul = 700,
+    _GasSload_Istanbul = 800,
 };
 
 /* interpreter */
@@ -1201,6 +1251,248 @@ static const char *opcodes[256] = {
     "CREATE", "CALL", "CALLCODE", "RETURN", "DELEGATECALL", "CREATE2", "?", "?",
     "?", "?", "STATICCALL", "?", "?", "REVERT", "?", "SELFDESTRUCT",
 };
+
+static const uint8_t constgas[256] = {
+    /*STOP*/GasNone, /*ADD*/GasFastestStep, /*MUL*/GasFastStep, /*SUB*/GasFastestStep, /*DIV*/GasFastStep, /*SDIV*/GasFastStep, /*MOD*/GasFastStep, /*SMOD*/GasFastStep,
+    /*ADDMOD*/GasMidStep, /*MULMOD*/GasMidStep, /*EXP*/GasNone, /*SIGNEXTEND*/GasFastStep, 0, 0, 0, 0,
+    /*LT*/GasFastestStep, /*GT*/GasFastestStep, /*SLT*/GasFastestStep, /*SGT*/GasFastestStep, /*EQ*/GasFastestStep, /*ISZERO*/GasFastestStep, /*AND*/GasFastestStep, /*OR*/GasFastestStep,
+    /*XOR*/GasFastestStep, /*NOT*/GasFastestStep, /*BYTE*/GasFastestStep, /*SHL*/GasFastestStep, /*SHR*/GasFastestStep, /*SAR*/GasFastestStep, 0, 0,
+    /*SHA3*/GasSha3, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    /*ADDRESS*/GasQuickStep, /*BALANCE*/GasBalance, /*ORIGIN*/GasQuickStep, /*CALLER*/GasQuickStep, /*CALLVALUE*/GasQuickStep, /*CALLDATALOAD*/GasFastestStep, /*CALLDATASIZE*/GasQuickStep, /*CALLDATACOPY*/GasFastestStep,
+    /*CODESIZE*/GasQuickStep, /*CODECOPY*/GasFastestStep, /*GASPRICE*/GasQuickStep, /*EXTCODESIZE*/GasExtcodeSize, /*EXTCODECOPY*/GasExtcodeCopy, /*RETURNDATASIZE*/GasQuickStep, /*RETURNDATACOPY*/GasFastestStep, /*EXTCODEHASH*/GasExtcodeHash,
+    /*BLOCKHASH*/GasExtStep, /*COINBASE*/GasQuickStep, /*TIMESTAMP*/GasQuickStep, /*NUMBER*/GasQuickStep, /*DIFFICULTY*/GasQuickStep, /*GASLIMIT*/GasQuickStep, /*CHAINID*/GasQuickStep, /*SELFBALANCE*/GasFastStep,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    /*POP*/GasQuickStep, /*MLOAD*/GasFastestStep, /*MSTORE*/GasFastestStep, /*MSTORE8*/GasFastestStep, /*SLOAD*/GasSload, /*SSTORE*/GasNone, /*JUMP*/GasMidStep, /*JUMPI*/GasSlowStep,
+    /*PC*/GasQuickStep, /*MSIZE*/GasQuickStep, /*GAS*/GasQuickStep, /*JUMPDEST*/GasJumpdest, 0, 0, 0, 0,
+    /*PUSH1*/GasFastestStep, /*PUSH2*/GasFastestStep, /*PUSH3*/GasFastestStep, /*PUSH4*/GasFastestStep, /*PUSH5*/GasFastestStep, /*PUSH6*/GasFastestStep, /*PUSH7*/GasFastestStep, /*PUSH8*/GasFastestStep,
+    /*PUSH9*/GasFastestStep, /*PUSH10*/GasFastestStep, /*PUSH11*/GasFastestStep, /*PUSH12*/GasFastestStep, /*PUSH13*/GasFastestStep, /*PUSH14*/GasFastestStep, /*PUSH15*/GasFastestStep, /*PUSH16*/GasFastestStep,
+    /*PUSH17*/GasFastestStep, /*PUSH18*/GasFastestStep, /*PUSH19*/GasFastestStep, /*PUSH20*/GasFastestStep, /*PUSH21*/GasFastestStep, /*PUSH22*/GasFastestStep, /*PUSH23*/GasFastestStep, /*PUSH24*/GasFastestStep,
+    /*PUSH25*/GasFastestStep, /*PUSH26*/GasFastestStep, /*PUSH27*/GasFastestStep, /*PUSH28*/GasFastestStep, /*PUSH29*/GasFastestStep, /*PUSH30*/GasFastestStep, /*PUSH31*/GasFastestStep, /*PUSH32*/GasFastestStep,
+    /*DUP1*/GasFastestStep, /*DUP2*/GasFastestStep, /*DUP3*/GasFastestStep, /*DUP4*/GasFastestStep, /*DUP5*/GasFastestStep, /*DUP6*/GasFastestStep, /*DUP7*/GasFastestStep, /*DUP8*/GasFastestStep,
+    /*DUP9*/GasFastestStep, /*DUP10*/GasFastestStep, /*DUP11*/GasFastestStep, /*DUP12*/GasFastestStep, /*DUP13*/GasFastestStep, /*DUP14*/GasFastestStep, /*DUP15*/GasFastestStep, /*DUP16*/GasFastestStep,
+    /*SWAP1*/GasFastestStep, /*SWAP2*/GasFastestStep, /*SWAP3*/GasFastestStep, /*SWAP4*/GasFastestStep, /*SWAP5*/GasFastestStep, /*SWAP6*/GasFastestStep, /*SWAP7*/GasFastestStep, /*SWAP8*/GasFastestStep,
+    /*SWAP9*/GasFastestStep, /*SWAP10*/GasFastestStep, /*SWAP11*/GasFastestStep, /*SWAP12*/GasFastestStep, /*SWAP13*/GasFastestStep, /*SWAP14*/GasFastestStep, /*SWAP15*/GasFastestStep, /*SWAP16*/GasFastestStep,
+    /*LOG0*/GasNone, /*LOG1*/GasNone, /*LOG2*/GasNone, /*LOG3*/GasNone, /*LOG4*/GasNone, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    /*CREATE*/GasCreate, /*CALL*/GasCall, /*CALLCODE*/GasCall, /*RETURN*/GasNone, /*DELEGATECALL*/GasCall, /*CREATE2*/GasCreate2, 0, 0,
+    0, 0, /*STATICCALL*/GasCall, 0, 0, /*REVERT*/GasNone, 0, /*SELFDESTRUCT*/GasNone,
+};
+
+enum Release {
+    FRONTIER = 0,
+    HOMESTEAD,
+    TANGERINE_WHISTLE,
+    SPURIOUS_DRAGON,
+    BYZANTIUM,
+    CONSTANTINOPLE,
+    ISTANBUL,
+};
+
+const uint256_t _1 = (uint256_t)1;
+const uint256_t is_frontier = 0
+    | _1 << STOP | _1 << ADD | _1 << MUL | _1 << SUB | _1 << DIV | _1 << SDIV | _1 << MOD | _1 << SMOD
+    | _1 << ADDMOD | _1 << MULMOD | _1 << EXP | _1 << SIGNEXTEND
+    | _1 << LT | _1 << GT | _1 << SLT | _1 << SGT | _1 << EQ | _1 << ISZERO | _1 << AND | _1 << OR
+    | _1 << XOR | _1 << NOT | _1 << BYTE
+    | _1 << SHA3
+    | _1 << ADDRESS | _1 << BALANCE | _1 << ORIGIN | _1 << CALLER | _1 << CALLVALUE | _1 << CALLDATALOAD | _1 << CALLDATASIZE | _1 << CALLDATACOPY
+    | _1 << CODESIZE | _1 << CODECOPY | _1 << GASPRICE | _1 << EXTCODESIZE | _1 << EXTCODECOPY
+    | _1 << BLOCKHASH | _1 << COINBASE | _1 << TIMESTAMP | _1 << NUMBER | _1 << DIFFICULTY | _1 << GASLIMIT
+    | _1 << POP | _1 << MLOAD | _1 << MSTORE | _1 << MSTORE8 | _1 << SLOAD | _1 << SSTORE | _1 << JUMP | _1 << JUMPI
+    | _1 << PC | _1 << MSIZE | _1 << GAS | _1 << JUMPDEST
+    | _1 << PUSH1 | _1 << PUSH2 | _1 << PUSH3 | _1 << PUSH4 | _1 << PUSH5 | _1 << PUSH6 | _1 << PUSH7 | _1 << PUSH8
+    | _1 << PUSH9 | _1 << PUSH10 | _1 << PUSH11 | _1 << PUSH12 | _1 << PUSH13 | _1 << PUSH14 | _1 << PUSH15 | _1 << PUSH16
+    | _1 << PUSH17 | _1 << PUSH18 | _1 << PUSH19 | _1 << PUSH20 | _1 << PUSH21 | _1 << PUSH22 | _1 << PUSH23 | _1 << PUSH24
+    | _1 << PUSH25 | _1 << PUSH26 | _1 << PUSH27 | _1 << PUSH28 | _1 << PUSH29 | _1 << PUSH30 | _1 << PUSH31 | _1 << PUSH32
+    | _1 << DUP1 | _1 << DUP2 | _1 << DUP3 | _1 << DUP4 | _1 << DUP5 | _1 << DUP6 | _1 << DUP7 | _1 << DUP8
+    | _1 << DUP9 | _1 << DUP10 | _1 << DUP11 | _1 << DUP12 | _1 << DUP13 | _1 << DUP14 | _1 << DUP15 | _1 << DUP16
+    | _1 << SWAP1 | _1 << SWAP2 | _1 << SWAP3 | _1 << SWAP4 | _1 << SWAP5 | _1 << SWAP6 | _1 << SWAP7 | _1 << SWAP8
+    | _1 << SWAP9 | _1 << SWAP10 | _1 << SWAP11 | _1 << SWAP12 | _1 << SWAP13 | _1 << SWAP14 | _1 << SWAP15 | _1 << SWAP16
+    | _1 << LOG0 | _1 << LOG1 | _1 << LOG2 | _1 << LOG3 | _1 << LOG4
+    | _1 << CREATE | _1 << CALL | _1 << CALLCODE | _1 << RETURN
+    | _1 << SELFDESTRUCT;
+const uint256_t is_homestead = is_frontier
+    | _1 << DELEGATECALL;
+const uint256_t is_tangerine_whistle = is_homestead;
+const uint256_t is_spurious_dragon = is_tangerine_whistle;
+const uint256_t is_byzantium = is_spurious_dragon
+    | _1 << STATICCALL
+    | _1 << RETURNDATASIZE
+    | _1 << RETURNDATACOPY
+    | _1 << REVERT;
+const uint256_t is_constantinople = is_byzantium
+    | _1 << SHL
+    | _1 << SHR
+    | _1 << SAR
+    | _1 << EXTCODEHASH
+    | _1 << CREATE2;
+const uint256_t is_istanbul = is_constantinople
+    | _1 << CHAINID
+    | _1 << SELFBALANCE;
+
+static const uint256_t is[ISTANBUL+1] = {
+    is_frontier,
+    is_homestead,
+    is_tangerine_whistle,
+    is_spurious_dragon,
+    is_byzantium,
+    is_constantinople,
+    is_istanbul,
+};
+
+const uint256_t is_halts = 0
+    | _1 << STOP
+    | _1 << RETURN
+    | _1 << SELFDESTRUCT;
+const uint256_t is_jumps = 0
+    | _1 << JUMP | _1 << JUMPI;
+const uint256_t is_writes = 0
+    | _1 << SSTORE
+    | _1 << LOG0 | _1 << LOG1 | _1 << LOG2 | _1 << LOG3 | _1 << LOG4
+    | _1 << CREATE | _1 << CREATE2
+    | _1 << SELFDESTRUCT;
+const uint256_t is_reverts = 0
+    | _1 << REVERT;
+const uint256_t is_returns = 0
+    | _1 << CREATE | _1 << CREATE2
+    | _1 << CALL | _1 << CALLCODE | _1 << DELEGATECALL | _1 << STATICCALL
+    | _1 << REVERT;
+
+static const uint32_t is_gas[3][GasCreate2+1] = {
+    {   // frontier | homestead
+        _GasNone,
+        _GasQuickStep,
+        _GasFastestStep,
+        _GasFastStep,
+        _GasMidStep,
+        _GasSlowStep,
+        _GasExtStep,
+        _GasSha3,
+        _GasBalance,
+        _GasExtcodeSize,
+        _GasExtcodeCopy,
+        _GasExtcodeHash,
+        _GasSload,
+        _GasJumpdest,
+        _GasCreate,
+        _GasCall,
+        _GasCreate2,
+    },
+    {   // tangerine whistle | spurious dragon | byzantium | constantinople
+        _GasNone,
+        _GasQuickStep,
+        _GasFastestStep,
+        _GasFastStep,
+        _GasMidStep,
+        _GasSlowStep,
+        _GasExtStep,
+        _GasSha3,
+        _GasBalance_TangerineWhistle,
+        _GasExtcodeSize_TangerineWhistle,
+        _GasExtcodeCopy_TangerineWhistle,
+        _GasExtcodeHash,
+        _GasSload_TangerineWhistle,
+        _GasJumpdest,
+        _GasCreate,
+        _GasCall_TangerineWhistle,
+        _GasCreate2,
+    },
+    {   // istanbul
+        _GasNone,
+        _GasQuickStep,
+        _GasFastestStep,
+        _GasFastStep,
+        _GasMidStep,
+        _GasSlowStep,
+        _GasExtStep,
+        _GasSha3,
+        _GasBalance_Istanbul,
+        _GasExtcodeSize_TangerineWhistle,
+        _GasExtcodeCopy_TangerineWhistle,
+        _GasExtcodeHash_Istanbul,
+        _GasSload_Istanbul,
+        _GasJumpdest,
+        _GasCreate,
+        _GasCall_TangerineWhistle,
+        _GasCreate2,
+    },
+};
+static uint8_t is_gas_index[ISTANBUL+1] = { 0, 0, 1, 1, 1, 1, 2 };
+
+static inline uint32_t gas(Release release, uint8_t opc)
+{
+    return is_gas[is_gas_index[release]][constgas[opc]];
+}
+
+/*
+
+Memory Gas
+
+SHA3 memorySha3
+CALLDATACOPY memoryCallDataCopy
+CODECOPY memoryCodeCopy
+EXTCODECOPY memoryExtCodeCopy
+MLOAD memoryMLoad
+MSTORE memoryMStore
+MSTORE8 memoryMStore8
+LOG0 memoryLog
+LOG1 memoryLog
+LOG2 memoryLog
+LOG3 memoryLog
+LOG4 memoryLog
+CREATE memoryCreate
+CALL memoryCall
+CALLCODE memoryCall
+RETURN memoryReturn
+DELEGATECALL memoryDelegateCall
+STATICCALL memoryStaticCall
+RETURNDATACOPY memoryReturnDataCopy
+REVERT memoryRevert
+CREATE2 memoryCreate2
+
+*/
+
+/*
+
+Dynamic Gas
+
+EXP gasExpFrontier
+CALLDATACOPY gasCallDataCopy
+CODECOPY gasCodeCopy
+EXTCODECOPY gasExtCodeCopy
+MLOAD gasMLoad
+MSTORE gasMStore
+MSTORE8 gasMStore8
+SSTORE gasSStore
+LOG0 makeGasLog(0)
+LOG1 makeGasLog(1)
+LOG2 makeGasLog(2)
+LOG3 makeGasLog(3)
+LOG4 makeGasLog(4)
+CREATE gasCreate
+CALL gasCall
+CALLCODE gasCallCode
+RETURN gasReturn
+SELFDESTRUCT gasSelfdestruct
+DELEGATECALL gasDelegateCall
+STATICCALL gasStaticCall
+RETURNDATACOPY gasReturnDataCopy
+REVERT gasRevert
+CREATE2 gasCreate2
+
+TangerineWhistle -> SpuriousDragon EXP gasExpEIP158
+Constantinople -> Istanbul SSTORE gasSStoreEIP2200
+
+*/
 
 class Stack {
 private:
@@ -1335,7 +1627,7 @@ static void vm_run(Block &block, Storage &storage,
     const uint256_t &caller_address, const uint256_t &call_value, const uint8_t *call_data, const uint32_t call_size,
     uint8_t *return_data, const uint8_t return_size, uint32_t depth)
 {
-    if (depth == 1024) return;
+    if (depth == 1024) throw RECURSION_LIMITED;
 
     uint256_t gas;
     // permissions
@@ -1660,9 +1952,13 @@ static void vm_run(Block &block, Storage &storage,
 
             const uint8_t *code = storage.code(code_address);
             const uint32_t code_size = storage.code_size(code_address);
-            vm_run(block, storage, origin_address, gas_price, code_address, code, code_size, caller_address, call_value, call_data, call_size, return_data, return_size, depth+1);
-
-            memory.burn(out_offset.cast32(), return_size, return_data);
+            try {
+                vm_run(block, storage, origin_address, gas_price, code_address, code, code_size, caller_address, call_value, call_data, call_size, return_data, return_size, depth+1);
+                stack.push(1);
+                memory.burn(out_offset.cast32(), return_size, return_data);
+            } catch (Error e) {
+                stack.push(0);
+            }
 
             pc++;
             break;
@@ -1671,9 +1967,8 @@ static void vm_run(Block &block, Storage &storage,
         case RETURN: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t offset = v1.cast32(), size = v2.cast32();
-            uint8_t buffer[size];
-            memory.dump(offset, size, buffer);
-            pc++;
+            if (size > return_size) size = return_size;
+            memory.dump(offset, size, return_data);
             return;
         }
         case DELEGATECALL: throw UNIMPLEMENTED;
@@ -1690,12 +1985,17 @@ static void vm_run(Block &block, Storage &storage,
         case REVERT: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t offset = v1.cast32(), size = v2.cast32();
-            uint8_t buffer[size];
-            memory.dump(offset, size, buffer);
-            pc++;
+            if (size > return_size) size = return_size;
+            memory.dump(offset, size, return_data);
             return;
         }
-        case SELFDESTRUCT: { return; }
+        case SELFDESTRUCT: {
+            uint256_t v1 = stack.pop();
+            uint256_t balance = storage.balance(owner_address);
+            // add balance to v1 balance
+            // kill contract
+            return;
+        }
         default: throw INVALID_OPCODE;
         }
     }
