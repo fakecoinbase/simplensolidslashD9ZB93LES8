@@ -1986,7 +1986,7 @@ public:
     virtual const uint256_t& coinbase() = 0;
     virtual const uint256_t& gaslimit() = 0;
     virtual const uint256_t& difficulty() = 0;
-    virtual const uint256_t& hash(uint32_t number) = 0;
+    virtual uint256_t hash(uint32_t number) = 0;
 };
 
 static bool vm_run(Release release, Block &block, Storage &storage,
@@ -2529,9 +2529,10 @@ public:
         static uint256_t t = 0; // static
         return t;
     }
-    const uint256_t& hash(uint32_t number) {
-        static uint256_t t = 0; // static
-        return t;
+    uint256_t hash(uint32_t number) {
+        uint8_t buffer[4];
+        w2b32le(number, buffer);
+        return (uint256_t)ripemd160(buffer, 4);
     }
 };
 
