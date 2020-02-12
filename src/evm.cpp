@@ -1314,13 +1314,14 @@ enum Release {
     FRONTIER = 0,
     // FRONTIER_THAWING
     HOMESTEAD,
+    // DAO
     TANGERINE_WHISTLE,
     SPURIOUS_DRAGON,
     BYZANTIUM,
     CONSTANTINOPLE,
     // PETERSBURG
     ISTANBUL,
-    // MUIR_GLACIER,
+    // MUIR_GLACIER
 };
 
 const uint256_t _1 = (uint256_t)1;
@@ -2072,9 +2073,9 @@ static bool vm_run(Release release, Block &block, Storage &storage,
     const uint256_t &origin_address, const uint256_t &gas_price,
     const uint256_t &owner_address, const uint8_t *code, const uint32_t code_size,
     const uint256_t &caller_address, const uint256_t &call_value, const uint8_t *call_data, const uint32_t call_size,
-    uint8_t *return_data, const uint8_t return_size, uint256_t &gas, uint32_t depth)
+    uint8_t *return_data, const uint32_t return_size, uint256_t &gas, uint32_t depth)
 {
-    if (depth == 1024) throw RECURSION_LIMITED;
+    if (depth > 1024) throw RECURSION_LIMITED;
 
     // permissions
     bool is_static = false;
