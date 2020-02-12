@@ -2693,27 +2693,31 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
     intrinsic_gas += zero_count * _gas(release, GasTxDataZero);
     intrinsic_gas += (txn.data_size - zero_count) * _gas(release, GasTxDataNonZero);
     if (txn.gaslimit < intrinsic_gas) throw INVALID_TRANSACTION;
+    uint256_t gas = txn.gaslimit - intrinsic_gas;
 
     uint256_t from = ecrecover(h, txn.v, txn.r, txn.s);
-    uint256_t from_nonce = storage.nonce(from);
-    if (txn.nonce != from_nonce) throw NONCE_MISMATCH;
-    uint256_t from_balance = storage.balance(from);
+    uint256_t to = txn.to;
+    if (!txn.has_to) {
+        uint32_t size = encode_cid(from, storage.nonce(from));
+        uint8_t buffer[size];
+        encode_cid(from, storage.nonce(from), buffer, size);
+        to = (uint256_t)(uint160_t)sha3(buffer, size);
+    }
+
+    if (txn.nonce != storage.nonce(from)) throw NONCE_MISMATCH;
+    storage.increment_nonce(from);
+
     if (storage.balance(from) < txn.gaslimit * txn.gasprice + txn.value) throw INSUFFICIENT_BALANCE;
     storage.sub_balance(from, txn.gaslimit * txn.gasprice);
 
-    uint256_t gas = txn.gaslimit - intrinsic_gas;
-
     // NO TRANSACTION FAILURE FROM HERE
+    uint32_t commit_id = storage.commit();
+
+    storage.sub_balance(from, txn.value);
+    storage.add_balance(to, txn.value);
 
     // message call
     if (txn.has_to) {
-        uint256_t to = txn.to;
-
-        storage.increment_nonce(from);
-        storage.sub_balance(from, txn.value);
-        storage.add_balance(to, txn.value);
-        uint32_t commit_id = storage.commit();
-
         const uint32_t code_size = storage.code_size(txn.to);
         const uint8_t *code = storage.code(txn.to);
         const uint32_t call_size = txn.data_size;
@@ -2729,16 +2733,6 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
 
     // contract creation
     if (!txn.has_to) {
-        uint32_t size = encode_cid(from, from_nonce);
-        uint8_t buffer[size];
-        encode_cid(from, from_nonce, buffer, size);
-        uint256_t to = (uint256_t)(uint160_t)sha3(buffer, size);
-
-        storage.increment_nonce(from);
-        storage.sub_balance(from, txn.value);
-        storage.add_balance(to, txn.value);
-        uint32_t commit_id = storage.commit();
-
         const uint32_t code_size = txn.data_size;
         const uint8_t *code = txn.data;
         const uint32_t call_size = 0;
