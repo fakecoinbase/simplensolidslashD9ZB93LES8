@@ -2618,17 +2618,6 @@ public:
     }
 };
 
-struct message {
-    uint8_t opcode;
-    uint256_t gas;
-    uint256_t code_address;
-    uint256_t endowment;
-    uint32_t in_offset;
-    uint32_t in_size;
-    uint32_t out_offset;
-    uint32_t out_size;
-};
-
 static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
 {
     _Block block;
