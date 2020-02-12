@@ -2459,7 +2459,7 @@ private:
     }
 public:
     _Storage() {}
-    _Storage(const char *name) { load(name); }
+    _Storage(const char *name) { if (name != nullptr) load(name); }
     ~_Storage() {
         dump();
         for (int i = 0; i < account_size; i++) delete account_list[i].code;
@@ -2547,7 +2547,7 @@ struct message {
 static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
 {
     _Block block;
-    _Storage storage;
+    _Storage storage(getenv("EVM_STATE"));
 
     struct txn txn = decode_txn(buffer, size);
     if (!txn.is_signed) throw INVALID_TRANSACTION;
