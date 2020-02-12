@@ -1,4 +1,5 @@
 #include <cstring>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <stdint.h>
@@ -2389,6 +2390,7 @@ private:
         return nullptr;
     }
 public:
+    ~_Storage() { dump(); }
     const uint256_t& load(const uint256_t &account, const uint256_t &address) {
         for (int i = 0; i < keyvalue_size; i++) {
             if (keyvalue_list[i][0] == address && (uint160_t)account == account_index[keyvalue_index[i]]) {
@@ -2426,6 +2428,42 @@ public:
         keyvalue_list[keyvalue_size][0] = address;
         keyvalue_list[keyvalue_size][1] = v;
         keyvalue_size++;
+    }
+    void dump() {
+        uint32_t size = 0;
+        size += 4;
+        for (int i = 0; i < account_size; i++) {
+            size += 20 + 32 + 32 + 4 + account_list[i].code_size + 32;
+        }
+        size += 4;
+        for (int i = 0; i < keyvalue_size; i++) {
+            size += 4 + 32 + 32;
+        }
+        uint8_t buffer[size];
+        uint32_t offset = 0;
+        w2b32le(account_size, &buffer[offset]); offset += 4;
+        for (int i = 0; i < account_size; i++) {
+            uint160_t::to(account_index[i], &buffer[offset]); offset += 20;
+            uint256_t::to(account_list[i].nonce, &buffer[offset]); offset += 32;
+            uint256_t::to(account_list[i].balance, &buffer[offset]); offset += 32;
+            w2b32le(account_list[i].code_size, &buffer[offset]); offset += 4;
+            for (uint32_t j = 0; j < account_list[i].code_size; j++) {
+                buffer[offset] = account_list[i].code[j]; offset++;
+            }
+            uint256_t::to(account_list[i].code_hash, &buffer[offset]); offset += 32;
+        }
+        w2b32le(keyvalue_size, &buffer[offset]); offset += 4;
+        for (int i = 0; i < keyvalue_size; i++) {
+            w2b32le(keyvalue_index[i], &buffer[offset]); offset += 4;
+            uint256_t::to(keyvalue_list[i][0], &buffer[offset]); offset += 32;
+            uint256_t::to(keyvalue_list[i][1], &buffer[offset]); offset += 32;
+        }
+        uint256_t hash = sha256(buffer, size);
+        std::stringstream ss;
+        ss << std::hex << std::setw(8) << std::setfill('0') << hash.cast32();
+        std::string name(ss.str());
+        std::ofstream fs("states/" + name + ".dat", std::ios::out | std::ios::binary);
+        fs.write((const char*)buffer, size);
     }
 };
 
