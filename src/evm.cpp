@@ -1976,6 +1976,7 @@ public:
     }
     virtual const uint256_t& load(const uint256_t &account, const uint256_t &address) = 0;
     virtual void store(const uint256_t &account, const uint256_t &address, const uint256_t& v) = 0;
+    virtual void update(const uint256_t &account, const uint256_t &nonce, const uint256_t &balance) = 0;
 };
 
 class Block {
@@ -2503,6 +2504,26 @@ public:
         keyvalue_list[keyvalue_size][0] = address;
         keyvalue_list[keyvalue_size][1] = v;
         keyvalue_size++;
+    }
+    void update(const uint256_t &account, const uint256_t &nonce, const uint256_t &balance) {
+        int index = account_size;
+        for (int i = 0; i < account_size; i++) {
+            if ((uint160_t)account == account_index[i]) {
+                index = i;
+                break;
+            }
+        }
+        if (index == account_size) {
+            if (account_size == L) throw INSUFFICIENT_SPACE;
+            account_list[account_size].nonce = 0;
+            account_list[account_size].balance = 0;
+            account_list[account_size].code = nullptr;
+            account_list[account_size].code_size = 0;
+            account_list[account_size].code_hash = 0;
+            account_size++;
+        }
+        account_list[index].nonce = nonce;
+        account_list[index].balance = balance;
     }
 };
 
