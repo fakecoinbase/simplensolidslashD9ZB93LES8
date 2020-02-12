@@ -2014,6 +2014,8 @@ public:
     virtual const uint256_t& load(const uint256_t &account, const uint256_t &address) = 0;
     virtual void store(const uint256_t &account, const uint256_t &address, const uint256_t& v) = 0;
     virtual void update(const uint256_t &account, const uint256_t &nonce, const uint256_t &balance) = 0;
+    virtual uint32_t commit() = 0;
+    virtual void rollback(uint32_t commit_id) = 0;
 };
 
 class Block {
@@ -2429,8 +2431,16 @@ private:
         }
         return nullptr;
     }
-    void load(const char *name) {
-        std::ifstream fs("states/" + std::string(name) + ".dat", std::ios::ate | std::ios::binary);
+    void reset() {
+        for (int i = 0; i < account_size; i++) delete account_list[i].code;
+        account_size = 0;
+        keyvalue_size = 0;
+    }
+    void load(uint32_t hash) {
+        std::stringstream ss;
+        ss << std::hex << std::setw(8) << std::setfill('0') << hash;
+        std::string name(ss.str());
+        std::ifstream fs("states/" + name + ".dat", std::ios::ate | std::ios::binary);
         if (!fs.is_open()) throw UNKNOWN_FILE;
         uint32_t size = fs.tellg();
         uint8_t buffer[size];
@@ -2459,7 +2469,7 @@ private:
             keyvalue_list[i][1] = uint256_t::from(&buffer[offset]); offset += 32;
         }
     }
-    void dump() {
+    uint32_t dump() const {
         uint32_t size = 0;
         size += 4;
         for (int i = 0; i < account_size; i++) {
@@ -2488,22 +2498,26 @@ private:
             uint256_t::to(keyvalue_list[i][0], &buffer[offset]); offset += 32;
             uint256_t::to(keyvalue_list[i][1], &buffer[offset]); offset += 32;
         }
-        uint256_t hash = sha256(buffer, size);
+        uint32_t hash = sha256(buffer, size).cast32();
         std::stringstream ss;
-        ss << std::hex << std::setw(8) << std::setfill('0') << hash.cast32();
+        ss << std::hex << std::setw(8) << std::setfill('0') << hash;
         std::string name(ss.str());
         std::ofstream fs("states/" + name + ".dat", std::ios::out | std::ios::binary);
         fs.write((const char*)buffer, size);
+        return hash;
     }
 public:
     _Storage() {
         const char *name = std::getenv("EVM_STATE");
-        if (name != nullptr) load(name);
+        if (name != nullptr) {
+            uint32_t hash;
+            std::stringstream ss;
+            ss << std::hex << name;
+            ss >> hash;
+            load(hash);
+        }
     }
-    ~_Storage() {
-        dump();
-        for (int i = 0; i < account_size; i++) delete account_list[i].code;
-    }
+    ~_Storage() { reset(); }
     const uint256_t& load(const uint256_t &account, const uint256_t &address) {
         for (int i = 0; i < keyvalue_size; i++) {
             if (keyvalue_list[i][0] == address && (uint160_t)account == account_index[keyvalue_index[i]]) {
@@ -2552,6 +2566,7 @@ public:
         }
         if (index == account_size) {
             if (account_size == L) throw INSUFFICIENT_SPACE;
+            account_index[account_size] = (uint160_t)account;
             account_list[account_size].nonce = 0;
             account_list[account_size].balance = 0;
             account_list[account_size].code = nullptr;
@@ -2562,6 +2577,15 @@ public:
         account_list[index].nonce = nonce;
         account_list[index].balance = balance;
     }
+    uint32_t commit() {
+        uint32_t commit_id = dump();
+        std::stringstream ss;
+        ss << std::hex << std::setw(8) << std::setfill('0') << commit_id;
+        std::string name(ss.str());
+        std::cout << "EVM_STATE=" << name << std::endl;
+        return commit_id;
+    }
+    void rollback(uint32_t commit_id) { reset(); load(commit_id); }
 };
 
 class _Block : public Block {
@@ -2659,8 +2683,9 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
         uint256_t to_balance = storage.balance(txn.to);
         uint256_t to_nonce = storage.nonce(txn.to);
 
-        storage.update(from, balance - txn.value, nonce);
-        storage.update(txn.to, to_balance + txn.value, to_nonce);
+        storage.update(from, nonce, balance - txn.value);
+        storage.update(txn.to, to_nonce, to_balance + txn.value);
+        uint32_t commit_id = storage.commit();
 
         const uint32_t code_size = storage.code_size(txn.to);
         const uint8_t *code = storage.code(txn.to);
@@ -2671,9 +2696,7 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
         try {
             bool returns = vm_run(ISTANBUL, block, storage, from, txn.gasprice, txn.to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, 0);
         } catch (Error e) {
-            // storage data should also rollback
-            storage.update(from, balance, nonce);
-            storage.update(txn.to, to_balance, to_nonce);
+            storage.rollback(commit_id);
         }
     }
 
@@ -2683,12 +2706,11 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
         uint8_t buffer[size];
         encode_cid(from, nonce - 1, buffer, size);
         uint256_t to = (uint256_t)(uint160_t)sha3(buffer, size);
-
         uint256_t to_balance = storage.balance(to);
-        uint256_t to_nonce = storage.balance(to);
 
-        storage.update(from, balance - txn.value, nonce);
-        storage.update(to, to_balance + txn.value, 1);
+        storage.update(from, nonce, balance - txn.value);
+        storage.update(to, 1, to_balance + txn.value);
+        uint32_t commit_id = storage.commit();
 
         const uint32_t code_size = txn.data_size;
         const uint8_t *code = txn.data;
@@ -2699,15 +2721,14 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
         try {
             bool returns = vm_run(ISTANBUL, block, storage, from, txn.gasprice, to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, 0);
         } catch (Error e) {
-            // storage data should also rollback
-            storage.update(from, balance, nonce);
-            storage.update(to, to_balance, to_nonce);
+            storage.rollback(commit_id);
         }
     }
 
     // after execution refund remaing gas multiplies by txn.gasprice
     // after execution delete self destruct accounts
     // after execution delete touched accounts that were zeroed
+    storage.commit();
 }
 
 /* main */
