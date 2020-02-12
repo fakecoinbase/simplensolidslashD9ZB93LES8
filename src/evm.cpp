@@ -1160,43 +1160,13 @@ enum GasType : uint8_t {
     GasCreate,
     GasCall,
     GasCreate2,
+    GasTxMessageCall,
+    GasTxContractCreation,
+    GasTxDataZero,
+    GasTxDataNonZero,
 };
 
 enum GasValue : uint32_t {
-    G_zero = 0,
-    G_base = 2,
-    G_verylow = 3,
-    G_low = 5,
-    G_mid = 8,
-    G_high = 10,
-    G_extcode = 700,
-    G_balance = 400,
-    G_sload = 200,
-    G_jumpdest = 1,
-    G_sset = 20000,
-    G_sreset = 5000,
-    G_create = 32000,
-    G_codedeposit = 200,
-    G_call = 700,
-    G_callvalue = 9000,
-    G_callstipend = 2300,
-    G_newaccount = 25000,
-    G_exp = 10,
-    G_expbyte = 50,
-    G_memory = 3,
-    G_txcreate = 32000,
-    G_txdatazero = 4,
-    G_txdatanonzero = 68,
-    G_transaction = 21000,
-    G_log = 375,
-    G_logdata = 8,
-    G_logtopic = 375,
-    G_sha3 = 30,
-    G_sha3word = 6,
-    G_copy = 3,
-    G_blockhash = 20,
-    G_quaddivisor = 20,
-
     _GasNone = 0,
     _GasQuickStep = 2,
     _GasFastestStep = 3,
@@ -1214,6 +1184,12 @@ enum GasValue : uint32_t {
     _GasCreate = 32000,
     _GasCall = 40,
     _GasCreate2 = 32000,
+    _GasTxMessageCall = 21000,
+    _GasTxContractCreation = 21000,
+    _GasTxDataZero = 4,
+    _GasTxDataNonZero = 68,
+
+    _GasTxContractCreation_Homestead = 53000,
 
     _GasBalance_TangerineWhistle = 400,
     _GasExtcodeSize_TangerineWhistle = 700,
@@ -1224,6 +1200,7 @@ enum GasValue : uint32_t {
     _GasBalance_Istanbul = 700,
     _GasExtcodeHash_Istanbul = 700,
     _GasSload_Istanbul = 800,
+    _GasTxDataNonZero_Istanbul = 16,
 };
 
 /* interpreter */
@@ -1298,19 +1275,19 @@ static const char *opcodes[256] = {
     "?", "?", "STATICCALL", "?", "?", "REVERT", "?", "SELFDESTRUCT",
 };
 
-static const uint8_t constgas[256] = {
+static const GasType constgas[256] = {
     /*STOP*/GasNone, /*ADD*/GasFastestStep, /*MUL*/GasFastStep, /*SUB*/GasFastestStep, /*DIV*/GasFastStep, /*SDIV*/GasFastStep, /*MOD*/GasFastStep, /*SMOD*/GasFastStep,
-    /*ADDMOD*/GasMidStep, /*MULMOD*/GasMidStep, /*EXP*/GasNone, /*SIGNEXTEND*/GasFastStep, 0, 0, 0, 0,
+    /*ADDMOD*/GasMidStep, /*MULMOD*/GasMidStep, /*EXP*/GasNone, /*SIGNEXTEND*/GasFastStep, GasNone, GasNone, GasNone, GasNone,
     /*LT*/GasFastestStep, /*GT*/GasFastestStep, /*SLT*/GasFastestStep, /*SGT*/GasFastestStep, /*EQ*/GasFastestStep, /*ISZERO*/GasFastestStep, /*AND*/GasFastestStep, /*OR*/GasFastestStep,
-    /*XOR*/GasFastestStep, /*NOT*/GasFastestStep, /*BYTE*/GasFastestStep, /*SHL*/GasFastestStep, /*SHR*/GasFastestStep, /*SAR*/GasFastestStep, 0, 0,
-    /*SHA3*/GasSha3, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
+    /*XOR*/GasFastestStep, /*NOT*/GasFastestStep, /*BYTE*/GasFastestStep, /*SHL*/GasFastestStep, /*SHR*/GasFastestStep, /*SAR*/GasFastestStep, GasNone, GasNone,
+    /*SHA3*/GasSha3, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
+    GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
     /*ADDRESS*/GasQuickStep, /*BALANCE*/GasBalance, /*ORIGIN*/GasQuickStep, /*CALLER*/GasQuickStep, /*CALLVALUE*/GasQuickStep, /*CALLDATALOAD*/GasFastestStep, /*CALLDATASIZE*/GasQuickStep, /*CALLDATACOPY*/GasFastestStep,
     /*CODESIZE*/GasQuickStep, /*CODECOPY*/GasFastestStep, /*GASPRICE*/GasQuickStep, /*EXTCODESIZE*/GasExtcodeSize, /*EXTCODECOPY*/GasExtcodeCopy, /*RETURNDATASIZE*/GasQuickStep, /*RETURNDATACOPY*/GasFastestStep, /*EXTCODEHASH*/GasExtcodeHash,
     /*BLOCKHASH*/GasExtStep, /*COINBASE*/GasQuickStep, /*TIMESTAMP*/GasQuickStep, /*NUMBER*/GasQuickStep, /*DIFFICULTY*/GasQuickStep, /*GASLIMIT*/GasQuickStep, /*CHAINID*/GasQuickStep, /*SELFBALANCE*/GasFastStep,
-    0, 0, 0, 0, 0, 0, 0, 0,
+    GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
     /*POP*/GasQuickStep, /*MLOAD*/GasFastestStep, /*MSTORE*/GasFastestStep, /*MSTORE8*/GasFastestStep, /*SLOAD*/GasSload, /*SSTORE*/GasNone, /*JUMP*/GasMidStep, /*JUMPI*/GasSlowStep,
-    /*PC*/GasQuickStep, /*MSIZE*/GasQuickStep, /*GAS*/GasQuickStep, /*JUMPDEST*/GasJumpdest, 0, 0, 0, 0,
+    /*PC*/GasQuickStep, /*MSIZE*/GasQuickStep, /*GAS*/GasQuickStep, /*JUMPDEST*/GasJumpdest, GasNone, GasNone, GasNone, GasNone,
     /*PUSH1*/GasFastestStep, /*PUSH2*/GasFastestStep, /*PUSH3*/GasFastestStep, /*PUSH4*/GasFastestStep, /*PUSH5*/GasFastestStep, /*PUSH6*/GasFastestStep, /*PUSH7*/GasFastestStep, /*PUSH8*/GasFastestStep,
     /*PUSH9*/GasFastestStep, /*PUSH10*/GasFastestStep, /*PUSH11*/GasFastestStep, /*PUSH12*/GasFastestStep, /*PUSH13*/GasFastestStep, /*PUSH14*/GasFastestStep, /*PUSH15*/GasFastestStep, /*PUSH16*/GasFastestStep,
     /*PUSH17*/GasFastestStep, /*PUSH18*/GasFastestStep, /*PUSH19*/GasFastestStep, /*PUSH20*/GasFastestStep, /*PUSH21*/GasFastestStep, /*PUSH22*/GasFastestStep, /*PUSH23*/GasFastestStep, /*PUSH24*/GasFastestStep,
@@ -1319,28 +1296,31 @@ static const uint8_t constgas[256] = {
     /*DUP9*/GasFastestStep, /*DUP10*/GasFastestStep, /*DUP11*/GasFastestStep, /*DUP12*/GasFastestStep, /*DUP13*/GasFastestStep, /*DUP14*/GasFastestStep, /*DUP15*/GasFastestStep, /*DUP16*/GasFastestStep,
     /*SWAP1*/GasFastestStep, /*SWAP2*/GasFastestStep, /*SWAP3*/GasFastestStep, /*SWAP4*/GasFastestStep, /*SWAP5*/GasFastestStep, /*SWAP6*/GasFastestStep, /*SWAP7*/GasFastestStep, /*SWAP8*/GasFastestStep,
     /*SWAP9*/GasFastestStep, /*SWAP10*/GasFastestStep, /*SWAP11*/GasFastestStep, /*SWAP12*/GasFastestStep, /*SWAP13*/GasFastestStep, /*SWAP14*/GasFastestStep, /*SWAP15*/GasFastestStep, /*SWAP16*/GasFastestStep,
-    /*LOG0*/GasNone, /*LOG1*/GasNone, /*LOG2*/GasNone, /*LOG3*/GasNone, /*LOG4*/GasNone, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    /*CREATE*/GasCreate, /*CALL*/GasCall, /*CALLCODE*/GasCall, /*RETURN*/GasNone, /*DELEGATECALL*/GasCall, /*CREATE2*/GasCreate2, 0, 0,
-    0, 0, /*STATICCALL*/GasCall, 0, 0, /*REVERT*/GasNone, 0, /*SELFDESTRUCT*/GasNone,
+    /*LOG0*/GasNone, /*LOG1*/GasNone, /*LOG2*/GasNone, /*LOG3*/GasNone, /*LOG4*/GasNone, GasNone, GasNone, GasNone,
+    GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
+    GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
+    GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
+    GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
+    GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
+    GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
+    GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
+    GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
+    GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
+    /*CREATE*/GasCreate, /*CALL*/GasCall, /*CALLCODE*/GasCall, /*RETURN*/GasNone, /*DELEGATECALL*/GasCall, /*CREATE2*/GasCreate2, GasNone, GasNone,
+    GasNone, GasNone, /*STATICCALL*/GasCall, GasNone, GasNone, /*REVERT*/GasNone, GasNone, /*SELFDESTRUCT*/GasNone,
 };
 
 enum Release {
     FRONTIER = 0,
+    // FRONTIER_THAWING
     HOMESTEAD,
     TANGERINE_WHISTLE,
     SPURIOUS_DRAGON,
     BYZANTIUM,
     CONSTANTINOPLE,
+    // PETERSBURG
     ISTANBUL,
+    // MUIR_GLACIER,
 };
 
 const uint256_t _1 = (uint256_t)1;
@@ -1413,8 +1393,8 @@ const uint256_t is_returns = 0
     | _1 << CALL | _1 << CALLCODE | _1 << DELEGATECALL | _1 << STATICCALL
     | _1 << REVERT;
 
-static const uint32_t is_gas[3][GasCreate2+1] = {
-    {   // frontier | homestead
+static const uint32_t is_gas_table[4][GasTxDataNonZero+1] = {
+    {   // frontier
         _GasNone,
         _GasQuickStep,
         _GasFastestStep,
@@ -1432,6 +1412,33 @@ static const uint32_t is_gas[3][GasCreate2+1] = {
         _GasCreate,
         _GasCall,
         _GasCreate2,
+        _GasTxMessageCall,
+        _GasTxContractCreation,
+        _GasTxDataZero,
+        _GasTxDataNonZero,
+    },
+    {   // homestead
+        _GasNone,
+        _GasQuickStep,
+        _GasFastestStep,
+        _GasFastStep,
+        _GasMidStep,
+        _GasSlowStep,
+        _GasExtStep,
+        _GasSha3,
+        _GasBalance,
+        _GasExtcodeSize,
+        _GasExtcodeCopy,
+        _GasExtcodeHash,
+        _GasSload,
+        _GasJumpdest,
+        _GasCreate,
+        _GasCall,
+        _GasCreate2,
+        _GasTxMessageCall,
+        _GasTxContractCreation_Homestead,
+        _GasTxDataZero,
+        _GasTxDataNonZero,
     },
     {   // tangerine whistle | spurious dragon | byzantium | constantinople
         _GasNone,
@@ -1451,6 +1458,10 @@ static const uint32_t is_gas[3][GasCreate2+1] = {
         _GasCreate,
         _GasCall_TangerineWhistle,
         _GasCreate2,
+        _GasTxMessageCall,
+        _GasTxContractCreation_Homestead,
+        _GasTxDataZero,
+        _GasTxDataNonZero,
     },
     {   // istanbul
         _GasNone,
@@ -1470,13 +1481,22 @@ static const uint32_t is_gas[3][GasCreate2+1] = {
         _GasCreate,
         _GasCall_TangerineWhistle,
         _GasCreate2,
+        _GasTxMessageCall,
+        _GasTxContractCreation_Homestead,
+        _GasTxDataZero,
+        _GasTxDataNonZero_Istanbul,
     },
 };
-static uint8_t is_gas_index[ISTANBUL+1] = { 0, 0, 1, 1, 1, 1, 2 };
+static uint8_t is_gas_index[ISTANBUL+1] = { 0, 1, 2, 2, 2, 2, 3 };
+
+static inline uint32_t _gas(Release release, GasType type)
+{
+    return is_gas_table[is_gas_index[release]][type];
+}
 
 static inline uint32_t opcode_gas(Release release, uint8_t opc)
 {
-    return is_gas[is_gas_index[release]][constgas[opc]];
+    return _gas(release, constgas[opc]);
 }
 
 /*
@@ -1990,6 +2010,7 @@ struct substate {
 class Storage {
 protected:
     virtual const struct account *find_account(const uint256_t &address) = 0;
+    virtual void update(const uint256_t &account, const uint256_t &nonce, const uint256_t &balance) = 0;
 public:
     inline uint256_t nonce(const uint256_t &v) {
         const struct account *account = find_account(v);
@@ -2013,9 +2034,27 @@ public:
     }
     virtual const uint256_t& load(const uint256_t &account, const uint256_t &address) = 0;
     virtual void store(const uint256_t &account, const uint256_t &address, const uint256_t& v) = 0;
-    virtual void update(const uint256_t &account, const uint256_t &nonce, const uint256_t &balance) = 0;
     virtual uint32_t commit() = 0;
     virtual void rollback(uint32_t commit_id) = 0;
+    inline void increment_nonce(const uint256_t &v) {
+        const struct account *account = find_account(v);
+        uint256_t nonce = account == nullptr ? 0 : account->nonce;
+        uint256_t balance = account == nullptr ? 0 : account->balance;
+        update(v, nonce + 1, balance);
+    }
+    inline void add_balance(const uint256_t &v, uint256_t amount) {
+        const struct account *account = find_account(v);
+        uint256_t nonce = account == nullptr ? 0 : account->nonce;
+        uint256_t balance = account == nullptr ? 0 : account->balance;
+        update(v, nonce, balance + amount);
+    }
+    inline void sub_balance(const uint256_t &v, uint256_t amount) {
+        const struct account *account = find_account(v);
+        uint256_t nonce = account == nullptr ? 0 : account->nonce;
+        uint256_t balance = account == nullptr ? 0 : account->balance;
+        if (amount > account->balance) throw INSUFFICIENT_BALANCE;
+        update(v, nonce, balance - amount);
+    }
 };
 
 class Block {
@@ -2033,13 +2072,12 @@ static bool vm_run(Release release, Block &block, Storage &storage,
     const uint256_t &origin_address, const uint256_t &gas_price,
     const uint256_t &owner_address, const uint8_t *code, const uint32_t code_size,
     const uint256_t &caller_address, const uint256_t &call_value, const uint8_t *call_data, const uint32_t call_size,
-    uint8_t *return_data, const uint8_t return_size, uint32_t depth)
+    uint8_t *return_data, const uint8_t return_size, uint256_t &gas, uint32_t depth)
 {
     if (depth == 1024) throw RECURSION_LIMITED;
 
     // permissions
     bool is_static = false;
-    uint256_t gas;
 
     if (code_size == 0) return false;
     Stack stack;
@@ -2368,7 +2406,7 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             const uint8_t *code = storage.code(code_address);
             const uint32_t code_size = storage.code_size(code_address);
             try {
-                bool returns = vm_run(release, block, storage, origin_address, gas_price, code_address, code, code_size, caller_address, call_value, call_data, call_size, return_data, return_size, depth+1);
+                bool returns = vm_run(release, block, storage, origin_address, gas_price, code_address, code, code_size, caller_address, call_value, call_data, call_size, return_data, return_size, gas, depth+1);
                 stack.push(1);
                 if (returns) memory.burn(out_offset.cast32(), return_size, return_data);
             } catch (Error e) {
@@ -2620,6 +2658,7 @@ public:
 
 static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
 {
+    Release release = ISTANBUL;
     _Block block;
     _Storage storage;
 
@@ -2648,32 +2687,31 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
         txn.s = s;
     }
 
-    uint256_t intrinsic_gas = G_transaction;
-    if (!txn.has_to) intrinsic_gas += G_txcreate;
+    uint256_t intrinsic_gas = _gas(release, txn.has_to ? GasTxMessageCall : GasTxContractCreation);
     uint32_t zero_count = 0;
     for (uint32_t i = 0; i < txn.data_size; i++) if (txn.data[i] == 0) zero_count++;
-    intrinsic_gas += zero_count * G_txdatazero;
-    intrinsic_gas += (txn.data_size - zero_count) * G_txdatanonzero;
+    intrinsic_gas += zero_count * _gas(release, GasTxDataZero);
+    intrinsic_gas += (txn.data_size - zero_count) * _gas(release, GasTxDataNonZero);
     if (txn.gaslimit < intrinsic_gas) throw INVALID_TRANSACTION;
 
     uint256_t from = ecrecover(h, txn.v, txn.r, txn.s);
-    uint256_t nonce = storage.nonce(from);
-    if (txn.nonce != nonce) throw NONCE_MISMATCH;
-    uint256_t balance = storage.balance(from);
-    if (balance < txn.gaslimit * txn.gasprice + txn.value) throw INSUFFICIENT_BALANCE;
+    uint256_t from_nonce = storage.nonce(from);
+    if (txn.nonce != from_nonce) throw NONCE_MISMATCH;
+    uint256_t from_balance = storage.balance(from);
+    if (storage.balance(from) < txn.gaslimit * txn.gasprice + txn.value) throw INSUFFICIENT_BALANCE;
+    storage.sub_balance(from, txn.gaslimit * txn.gasprice);
+
+    uint256_t gas = txn.gaslimit - intrinsic_gas;
 
     // NO TRANSACTION FAILURE FROM HERE
-    nonce += 1;
-    balance -= txn.gaslimit * txn.gasprice;
-    uint256_t gas = txn.gaslimit - intrinsic_gas;
 
     // message call
     if (txn.has_to) {
-        uint256_t to_balance = storage.balance(txn.to);
-        uint256_t to_nonce = storage.nonce(txn.to);
+        uint256_t to = txn.to;
 
-        storage.update(from, nonce, balance - txn.value);
-        storage.update(txn.to, to_nonce, to_balance + txn.value);
+        storage.increment_nonce(from);
+        storage.sub_balance(from, txn.value);
+        storage.add_balance(to, txn.value);
         uint32_t commit_id = storage.commit();
 
         const uint32_t code_size = storage.code_size(txn.to);
@@ -2683,7 +2721,7 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
         const uint32_t return_size = 0;
         uint8_t *return_data = nullptr;
         try {
-            bool returns = vm_run(ISTANBUL, block, storage, from, txn.gasprice, txn.to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, 0);
+            bool returns = vm_run(release, block, storage, from, txn.gasprice, txn.to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, gas, 0);
         } catch (Error e) {
             storage.rollback(commit_id);
         }
@@ -2691,14 +2729,14 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
 
     // contract creation
     if (!txn.has_to) {
-        uint32_t size = encode_cid(from, nonce - 1);
+        uint32_t size = encode_cid(from, from_nonce);
         uint8_t buffer[size];
-        encode_cid(from, nonce - 1, buffer, size);
+        encode_cid(from, from_nonce, buffer, size);
         uint256_t to = (uint256_t)(uint160_t)sha3(buffer, size);
-        uint256_t to_balance = storage.balance(to);
 
-        storage.update(from, nonce, balance - txn.value);
-        storage.update(to, 1, to_balance + txn.value);
+        storage.increment_nonce(from);
+        storage.sub_balance(from, txn.value);
+        storage.add_balance(to, txn.value);
         uint32_t commit_id = storage.commit();
 
         const uint32_t code_size = txn.data_size;
@@ -2708,13 +2746,15 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
         const uint32_t return_size = 0;
         uint8_t *return_data = nullptr;
         try {
-            bool returns = vm_run(ISTANBUL, block, storage, from, txn.gasprice, to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, 0);
+            bool returns = vm_run(release, block, storage, from, txn.gasprice, to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, gas, 0);
         } catch (Error e) {
             storage.rollback(commit_id);
         }
     }
 
-    // after execution refund remaing gas multiplies by txn.gasprice
+    // TODO refund gas if failure with refund
+
+    storage.add_balance(from, gas * txn.gasprice);
     // after execution delete self destruct accounts
     // after execution delete touched accounts that were zeroed
     storage.commit();
