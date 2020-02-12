@@ -11,12 +11,14 @@ enum Error {
     MEMORY_EXAUSTED,
     ILLEGAL_TARGET, // VM
     ILLEGAL_UPDATE, // VM
+    INSUFFICIENT_BALANCE,
     INSUFFICIENT_SPACE,
     INVALID_ENCODING,
     INVALID_OPCODE, // VM
     INVALID_SIGNATURE,
     INVALID_SIZE,
     INVALID_TRANSACTION,
+    NONCE_MISMATCH,
     OUTOFBOUND_INDEX,
     RECURSION_LIMITED, // VM
     STACK_OVERFLOW, // VM
@@ -31,12 +33,14 @@ static const char *errors[UNIMPLEMENTED+1] = {
     "MEMORY_EXAUSTED",
     "ILLEGAL_TARGET",
     "ILLEGAL_UPDATE",
+    "INSUFFICIENT_BALANCE",
     "INSUFFICIENT_SPACE",
     "INVALID_ENCODING",
     "INVALID_OPCODE",
     "INVALID_SIGNATURE",
     "INVALID_SIZE",
     "INVALID_TRANSACTION",
+    "NONCE_MISMATCH",
     "OUTOFBOUND_INDEX",
     "RECURSION_LIMITED",
     "STACK_OVERFLOW",
@@ -1945,26 +1949,26 @@ struct substate {
 
 class Storage {
 protected:
-    virtual struct account *find_account(const uint256_t &address) = 0;
+    virtual const struct account *find_account(const uint256_t &address) = 0;
 public:
     inline uint256_t nonce(const uint256_t &v) {
-        struct account *account = find_account(v);
+        const struct account *account = find_account(v);
         return account == nullptr ? 0 : account->nonce;
     }
     inline uint256_t balance(const uint256_t &v) {
-        struct account *account = find_account(v);
+        const struct account *account = find_account(v);
         return account == nullptr ? 0 : account->balance;
     }
     inline const uint8_t* code(const uint256_t &v) {
-        struct account *account = find_account(v);
+        const struct account *account = find_account(v);
         return account == nullptr ? nullptr : account->code;
     }
     inline uint32_t code_size(const uint256_t &v) {
-        struct account *account = find_account(v);
+        const struct account *account = find_account(v);
         return account == nullptr ? 0 : account->code_size;
     }
     inline uint256_t code_hash(const uint256_t &v) {
-        struct account *account = find_account(v);
+        const struct account *account = find_account(v);
         return account == nullptr ? 0 : account->code_hash;
     }
     virtual const uint256_t& load(const uint256_t &account, const uint256_t &address) = 0;
@@ -2371,15 +2375,57 @@ static bool vm_run(Release release, Block &block, Storage &storage,
 
 class _Storage : public Storage {
 private:
-    struct account *find_account(const uint256_t &address) {
-        throw UNIMPLEMENTED;
+    static constexpr int L = 1024;
+    int account_size = 0;
+    uint160_t account_index[L];
+    struct account account_list[L];
+    int keyvalue_size = 0;
+    int keyvalue_index[L];
+    uint256_t keyvalue_list[L][2];
+    const struct account *find_account(const uint256_t &account) {
+        for (int i = 0; i < account_size; i++) {
+            if ((uint160_t)account == account_index[i]) return &account_list[i];
+        }
+        return nullptr;
     }
 public:
     const uint256_t& load(const uint256_t &account, const uint256_t &address) {
-        throw UNIMPLEMENTED;
+        for (int i = 0; i < keyvalue_size; i++) {
+            if (keyvalue_list[i][0] == address && (uint160_t)account == account_index[keyvalue_index[i]]) {
+                return keyvalue_list[i][1];
+            }
+        }
+        static uint256_t _0 = 0;
+        return _0;
     }
     void store(const uint256_t &account, const uint256_t &address, const uint256_t& v) {
-        throw UNIMPLEMENTED;
+        for (int i = 0; i < keyvalue_size; i++) {
+            if (keyvalue_list[i][0] == address && (uint160_t)account == account_index[keyvalue_index[i]]) {
+                keyvalue_list[i][1] = v;
+                return;
+            }
+        }
+        int index = account_size;
+        for (int i = 0; i < account_size; i++) {
+            if ((uint160_t)account == account_index[i]) {
+                index = i;
+                break;
+            }
+        }
+        if (index == account_size) {
+            if (account_size == L) throw INSUFFICIENT_SPACE;
+            account_list[account_size].nonce = 0;
+            account_list[account_size].balance = 0;
+            account_list[account_size].code = nullptr;
+            account_list[account_size].code_size = 0;
+            account_list[account_size].code_hash = 0;
+            account_size++;
+        }
+        if (keyvalue_size == L) throw INSUFFICIENT_SPACE;
+        keyvalue_index[keyvalue_size] = index;
+        keyvalue_list[keyvalue_size][0] = address;
+        keyvalue_list[keyvalue_size][1] = v;
+        keyvalue_size++;
     }
 };
 
@@ -2454,7 +2500,7 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
     }
 
     uint256_t intrinsic_gas = G_transaction;
-    if (txn.has_to) intrinsic_gas += G_txcreate;
+    if (!txn.has_to) intrinsic_gas += G_txcreate;
     uint32_t zero_count = 0;
     for (uint32_t i = 0; i < txn.data_size; i++) if (txn.data[i] == 0) zero_count++;
     intrinsic_gas += zero_count * G_txdatazero;
@@ -2462,10 +2508,10 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
     if (txn.gaslimit < intrinsic_gas) throw INVALID_TRANSACTION;
 
     uint256_t from = ecrecover(h, txn.v, txn.r, txn.s);
-    uint256_t nonce = storage.balance(from);
-    if (txn.nonce != nonce) throw INVALID_TRANSACTION;
+    uint256_t nonce = storage.nonce(from);
+    if (txn.nonce != nonce) throw NONCE_MISMATCH;
     uint256_t balance = storage.balance(from);
-    if (balance < txn.gaslimit * txn.gasprice + txn.value) throw INVALID_TRANSACTION;
+    if (balance < txn.gaslimit * txn.gasprice + txn.value) throw INSUFFICIENT_BALANCE;
 
     // NO TRANSACTION FAILURE FROM HERE
     nonce += 1;
