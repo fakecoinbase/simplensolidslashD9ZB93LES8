@@ -1103,6 +1103,43 @@ static struct txn decode_txn(const uint8_t *buffer, uint32_t size)
     return txn;
 }
 
+static uint32_t encode_cid(const uint256_t &from, const uint256_t &nonce, uint8_t *buffer, uint32_t size)
+{
+    struct rlp rlp;
+    rlp.is_list = true;
+    rlp.size = 2;
+    rlp.list = new struct rlp[rlp.size];
+    if (rlp.list == nullptr) throw MEMORY_EXAUSTED;
+    for (uint32_t i = 0; i < rlp.size; i++) {
+        rlp.list[i].is_list = false;
+        rlp.list[i].size = 0;
+        rlp.list[i].data = nullptr;
+    }
+    try {
+        rlp.list[0].size = dump_nlzint(from);
+        rlp.list[1].size = dump_nlzint(nonce);
+        for (uint32_t i = 0; i < rlp.size; i++) {
+            if (rlp.list[i].size > 0) {
+                rlp.list[i].data = new uint8_t[rlp.list[i].size];
+                if (rlp.list == nullptr) throw MEMORY_EXAUSTED;
+            }
+        }
+        dump_nlzint(from, rlp.list[0].data, rlp.list[0].size);
+        dump_nlzint(nonce, rlp.list[1].data, rlp.list[1].size);
+        uint32_t result = dump_rlp(rlp, buffer, size);
+        free_rlp(rlp);
+        return result;
+    } catch (Error e) {
+        free_rlp(rlp);
+        throw e;
+    }
+}
+
+static uint32_t encode_cid(const uint256_t &from, const uint256_t &nonce)
+{
+    return encode_cid(from, nonce, nullptr, 0);
+}
+
 /* gas */
 
 enum GasType : uint8_t {
@@ -2329,9 +2366,9 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             const uint8_t *code = storage.code(code_address);
             const uint32_t code_size = storage.code_size(code_address);
             try {
-                vm_run(release, block, storage, origin_address, gas_price, code_address, code, code_size, caller_address, call_value, call_data, call_size, return_data, return_size, depth+1);
+                bool returns = vm_run(release, block, storage, origin_address, gas_price, code_address, code, code_size, caller_address, call_value, call_data, call_size, return_data, return_size, depth+1);
                 stack.push(1);
-                memory.burn(out_offset.cast32(), return_size, return_data);
+                if (returns) memory.burn(out_offset.cast32(), return_size, return_data);
             } catch (Error e) {
                 stack.push(0);
             }
@@ -2620,24 +2657,52 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
     // message call
     if (txn.has_to) {
         uint256_t to_balance = storage.balance(txn.to);
+        uint256_t to_nonce = storage.nonce(txn.to);
 
-        balance -= txn.value;
-        to_balance += txn.value;
+        storage.update(from, balance - txn.value, nonce);
+        storage.update(txn.to, to_balance + txn.value, to_nonce);
 
         const uint32_t code_size = storage.code_size(txn.to);
         const uint8_t *code = storage.code(txn.to);
-        if (code != nullptr) {
-            const uint32_t call_size = 0;
-            const uint8_t *call_data = nullptr;
-            const uint32_t return_size = 0;
-            uint8_t *return_data = nullptr;
-            vm_run(ISTANBUL, block, storage, from, txn.gasprice, txn.to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, 0);
+        const uint32_t call_size = txn.data_size;
+        const uint8_t *call_data = txn.data;
+        const uint32_t return_size = 0;
+        uint8_t *return_data = nullptr;
+        try {
+            bool returns = vm_run(ISTANBUL, block, storage, from, txn.gasprice, txn.to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, 0);
+        } catch (Error e) {
+            // storage data should also rollback
+            storage.update(from, balance, nonce);
+            storage.update(txn.to, to_balance, to_nonce);
         }
     }
 
     // contract creation
     if (!txn.has_to) {
-        // TODO
+        uint32_t size = encode_cid(from, nonce - 1);
+        uint8_t buffer[size];
+        encode_cid(from, nonce - 1, buffer, size);
+        uint256_t to = (uint256_t)(uint160_t)sha3(buffer, size);
+
+        uint256_t to_balance = storage.balance(to);
+        uint256_t to_nonce = storage.balance(to);
+
+        storage.update(from, balance - txn.value, nonce);
+        storage.update(to, to_balance + txn.value, 1);
+
+        const uint32_t code_size = txn.data_size;
+        const uint8_t *code = txn.data;
+        const uint32_t call_size = 0;
+        const uint8_t *call_data = nullptr;
+        const uint32_t return_size = 0;
+        uint8_t *return_data = nullptr;
+        try {
+            bool returns = vm_run(ISTANBUL, block, storage, from, txn.gasprice, to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, 0);
+        } catch (Error e) {
+            // storage data should also rollback
+            storage.update(from, balance, nonce);
+            storage.update(to, to_balance, to_nonce);
+        }
     }
 
     // after execution refund remaing gas multiplies by txn.gasprice
