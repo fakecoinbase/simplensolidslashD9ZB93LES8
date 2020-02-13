@@ -2082,6 +2082,14 @@ public:
     virtual uint256_t hash(uint32_t number) = 0;
 };
 
+static inline uint160_t gen_address(const uint256_t &from, const uint256_t &nonce)
+{
+    uint32_t size = encode_cid(from, nonce);
+    uint8_t buffer[size];
+    encode_cid(from, nonce, buffer, size);
+    return (uint160_t)sha3(buffer, size);
+}
+
 static inline uint32_t _min(uint32_t v1, uint32_t v2) { return v1 < v2 ? v1 : v2;}
 
 static bool vm_run(const Release release, Block &block, Storage &storage,
@@ -2386,26 +2394,14 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t args_offset = v1.cast32(), args_size = v2.cast32();
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
-
-            uint256_t from = owner_address;
-            uint256_t to;
-            {
-                uint32_t size = encode_cid(from, storage.nonce(from));
-                uint8_t buffer[size];
-                encode_cid(from, storage.nonce(from), buffer, size);
-                to = (uint256_t)(uint160_t)sha3(buffer, size);
-            }
-            uint256_t code_address = to;
-            storage.increment_nonce(from);
+            uint256_t code_address = (uint256_t)gen_address(owner_address, storage.nonce(owner_address));
+            storage.increment_nonce(owner_address);
             // check conflict and throw
-
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
-
             uint32_t commit_id = storage.commit();
             // create account
-            // set nonce 1
-
+            // optionally set nonce 1
             storage.sub_balance(owner_address, value);
             storage.add_balance(code_address, value);
             bool success;
@@ -2876,12 +2872,7 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
 
     uint256_t from = ecrecover(h, txn.v, txn.r, txn.s);
     uint256_t to = txn.to;
-    if (!txn.has_to) {
-        uint32_t size = encode_cid(from, storage.nonce(from));
-        uint8_t buffer[size];
-        encode_cid(from, storage.nonce(from), buffer, size);
-        to = (uint256_t)(uint160_t)sha3(buffer, size);
-    }
+    if (!txn.has_to) to = (uint256_t)gen_address(from, storage.nonce(from));
 
     if (txn.nonce != storage.nonce(from)) throw NONCE_MISMATCH;
     storage.increment_nonce(from);
