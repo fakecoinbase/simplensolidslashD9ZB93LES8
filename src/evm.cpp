@@ -2386,30 +2386,38 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             break;
         }
         case CALL: {
-            uint256_t call_gas = stack.pop();
+            uint256_t _gas = stack.pop();
             uint256_t code_address = stack.pop();
             uint256_t value = stack.pop();
-            uint256_t in_offset = stack.pop();
-            uint256_t in_size = stack.pop();
-            uint256_t out_offset = stack.pop();
-            uint256_t out_size = stack.pop();
-
+            uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
+            uint32_t args_offset = v1.cast32(), args_size = v2.cast32(), ret_offset = v3.cast32(), ret_size = v4.cast32();
             if (read_only && value != 0) throw ILLEGAL_UPDATE;
-
-            const uint32_t call_size = in_size.cast32();
-            uint8_t call_data[call_size];
-            memory.dump(in_offset.cast32(), call_size, call_data);
-
-            const uint8_t *code = storage.code(code_address);
+            if (storage.balance(caller_address) < value) throw INSUFFICIENT_BALANCE;
+            storage.sub_balance(caller_address, value);
+            storage.add_balance(code_address, value);
+            uint8_t args_data[args_size];
+            memory.dump(args_offset, args_size, args_data);
             const uint32_t code_size = storage.code_size(code_address);
+            const uint8_t *code = storage.code(code_address);
+            uint32_t commit_id = storage.commit();
+            bool success;
             try {
-                bool returns = vm_run(release, block, storage, origin_address, gas_price, code_address, code, code_size, caller_address, call_value, call_data, call_size, return_data, return_size, return_capacity, gas, read_only, depth+1);
-                stack.push(1);
-                if (returns) memory.burn(out_offset.cast32(), return_size, return_data);
+                success = vm_run(release, block, storage,
+                                origin_address, gas_price,
+                                code_address, code, code_size,
+                                owner_address, value, args_data, args_size,
+                                return_data, return_size, return_capacity, gas,
+                                false, depth+1);
             } catch (Error e) {
-                stack.push(0);
+                success = false;
+                return_size = 0;
             }
-
+            if (!success) storage.rollback(commit_id);
+            uint32_t size = ret_size;
+            if (size > return_size) size = return_size;
+            memory.burn(ret_offset, size, return_data);
+            memory.clear(ret_offset + size, ret_size - size);
+            stack.push(success);
             break;
         }
         case CALLCODE: {
@@ -2500,6 +2508,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             uint256_t code_address = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             uint32_t args_offset = v1.cast32(), args_size = v2.cast32(), ret_offset = v3.cast32(), ret_size = v4.cast32();
+            storage.add_balance(code_address, 0);
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
             const uint32_t code_size = storage.code_size(code_address);
