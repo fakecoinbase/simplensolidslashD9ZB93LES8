@@ -7,7 +7,8 @@
 /* error */
 
 enum Error {
-    DIVIDES_ZERO = 1,
+    CODE_CONFLICT = 1, // VM
+    DIVIDES_ZERO,
     GAS_EXAUSTED, // VM
     MEMORY_EXAUSTED,
     ILLEGAL_TARGET, // VM
@@ -30,6 +31,7 @@ enum Error {
 
 static const char *errors[UNIMPLEMENTED+1] = {
     nullptr,
+    "CODE_CONFLICT",
     "DIVIDES_ZERO",
     "GAS_EXAUSTED",
     "MEMORY_EXAUSTED",
@@ -2762,7 +2764,30 @@ public:
         keyvalue_size++;
     }
     void register_code(const uint256_t &account, const uint8_t *buffer, uint32_t size) {
-        throw UNIMPLEMENTED;
+        int index = account_size;
+        for (int i = 0; i < account_size; i++) {
+            if ((uint160_t)account == account_index[i]) {
+                index = i;
+                break;
+            }
+        }
+        if (index == account_size) {
+            if (account_size == L) throw INSUFFICIENT_SPACE;
+            account_index[account_size] = (uint160_t)account;
+            account_list[account_size].nonce = 0;
+            account_list[account_size].balance = 0;
+            account_list[account_size].code = nullptr;
+            account_list[account_size].code_size = 0;
+            account_list[account_size].code_hash = 0;
+            account_size++;
+        }
+        if (account_list[index].code != nullptr) throw CODE_CONFLICT;
+        uint8_t *code = new uint8_t[size];
+        if (code == nullptr) throw MEMORY_EXAUSTED;
+        for (uint32_t i = 0; i < size; i++) code[i] = buffer[i];
+        account_list[index].code = code;
+        account_list[index].code_size = size;
+        account_list[index].code_hash = sha3(code, size);
     }
     void log0(const uint256_t &owner, const uint8_t *buffer, uint32_t size) {}
     void log1(const uint256_t &owner, const uint256_t &v1, const uint8_t *buffer, uint32_t size) {}
