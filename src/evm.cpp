@@ -2081,14 +2081,16 @@ public:
 
 static inline uint32_t _min(uint32_t v1, uint32_t v2) { return v1 < v2 ? v1 : v2;}
 
-static bool vm_run(Release release, Block &block, Storage &storage,
+static bool vm_run(const Release release, Block &block, Storage &storage,
     const uint256_t &origin_address, const uint256_t &gas_price,
     const uint256_t &owner_address, const uint8_t *code, const uint32_t code_size,
     const uint256_t &caller_address, const uint256_t &call_value, const uint8_t *call_data, const uint32_t call_size,
-    uint8_t *return_data, const uint32_t return_size, uint256_t &gas, bool read_only, uint32_t depth)
+    uint8_t *&return_data, uint32_t &return_size, uint32_t &return_capacity, uint256_t &gas,
+    bool read_only, uint32_t depth)
 {
     if (depth > 1024) throw RECURSION_LIMITED;
     if (code_size == 0) return false;
+    return_size = 0;
     Stack stack;
     Memory memory;
     for (uint32_t pc = 0; ; pc++) {
@@ -2394,9 +2396,6 @@ static bool vm_run(Release release, Block &block, Storage &storage,
 
             if (read_only && value != 0) throw ILLEGAL_UPDATE;
 
-            const uint32_t return_size = out_size.cast32();
-            uint8_t return_data[return_size];
-
             const uint32_t call_size = in_size.cast32();
             uint8_t call_data[call_size];
             memory.dump(in_offset.cast32(), call_size, call_data);
@@ -2404,7 +2403,7 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             const uint8_t *code = storage.code(code_address);
             const uint32_t code_size = storage.code_size(code_address);
             try {
-                bool returns = vm_run(release, block, storage, origin_address, gas_price, code_address, code, code_size, caller_address, call_value, call_data, call_size, return_data, return_size, gas, read_only, depth+1);
+                bool returns = vm_run(release, block, storage, origin_address, gas_price, code_address, code, code_size, caller_address, call_value, call_data, call_size, return_data, return_size, return_capacity, gas, read_only, depth+1);
                 stack.push(1);
                 if (returns) memory.burn(out_offset.cast32(), return_size, return_data);
             } catch (Error e) {
@@ -2417,8 +2416,15 @@ static bool vm_run(Release release, Block &block, Storage &storage,
         case RETURN: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t offset = v1.cast32(), size = v2.cast32();
-            if (size > return_size) size = return_size;
+            if (size > return_capacity) {
+                uint8_t *buffer = new uint8_t[size];
+                if (buffer == nullptr) throw MEMORY_EXAUSTED;
+                delete return_data;
+                return_data = buffer;
+                return_capacity = size;
+            }
             memory.dump(offset, size, return_data);
+            return_size = size;
             return true;
         }
         case DELEGATECALL: throw UNIMPLEMENTED;
@@ -2433,8 +2439,15 @@ static bool vm_run(Release release, Block &block, Storage &storage,
         case REVERT: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t offset = v1.cast32(), size = v2.cast32();
-            if (size > return_size) size = return_size;
+            if (size > return_capacity) {
+                uint8_t *buffer = new uint8_t[size];
+                if (buffer == nullptr) throw MEMORY_EXAUSTED;
+                delete return_data;
+                return_data = buffer;
+                return_capacity = size;
+            }
             memory.dump(offset, size, return_data);
+            return_size = size;
             return true;
         }
         case SELFDESTRUCT: {
@@ -2722,10 +2735,11 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
         const uint8_t *code = storage.code(txn.to);
         const uint32_t call_size = txn.data_size;
         const uint8_t *call_data = txn.data;
-        const uint32_t return_size = 0;
+        uint32_t return_size = 0;
+        uint32_t return_capacity = 0;
         uint8_t *return_data = nullptr;
         try {
-            bool returns = vm_run(release, block, storage, from, txn.gasprice, txn.to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, gas, false, 0);
+            bool returns = vm_run(release, block, storage, from, txn.gasprice, txn.to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, return_capacity, gas, false, 0);
         } catch (Error e) {
             storage.rollback(commit_id);
         }
@@ -2737,10 +2751,11 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
         const uint8_t *code = txn.data;
         const uint32_t call_size = 0;
         const uint8_t *call_data = nullptr;
-        const uint32_t return_size = 0;
+        uint32_t return_size = 0;
+        uint32_t return_capacity = 0;
         uint8_t *return_data = nullptr;
         try {
-            bool returns = vm_run(release, block, storage, from, txn.gasprice, to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, gas, false, 0);
+            bool returns = vm_run(release, block, storage, from, txn.gasprice, to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, return_capacity, gas, false, 0);
         } catch (Error e) {
             storage.rollback(commit_id);
         }
