@@ -751,9 +751,17 @@ static void blake2f(const uint32_t ROUNDS,
 
 /* secp256k1 */
 
-const uint256_t _N[2] = {
+const uint256_t _N[8] = {
+    // secp
     uint256_t::from("\xfe\xff\xff\xfc\x2f", 5).sigext(27),
     uint256_t::from("\xfe\xba\xae\xdc\xe6\xaf\x48\xa0\x3b\xbf\xd2\x5e\x8c\xd0\x36\x41\x41", 17).sigext(15),
+    uint256_t::from("\x79\xbe\x66\x7e\xf9\xdc\xbb\xac\x55\xa0\x62\x95\xce\x87\x0b\x07\x02\x9b\xfc\xdb\x2d\xce\x28\xd9\x59\xf2\x81\x5b\x16\xf8\x17\x98"),
+    uint256_t::from("\x48\x3a\xda\x77\x26\xa3\xc4\x65\x5d\xa4\xfb\xfc\x0e\x11\x08\xa8\xfd\x17\xb4\x48\xa6\x85\x54\x19\x9c\x47\xd0\x8f\xfb\x10\xd4\xb8"),
+    // bn
+    uint256_t::from("\x30\x64\x4e\x72\xe1\x31\xa0\x29\xb8\x50\x45\xb6\x81\x81\x58\x5d\x97\x81\x6a\x91\x68\x71\xca\x8d\x3c\x20\x8c\x16\xd8\x7c\xfd\x47"),
+    uint256_t::from("\x30\x64\x4e\x72\xe1\x31\xa0\x29\xb8\x50\x45\xb6\x81\x81\x58\x5d\x28\x33\xe8\x48\x79\xb9\x70\x91\x43\xe1\xf5\x93\xf0\x00\x00\x01"),
+    0,
+    0,
 };
 
 template<int N>
@@ -801,6 +809,73 @@ public:
     }
 };
 
+template<int N, int GX, int GY, int A, int B>
+class pointN_t {
+private:
+    static inline const modN_t<N> a() { return A; }
+    static inline const modN_t<N> b() { return B; }
+    static inline const pointN_t g() {
+        return pointN_t(_N[GX], _N[GY]);
+    }
+    static inline const pointN_t inf() { pointN_t p(0, 0); p.is_inf = true; return p; }
+    bool is_inf;
+    modN_t<N> x;
+    modN_t<N> y;
+public:
+    inline uint512_t as512() const {
+        uint8_t buffer[64];
+        uint256_t::to(x.as256(), buffer);
+        uint256_t::to(y.as256(), &buffer[32]);
+        return uint512_t::from(buffer);
+    }
+    inline pointN_t() {}
+    inline pointN_t(const modN_t<N> &_x, const modN_t<N> &_y): is_inf(false), x(_x), y(_y) {}
+    inline pointN_t(const pointN_t &p) : is_inf(p.is_inf), x(p.x), y(p.y) {}
+    inline pointN_t& operator=(const pointN_t& p) { is_inf = p.is_inf; x = p.x; y = p.y; return *this; }
+    inline pointN_t& operator+=(const pointN_t& p) { *this = *this + p; return *this; }
+    friend inline const pointN_t operator+(const pointN_t& p1, const pointN_t& p2) {
+        if (p1.is_inf) return p2;
+        if (p2.is_inf) return p1;
+        modN_t<N> x1 = p1.x, y1 = p1.y;
+        modN_t<N> x2 = p2.x, y2 = p2.y;
+        modN_t<N> l;
+        if (x1 == x2) {
+            if (y1 != y2) return inf();
+            if (y1 == 0) return inf();
+            l = (3 * (x1 * x1) + a()) / (2 * y1);
+        } else {
+            l = (y2 - y1) / (x2 - x1);
+        }
+        modN_t<N> x3 = l * l - x1 - x2;
+        modN_t<N> y3 = l * (x1 - x3) - y1;
+        return pointN_t(x3, y3);
+    }
+    friend inline const pointN_t operator*(const pointN_t& _p, const uint256_t& e) {
+        pointN_t p = _p;
+        pointN_t q = inf();
+        for (int n = 0; n < 256; n++) {
+            int i = 31 - n / 8;
+            int j = n % 8;
+            if ((e[i] & (1 << j)) > 0) q += p;
+            p += p;
+        }
+        return q;
+    }
+    friend inline bool operator==(const pointN_t& p1, const pointN_t& p2) { return p1.is_inf == p2.is_inf && p1.x == p2.x && p1.y == p2.y; }
+    friend inline bool operator!=(const pointN_t& p1, const pointN_t& p2) { return !(p1 == p2); }
+    static pointN_t gen(const uint256_t &u) { return  g() * u; }
+    static pointN_t find(const modN_t<N> &x, bool is_odd) {
+        modN_t<N> poly = x * x * x + a() * x + b();
+        modN_t<N> y = modN_t<N>::pow(poly, (modN_t<N>)1 / 4);
+        if (is_odd == (y.as256()[31] % 2 == 0)) y = -y;
+        return pointN_t(x, y);
+    }
+    friend std::ostream& operator<<(std::ostream &os, const pointN_t &v) {
+        os << v.x << " " << v.y;
+        return os;
+    }
+};
+
 class mod_t : public modN_t<0> {
 public:
     inline mod_t() {}
@@ -817,72 +892,34 @@ public:
     inline mud_t(const modN_t &v) : modN_t(v) {}
 };
 
-class point_t {
-private:
-    static inline const mod_t a() { return 0; }
-    static inline const mod_t b() { return 7; }
-    static inline const point_t g() {
-        const uint256_t gx = uint256_t::from("\x79\xbe\x66\x7e\xf9\xdc\xbb\xac\x55\xa0\x62\x95\xce\x87\x0b\x07\x02\x9b\xfc\xdb\x2d\xce\x28\xd9\x59\xf2\x81\x5b\x16\xf8\x17\x98");
-        const uint256_t gy = uint256_t::from("\x48\x3a\xda\x77\x26\xa3\xc4\x65\x5d\xa4\xfb\xfc\x0e\x11\x08\xa8\xfd\x17\xb4\x48\xa6\x85\x54\x19\x9c\x47\xd0\x8f\xfb\x10\xd4\xb8");
-        return point_t(gx, gy);
-    }
-    static inline const point_t inf() { point_t p(0, 0); p.is_inf = true; return p; }
-    bool is_inf;
-    mod_t x;
-    mod_t y;
+class point_t : public pointN_t<0, 2, 3, 0, 7> {
 public:
-    inline uint512_t as512() const {
-        uint8_t buffer[64];
-        uint256_t::to(x.as256(), buffer);
-        uint256_t::to(y.as256(), &buffer[32]);
-        return uint512_t::from(buffer);
-    }
     inline point_t() {}
-    inline point_t(const mod_t &_x, const mod_t &_y): is_inf(false), x(_x), y(_y) {}
-    inline point_t(const point_t &p) : is_inf(p.is_inf), x(p.x), y(p.y) {}
-    inline point_t& operator=(const point_t& p) { is_inf = p.is_inf; x = p.x; y = p.y; return *this; }
-    inline point_t& operator+=(const point_t& p) { *this = *this + p; return *this; }
-    friend inline const point_t operator+(const point_t& p1, const point_t& p2) {
-        if (p1.is_inf) return p2;
-        if (p2.is_inf) return p1;
-        mod_t x1 = p1.x, y1 = p1.y;
-        mod_t x2 = p2.x, y2 = p2.y;
-        mod_t l;
-        if (x1 == x2) {
-            if (y1 != y2) return inf();
-            if (y1 == 0) return inf();
-            l = (3 * (x1 * x1) + a()) / (2 * y1);
-        } else {
-            l = (y2 - y1) / (x2 - x1);
-        }
-        mod_t x3 = l * l - x1 - x2;
-        mod_t y3 = l * (x1 - x3) - y1;
-        return point_t(x3, y3);
-    }
-    friend inline const point_t operator*(const point_t& _p, const uint256_t& e) {
-        point_t p = _p;
-        point_t q = inf();
-        for (int n = 0; n < 256; n++) {
-            int i = 31 - n / 8;
-            int j = n % 8;
-            if ((e[i] & (1 << j)) > 0) q += p;
-            p += p;
-        }
-        return q;
-    }
-    friend inline bool operator==(const point_t& p1, const point_t& p2) { return p1.is_inf == p2.is_inf && p1.x == p2.x && p1.y == p2.y; }
-    friend inline bool operator!=(const point_t& p1, const point_t& p2) { return !(p1 == p2); }
-    static point_t gen(const uint256_t &u) { return  g() * u; }
-    static point_t find(const mod_t &x, bool is_odd) {
-        mod_t poly = x * x * x + a() * x + b();
-        mod_t y = mod_t::pow(poly, (mod_t)1 / 4);
-        if (is_odd == (y.as256()[31] % 2 == 0)) y = -y;
-        return point_t(x, y);
-    }
-    friend std::ostream& operator<<(std::ostream &os, const point_t &v) {
-        os << v.x << " " << v.y;
-        return os;
-    }
+    inline point_t(const mod_t &_x, const mod_t &_y): pointN_t(_x, _y) {}
+    inline point_t(const pointN_t &p) : pointN_t(p) {}
+};
+
+class mod_bn_t : public modN_t<4> {
+public:
+    inline mod_bn_t() {}
+    inline mod_bn_t(uint32_t v) : modN_t(v) {}
+    inline mod_bn_t(const uint256_t &v) : modN_t(v) {}
+    inline mod_bn_t(const modN_t &v) : modN_t(v) {}
+};
+
+class mud_bn_t : public modN_t<5> {
+public:
+    inline mud_bn_t() {}
+    inline mud_bn_t(uint32_t v) : modN_t(v) {}
+    inline mud_bn_t(const uint256_t &v) : modN_t(v) {}
+    inline mud_bn_t(const modN_t &v) : modN_t(v) {}
+};
+
+class point_bn_t : public pointN_t<4, 6, 7, 0, 3> {
+public:
+    inline point_bn_t() {}
+    inline point_bn_t(const mod_bn_t &_x, const mod_bn_t &_y): pointN_t(_x, _y) {}
+    inline point_bn_t(const pointN_t &p) : pointN_t(p) {}
 };
 
 static uint256_t ecrecover(const uint256_t &h, const uint256_t &v, const uint256_t &r, const uint256_t &s)
