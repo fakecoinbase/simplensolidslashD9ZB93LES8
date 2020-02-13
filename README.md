@@ -22,4 +22,7 @@ was subjective in the sense that a more complete submission made later
 could disqualify a less complete submited later, therefore I decided to
 spend a little more time on delivering a more complete version, despite
 the fact that it could take more time
+- I also assume that for the prize of the challenge EOSIO would also consider
+important the quality, therefore I put an effort to provide a more readable and
+reusable code
 
