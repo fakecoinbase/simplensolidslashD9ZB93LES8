@@ -2090,6 +2090,18 @@ static inline uint160_t gen_address(const uint256_t &from, const uint256_t &nonc
     return (uint160_t)sha3(buffer, size);
 }
 
+static inline uint160_t gen_address(const uint256_t &from, const uint256_t &salt, const uint256_t &hash)
+{
+    uint32_t size = 1 + 20 + 32 + 32;
+    uint8_t buffer[size];
+    uint32_t offset = 0;
+    buffer[offset] = 0xff; offset += 1;
+    uint160_t::to((uint160_t)from, &buffer[offset]); offset += 20;
+    uint256_t::to(salt, &buffer[offset]); offset += 32;
+    uint256_t::to(hash, &buffer[offset]); offset += 32;
+    return (uint160_t)sha3(buffer, size);
+}
+
 static inline uint32_t _min(uint32_t v1, uint32_t v2) { return v1 < v2 ? v1 : v2;}
 
 static bool vm_run(const Release release, Block &block, Storage &storage,
@@ -2392,13 +2404,13 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
         case CREATE: {
             uint256_t value = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop();
-            uint32_t args_offset = v1.cast32(), args_size = v2.cast32();
+            uint32_t init_offset = v1.cast32(), init_size = v2.cast32();
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
+            uint8_t init[init_size];
+            memory.dump(init_offset, init_size, init);
             uint256_t code_address = (uint256_t)gen_address(owner_address, storage.nonce(owner_address));
             storage.increment_nonce(owner_address);
             // check conflict and throw
-            uint8_t args_data[args_size];
-            memory.dump(args_offset, args_size, args_data);
             uint32_t commit_id = storage.commit();
             // create account
             // optionally set nonce 1
@@ -2408,8 +2420,8 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             try {
                 success = vm_run(release, block, storage,
                                 origin_address, gas_price,
-                                code_address, code, code_size,
-                                owner_address, value, args_data, args_size,
+                                code_address, init, init_size,
+                                owner_address, value, nullptr, 0,
                                 return_data, return_size, return_capacity, gas,
                                 false, depth+1);
             } catch (Error e) {
@@ -2534,11 +2546,36 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             break;
         }
         case CREATE2: {
-            uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
-            uint32_t offset = v2.cast32();
-            uint32_t size = v3.cast32();
-            // create_contract(v1, offset, size, v4);
-            break;
+            uint256_t value = stack.pop();
+            uint256_t v1 = stack.pop(), v2 = stack.pop();
+            uint256_t salt = stack.pop();
+            uint32_t init_offset = v1.cast32(), init_size = v2.cast32();
+            if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
+            uint8_t init[init_size];
+            memory.dump(init_offset, init_size, init);
+            uint256_t code_address = (uint256_t)gen_address(owner_address, salt, sha3(init, init_size));
+            storage.increment_nonce(owner_address);
+            // check conflict and throw
+            uint32_t commit_id = storage.commit();
+            // create account
+            // optionally set nonce 1
+            storage.sub_balance(owner_address, value);
+            storage.add_balance(code_address, value);
+            bool success;
+            try {
+                success = vm_run(release, block, storage,
+                                origin_address, gas_price,
+                                code_address, init, init_size,
+                                owner_address, value, nullptr, 0,
+                                return_data, return_size, return_capacity, gas,
+                                false, depth+1);
+            } catch (Error e) {
+                success = false;
+                return_size = 0;
+            }
+            if (success) storage.register_code(code_address, return_data, return_size);
+            if (!success) storage.rollback(commit_id);
+            stack.push(success);
         }
         case STATICCALL: {
             uint256_t _gas = stack.pop();
