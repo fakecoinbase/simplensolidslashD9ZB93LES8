@@ -2828,37 +2828,41 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
     storage.sub_balance(from, txn.value);
     storage.add_balance(to, txn.value);
 
+    bool success = false;
+    uint32_t return_size = 0;
+    uint32_t return_capacity = 0;
+    uint8_t *return_data = nullptr;
+
     // message call
     if (txn.has_to) {
-        const uint32_t code_size = storage.code_size(txn.to);
-        const uint8_t *code = storage.code(txn.to);
-        const uint32_t call_size = txn.data_size;
-        const uint8_t *call_data = txn.data;
-        uint32_t return_size = 0;
-        uint32_t return_capacity = 0;
-        uint8_t *return_data = nullptr;
         try {
-            bool returns = vm_run(release, block, storage, from, txn.gasprice, txn.to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, return_capacity, gas, false, 0);
+            success = vm_run(release, block, storage,
+                            from, txn.gasprice,
+                            to, storage.code(to), storage.code_size(to),
+                            from, txn.value, txn.data, txn.data_size,
+                            return_data, return_size, return_capacity, gas,
+                            false, 0);
         } catch (Error e) {
-            storage.rollback(commit_id);
+            success = false;
         }
     }
 
     // contract creation
     if (!txn.has_to) {
-        const uint32_t code_size = txn.data_size;
-        const uint8_t *code = txn.data;
-        const uint32_t call_size = 0;
-        const uint8_t *call_data = nullptr;
-        uint32_t return_size = 0;
-        uint32_t return_capacity = 0;
-        uint8_t *return_data = nullptr;
         try {
-            bool returns = vm_run(release, block, storage, from, txn.gasprice, to, code, code_size, from, txn.value, call_data, call_size, return_data, return_size, return_capacity, gas, false, 0);
+            success = vm_run(release, block, storage,
+                            from, txn.gasprice,
+                            to, txn.data, txn.data_size,
+                            from, txn.value, nullptr, 0,
+                            return_data, return_size, return_capacity, gas,
+                            false, 0);
         } catch (Error e) {
-            storage.rollback(commit_id);
+            success = false;
         }
     }
+
+    delete return_data;
+    if (!success) storage.rollback(commit_id);
 
     // TODO refund gas if failure with refund
 
