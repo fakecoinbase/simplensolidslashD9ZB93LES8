@@ -2178,15 +2178,32 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
                     uint256_t v = uint256_t::from(&buffer[offset]); offset += 32;
                     uint256_t r = uint256_t::from(&buffer[offset]); offset += 32;
                     uint256_t s = uint256_t::from(&buffer[offset]); offset += 32;
-                    uint160_t a = (uint160_t)ecrecover(h, v, r, s);
-                    return_size = 20;
+                    uint256_t address = ecrecover(h, v, r, s);
+                    return_size = 32;
                     _ensure_capacity(return_data, return_size, return_capacity);
-                    uint160_t::to(a, return_data, return_size);
+                    uint256_t::to(address, return_data, return_size);
                     return true;
                 }
-                case SHA256: throw UNIMPLEMENTED;
-                case RIPEMD160: throw UNIMPLEMENTED;
-                case DATACOPY: throw UNIMPLEMENTED;
+                case SHA256: {
+                    uint256_t hash = sha256(call_data, call_size);
+                    return_size = 32;
+                    _ensure_capacity(return_data, return_size, return_capacity);
+                    uint256_t::to(hash, return_data, return_size);
+                    return true;
+                }
+                case RIPEMD160: {
+                    uint256_t hash = (uint256_t)ripemd160(call_data, call_size);
+                    return_size = 32;
+                    _ensure_capacity(return_data, return_size, return_capacity);
+                    uint256_t::to(hash, return_data, return_size);
+                    return true;
+                }
+                case DATACOPY: {
+                    return_size = call_size;
+                    _ensure_capacity(return_data, return_size, return_capacity);
+                    for (uint32_t i = 0; i < return_size; i++) return_data[i] = call_data[i];
+                    return true;
+                }
                 case BIGMODEEXP: throw UNIMPLEMENTED;
                 case BN256ADD: throw UNIMPLEMENTED;
                 case BN256SCALARMUL: throw UNIMPLEMENTED;
