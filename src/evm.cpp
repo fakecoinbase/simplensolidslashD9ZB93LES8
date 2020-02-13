@@ -2162,39 +2162,42 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
     bool read_only, uint32_t depth)
 {
     if (depth > 1024) throw RECURSION_LIMITED;
-    if (code_size == 0 && (intptr_t)code < 256) {
-        uint8_t opc = (intptr_t)code;
-        if ((pre[release] & (1 << opc)) == 0) {
-            switch (opc) {
-            case ECRECOVER: {
-                uint32_t size = 32 + 32 + 32 + 32;
-                uint8_t buffer[size];
-                uint32_t minsize = _min(size, call_size);
-                for (uint32_t i = 0; i < minsize; i++) buffer[i] = call_data[i];
-                for (uint32_t i = minsize; i < size; i++) buffer[i] = 0;
-                uint32_t offset = 0;
-                uint256_t h = uint256_t::from(&buffer[offset]); offset += 32;
-                uint256_t v = uint256_t::from(&buffer[offset]); offset += 32;
-                uint256_t r = uint256_t::from(&buffer[offset]); offset += 32;
-                uint256_t s = uint256_t::from(&buffer[offset]); offset += 32;
-                uint160_t a = (uint160_t)ecrecover(h, v, r, s);
-                return_size = 20;
-                _ensure_capacity(return_data, return_size, return_capacity);
-                uint160_t::to(a, return_data, return_size);
-                return true;
-            }
-            case SHA256: throw UNIMPLEMENTED;
-            case RIPEMD160: throw UNIMPLEMENTED;
-            case DATACOPY: throw UNIMPLEMENTED;
-            case BIGMODEEXP: throw UNIMPLEMENTED;
-            case BN256ADD: throw UNIMPLEMENTED;
-            case BN256SCALARMUL: throw UNIMPLEMENTED;
-            case BN256PAIRING: throw UNIMPLEMENTED;
-            case BLAKE2F: throw UNIMPLEMENTED;
+    if (code_size == 0) {
+        if ((intptr_t)code < 256) {
+            uint8_t opc = (intptr_t)code;
+            if ((pre[release] & (1 << opc)) == 0) {
+                switch (opc) {
+                case ECRECOVER: {
+                    uint32_t size = 32 + 32 + 32 + 32;
+                    uint8_t buffer[size];
+                    uint32_t minsize = _min(size, call_size);
+                    for (uint32_t i = 0; i < minsize; i++) buffer[i] = call_data[i];
+                    for (uint32_t i = minsize; i < size; i++) buffer[i] = 0;
+                    uint32_t offset = 0;
+                    uint256_t h = uint256_t::from(&buffer[offset]); offset += 32;
+                    uint256_t v = uint256_t::from(&buffer[offset]); offset += 32;
+                    uint256_t r = uint256_t::from(&buffer[offset]); offset += 32;
+                    uint256_t s = uint256_t::from(&buffer[offset]); offset += 32;
+                    uint160_t a = (uint160_t)ecrecover(h, v, r, s);
+                    return_size = 20;
+                    _ensure_capacity(return_data, return_size, return_capacity);
+                    uint160_t::to(a, return_data, return_size);
+                    return true;
+                }
+                case SHA256: throw UNIMPLEMENTED;
+                case RIPEMD160: throw UNIMPLEMENTED;
+                case DATACOPY: throw UNIMPLEMENTED;
+                case BIGMODEEXP: throw UNIMPLEMENTED;
+                case BN256ADD: throw UNIMPLEMENTED;
+                case BN256SCALARMUL: throw UNIMPLEMENTED;
+                case BN256PAIRING: throw UNIMPLEMENTED;
+                case BLAKE2F: throw UNIMPLEMENTED;
+                }
             }
         }
+        return_size = 0;
+        return true;
     }
-    if (code_size == 0) { return_size = 0; return true; }
     return_size = 0;
     Stack stack;
     Memory memory;
