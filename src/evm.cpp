@@ -2143,6 +2143,17 @@ static inline uint160_t gen_address(const uint256_t &from, const uint256_t &salt
 
 static inline uint32_t _min(uint32_t v1, uint32_t v2) { return v1 < v2 ? v1 : v2;}
 
+static inline void _ensure_capacity(uint8_t *&data, uint32_t &size, uint32_t &capacity)
+{
+    if (size > capacity) {
+        uint8_t *buffer = new uint8_t[size];
+        if (buffer == nullptr) throw MEMORY_EXAUSTED;
+        delete data;
+        data = buffer;
+        capacity = size;
+    }
+}
+
 static bool vm_run(const Release release, Block &block, Storage &storage,
     const uint256_t &origin_address, const uint256_t &gas_price,
     const uint256_t &owner_address, const uint8_t *code, const uint32_t code_size,
@@ -2155,7 +2166,23 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
         uint8_t opc = (intptr_t)code;
         if ((pre[release] & (1 << opc)) == 0) {
             switch (opc) {
-            case ECRECOVER: throw UNIMPLEMENTED;
+            case ECRECOVER: {
+                uint32_t size = 32 + 32 + 32 + 32;
+                uint8_t buffer[size];
+                uint32_t minsize = _min(size, call_size);
+                for (uint32_t i = 0; i < minsize; i++) buffer[i] = call_data[i];
+                for (uint32_t i = minsize; i < size; i++) buffer[i] = 0;
+                uint32_t offset = 0;
+                uint256_t h = uint256_t::from(&buffer[offset]); offset += 32;
+                uint256_t v = uint256_t::from(&buffer[offset]); offset += 32;
+                uint256_t r = uint256_t::from(&buffer[offset]); offset += 32;
+                uint256_t s = uint256_t::from(&buffer[offset]); offset += 32;
+                uint160_t a = (uint160_t)ecrecover(h, v, r, s);
+                return_size = 20;
+                _ensure_capacity(return_data, return_size, return_capacity);
+                uint160_t::to(a, return_data, return_size);
+                return true;
+            }
             case SHA256: throw UNIMPLEMENTED;
             case RIPEMD160: throw UNIMPLEMENTED;
             case DATACOPY: throw UNIMPLEMENTED;
@@ -2559,15 +2586,9 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
         case RETURN: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t offset = v1.cast32(), size = v2.cast32();
-            if (size > return_capacity) {
-                uint8_t *buffer = new uint8_t[size];
-                if (buffer == nullptr) throw MEMORY_EXAUSTED;
-                delete return_data;
-                return_data = buffer;
-                return_capacity = size;
-            }
-            memory.dump(offset, size, return_data);
             return_size = size;
+            _ensure_capacity(return_data, return_size, return_capacity);
+            memory.dump(offset, return_size, return_data);
             return true;
         }
         case DELEGATECALL: {
@@ -2666,15 +2687,9 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
         case REVERT: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t offset = v1.cast32(), size = v2.cast32();
-            if (size > return_capacity) {
-                uint8_t *buffer = new uint8_t[size];
-                if (buffer == nullptr) throw MEMORY_EXAUSTED;
-                delete return_data;
-                return_data = buffer;
-                return_capacity = size;
-            }
-            memory.dump(offset, size, return_data);
             return_size = size;
+            _ensure_capacity(return_data, return_size, return_capacity);
+            memory.dump(offset, return_size, return_data);
             return false;
         }
         case SELFDESTRUCT: {
