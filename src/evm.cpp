@@ -2153,8 +2153,7 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            uint256_t v3 = sha3(buffer, size);
-            stack.push(v3);
+            stack.push(sha3(buffer, size));
             break;
         }
         case ADDRESS: { stack.push(owner_address); break; }
