@@ -2038,13 +2038,14 @@ public:
         const struct account *account = find_account(v);
         return account == nullptr ? 0 : account->code_hash;
     }
+    virtual void register_code(const uint256_t &account, const uint8_t *buffer, uint32_t size) = 0;
     virtual const uint256_t& load(const uint256_t &account, const uint256_t &address) = 0;
     virtual void store(const uint256_t &account, const uint256_t &address, const uint256_t& v) = 0;
-    virtual void log0(uint256_t owner, const uint8_t *buffer, uint32_t size) = 0;
-    virtual void log1(uint256_t owner, uint256_t v1, const uint8_t *buffer, uint32_t size) = 0;
-    virtual void log2(uint256_t owner, uint256_t v1, uint256_t v2, const uint8_t *buffer, uint32_t size) = 0;
-    virtual void log3(uint256_t owner, uint256_t v1, uint256_t v2, uint256_t v3, const uint8_t *buffer, uint32_t size) = 0;
-    virtual void log4(uint256_t owner, uint256_t v1, uint256_t v2, uint256_t v3, uint256_t v4, const uint8_t *buffer, uint32_t size) = 0;
+    virtual void log0(const uint256_t &owner, const uint8_t *buffer, uint32_t size) = 0;
+    virtual void log1(const uint256_t &owner, const uint256_t &v1, const uint8_t *buffer, uint32_t size) = 0;
+    virtual void log2(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint8_t *buffer, uint32_t size) = 0;
+    virtual void log3(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *buffer, uint32_t size) = 0;
+    virtual void log4(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *buffer, uint32_t size) = 0;
     virtual uint32_t commit() = 0;
     virtual void rollback(uint32_t commit_id) = 0;
     inline void increment_nonce(const uint256_t &v) {
@@ -2379,10 +2380,47 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             break;
         }
         case CREATE: {
-            uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
-            uint32_t offset = v2.cast32();
-            uint32_t size = v3.cast32();
-            // create_contract(v1, offset, size);
+            uint256_t value = stack.pop();
+            uint256_t v1 = stack.pop(), v2 = stack.pop();
+            uint32_t args_offset = v1.cast32(), args_size = v2.cast32();
+            if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
+
+            uint256_t from = owner_address;
+            uint256_t to;
+            {
+                uint32_t size = encode_cid(from, storage.nonce(from));
+                uint8_t buffer[size];
+                encode_cid(from, storage.nonce(from), buffer, size);
+                to = (uint256_t)(uint160_t)sha3(buffer, size);
+            }
+            uint256_t code_address = to;
+            storage.increment_nonce(from);
+            // check conflict and throw
+
+            uint8_t args_data[args_size];
+            memory.dump(args_offset, args_size, args_data);
+
+            uint32_t commit_id = storage.commit();
+            // create account
+            // set nonce 1
+
+            storage.sub_balance(owner_address, value);
+            storage.add_balance(code_address, value);
+            bool success;
+            try {
+                success = vm_run(release, block, storage,
+                                origin_address, gas_price,
+                                code_address, code, code_size,
+                                owner_address, value, args_data, args_size,
+                                return_data, return_size, return_capacity, gas,
+                                false, depth+1);
+            } catch (Error e) {
+                success = false;
+                return_size = 0;
+            }
+            if (!success) storage.rollback(commit_id);
+			if (success) storage.register_code(code_address, return_data, return_size);
+            stack.push(success);
             break;
         }
         case CALL: {
@@ -2392,14 +2430,15 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             uint32_t args_offset = v1.cast32(), args_size = v2.cast32(), ret_offset = v3.cast32(), ret_size = v4.cast32();
             if (read_only && value != 0) throw ILLEGAL_UPDATE;
-            if (storage.balance(caller_address) < value) throw INSUFFICIENT_BALANCE;
-            storage.sub_balance(caller_address, value);
-            storage.add_balance(code_address, value);
+            if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
             const uint32_t code_size = storage.code_size(code_address);
             const uint8_t *code = storage.code(code_address);
             uint32_t commit_id = storage.commit();
+            // create account or return
+            storage.sub_balance(owner_address, value);
+            storage.add_balance(code_address, value);
             bool success;
             try {
                 success = vm_run(release, block, storage,
@@ -2426,7 +2465,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             uint256_t value = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             uint32_t args_offset = v1.cast32(), args_size = v2.cast32(), ret_offset = v3.cast32(), ret_size = v4.cast32();
-            if (storage.balance(caller_address) < value) throw INSUFFICIENT_BALANCE;
+            if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
             const uint32_t code_size = storage.code_size(code_address);
@@ -2722,11 +2761,14 @@ public:
         keyvalue_list[keyvalue_size][1] = v;
         keyvalue_size++;
     }
-    void log0(uint256_t owner, const uint8_t *buffer, uint32_t size) {}
-    void log1(uint256_t owner, uint256_t v1, const uint8_t *buffer, uint32_t size) {}
-    void log2(uint256_t owner, uint256_t v1, uint256_t v2, const uint8_t *buffer, uint32_t size) {}
-    void log3(uint256_t owner, uint256_t v1, uint256_t v2, uint256_t v3, const uint8_t *buffer, uint32_t size) {}
-    void log4(uint256_t owner, uint256_t v1, uint256_t v2, uint256_t v3, uint256_t v4, const uint8_t *buffer, uint32_t size) {}
+    void register_code(const uint256_t &account, const uint8_t *buffer, uint32_t size) {
+        throw UNIMPLEMENTED;
+    }
+    void log0(const uint256_t &owner, const uint8_t *buffer, uint32_t size) {}
+    void log1(const uint256_t &owner, const uint256_t &v1, const uint8_t *buffer, uint32_t size) {}
+    void log2(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint8_t *buffer, uint32_t size) {}
+    void log3(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *buffer, uint32_t size) {}
+    void log4(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *buffer, uint32_t size) {}
     uint32_t commit() {
         uint32_t commit_id = dump();
         std::stringstream ss;
