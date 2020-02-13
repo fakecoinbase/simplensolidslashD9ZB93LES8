@@ -2427,7 +2427,36 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             return_size = size;
             return true;
         }
-        case DELEGATECALL: throw UNIMPLEMENTED;
+        case DELEGATECALL: {
+            uint256_t _gas = stack.pop();
+            uint256_t code_address = stack.pop();
+            uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
+            uint32_t args_offset = v1.cast32(), args_size = v2.cast32(), ret_offset = v3.cast32(), ret_size = v4.cast32();
+            uint8_t args_data[args_size];
+            memory.dump(args_offset, args_size, args_data);
+            const uint32_t code_size = storage.code_size(code_address);
+            const uint8_t *code = storage.code(code_address);
+            uint32_t commit_id = storage.commit();
+            bool success;
+            try {
+                success = vm_run(release, block, storage,
+                                origin_address, gas_price,
+                                owner_address, code, code_size,
+                                caller_address, call_value, args_data, args_size,
+                                return_data, return_size, return_capacity, gas,
+                                false, depth+1);
+            } catch (Error e) {
+                success = false;
+                return_size = 0;
+            }
+            if (!success) storage.rollback(commit_id);
+            uint32_t size = ret_size;
+            if (size > return_size) size = return_size;
+            memory.burn(ret_offset, size, return_data);
+            memory.clear(ret_offset + size, ret_size - size);
+            stack.push(success);
+            break;
+        }
         case CREATE2: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             uint32_t offset = v2.cast32();
@@ -2435,7 +2464,36 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             // create_contract(v1, offset, size, v4);
             break;
         }
-        case STATICCALL: throw UNIMPLEMENTED;
+        case STATICCALL: {
+            uint256_t _gas = stack.pop();
+            uint256_t code_address = stack.pop();
+            uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
+            uint32_t args_offset = v1.cast32(), args_size = v2.cast32(), ret_offset = v3.cast32(), ret_size = v4.cast32();
+            uint8_t args_data[args_size];
+            memory.dump(args_offset, args_size, args_data);
+            const uint32_t code_size = storage.code_size(code_address);
+            const uint8_t *code = storage.code(code_address);
+            uint32_t commit_id = storage.commit();
+            bool success;
+            try {
+                success = vm_run(release, block, storage,
+                                origin_address, gas_price,
+                                code_address, code, code_size,
+                                owner_address, 0, args_data, args_size,
+                                return_data, return_size, return_capacity, gas,
+                                true, depth+1);
+            } catch (Error e) {
+                success = false;
+                return_size = 0;
+            }
+            if (!success) storage.rollback(commit_id);
+            uint32_t size = ret_size;
+            if (size > return_size) size = return_size;
+            memory.burn(ret_offset, size, return_data);
+            memory.clear(ret_offset + size, ret_size - size);
+            stack.push(success);
+            break;
+        }
         case REVERT: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t offset = v1.cast32(), size = v2.cast32();
