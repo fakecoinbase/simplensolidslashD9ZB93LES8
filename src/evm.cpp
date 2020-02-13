@@ -2035,6 +2035,11 @@ public:
     }
     virtual const uint256_t& load(const uint256_t &account, const uint256_t &address) = 0;
     virtual void store(const uint256_t &account, const uint256_t &address, const uint256_t& v) = 0;
+    virtual void log0(uint256_t owner, const uint8_t *buffer, uint32_t size) = 0;
+    virtual void log1(uint256_t owner, uint256_t v1, const uint8_t *buffer, uint32_t size) = 0;
+    virtual void log2(uint256_t owner, uint256_t v1, uint256_t v2, const uint8_t *buffer, uint32_t size) = 0;
+    virtual void log3(uint256_t owner, uint256_t v1, uint256_t v2, uint256_t v3, const uint8_t *buffer, uint32_t size) = 0;
+    virtual void log4(uint256_t owner, uint256_t v1, uint256_t v2, uint256_t v3, uint256_t v4, const uint8_t *buffer, uint32_t size) = 0;
     virtual uint32_t commit() = 0;
     virtual void rollback(uint32_t commit_id) = 0;
     inline void increment_nonce(const uint256_t &v) {
@@ -2326,51 +2331,46 @@ static bool vm_run(Release release, Block &block, Storage &storage,
         case SWAP16: { uint256_t v1 = stack[-1]; stack[-1] = stack[-17]; stack[-17] = v1; pc++; break; }
         case LOG0: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
-            uint32_t offset = v1.cast32();
-            uint32_t size = v2.cast32();
+            uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            // log owner_address, buffer
+            storage.log0(owner_address, buffer, size);
             pc++;
             break;
         }
         case LOG1: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
-            uint32_t offset = v1.cast32();
-            uint32_t size = v2.cast32();
+            uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            // log owner_address, v3, buffer
+            storage.log1(owner_address, v3, buffer, size);
             pc++;
             break;
         }
         case LOG2: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
-            uint32_t offset = v1.cast32();
-            uint32_t size = v2.cast32();
+            uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            // log owner_address, v3, v4, buffer
+            storage.log2(owner_address, v3, v4, buffer, size);
             pc++;
             break;
         }
         case LOG3: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop(), v5 = stack.pop();
-            uint32_t offset = v1.cast32();
-            uint32_t size = v2.cast32();
+            uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            // log owner_address, v3, v4, v5, buffer
+            storage.log3(owner_address, v3, v4, v5, buffer, size);
             pc++;
             break;
         }
         case LOG4: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop(), v5 = stack.pop(), v6 = stack.pop();
-            uint32_t offset = v1.cast32();
-            uint32_t size = v2.cast32();
+            uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            // log owner_address, v3, v4, v5, v6, buffer
+            storage.log4(owner_address, v3, v4, v5, v6, buffer, size);
             pc++;
             break;
         }
@@ -2391,6 +2391,7 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint256_t in_size = stack.pop();
             uint256_t out_offset = stack.pop();
             uint256_t out_size = stack.pop();
+
             if (read_only && value != 0) throw ILLEGAL_UPDATE;
 
             const uint32_t return_size = out_size.cast32();
@@ -2441,8 +2442,8 @@ static bool vm_run(Release release, Block &block, Storage &storage,
         }
         case SELFDESTRUCT: {
             uint256_t v1 = stack.pop();
-            uint256_t balance = storage.balance(owner_address);
-            // add balance to v1 balance
+            uint256_t amount = storage.balance(owner_address);
+            storage.add_balance(v1, amount);
             // kill contract
             return false;
         }
@@ -2465,6 +2466,27 @@ private:
             if ((uint160_t)account == account_index[i]) return &account_list[i];
         }
         return nullptr;
+    }
+    void update(const uint256_t &account, const uint256_t &nonce, const uint256_t &balance) {
+        int index = account_size;
+        for (int i = 0; i < account_size; i++) {
+            if ((uint160_t)account == account_index[i]) {
+                index = i;
+                break;
+            }
+        }
+        if (index == account_size) {
+            if (account_size == L) throw INSUFFICIENT_SPACE;
+            account_index[account_size] = (uint160_t)account;
+            account_list[account_size].nonce = 0;
+            account_list[account_size].balance = 0;
+            account_list[account_size].code = nullptr;
+            account_list[account_size].code_size = 0;
+            account_list[account_size].code_hash = 0;
+            account_size++;
+        }
+        account_list[index].nonce = nonce;
+        account_list[index].balance = balance;
     }
     void reset() {
         for (int i = 0; i < account_size; i++) delete account_list[i].code;
@@ -2591,27 +2613,11 @@ public:
         keyvalue_list[keyvalue_size][1] = v;
         keyvalue_size++;
     }
-    void update(const uint256_t &account, const uint256_t &nonce, const uint256_t &balance) {
-        int index = account_size;
-        for (int i = 0; i < account_size; i++) {
-            if ((uint160_t)account == account_index[i]) {
-                index = i;
-                break;
-            }
-        }
-        if (index == account_size) {
-            if (account_size == L) throw INSUFFICIENT_SPACE;
-            account_index[account_size] = (uint160_t)account;
-            account_list[account_size].nonce = 0;
-            account_list[account_size].balance = 0;
-            account_list[account_size].code = nullptr;
-            account_list[account_size].code_size = 0;
-            account_list[account_size].code_hash = 0;
-            account_size++;
-        }
-        account_list[index].nonce = nonce;
-        account_list[index].balance = balance;
-    }
+    void log0(uint256_t owner, const uint8_t *buffer, uint32_t size) {}
+    void log1(uint256_t owner, uint256_t v1, const uint8_t *buffer, uint32_t size) {}
+    void log2(uint256_t owner, uint256_t v1, uint256_t v2, const uint8_t *buffer, uint32_t size) {}
+    void log3(uint256_t owner, uint256_t v1, uint256_t v2, uint256_t v3, const uint8_t *buffer, uint32_t size) {}
+    void log4(uint256_t owner, uint256_t v1, uint256_t v2, uint256_t v3, uint256_t v4, const uint8_t *buffer, uint32_t size) {}
     uint32_t commit() {
         uint32_t commit_id = dump();
         std::stringstream ss;
