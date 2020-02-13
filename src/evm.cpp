@@ -389,7 +389,7 @@ static void sha3(const uint8_t *message, uint32_t size, bool compressed, uint32_
             uint64_t b[5][5];
             for (int x = 0; x < 5; x++) {
                 for (int y = 0; y < 5; y++) {
-					b[y][(2 * x + 3 * y) % 5] = rot(s[x][y], R[x][y]);
+                    b[y][(2 * x + 3 * y) % 5] = rot(s[x][y], R[x][y]);
                 }
             }
             for (int x = 0; x < 5; x++) {
@@ -883,7 +883,7 @@ static uint32_t dump_varlen(uint8_t base, uint8_t c, uint32_t n, uint8_t *b, uin
 {
     if (base == 0x80 && c < 0x80 && n == 1) return 0;
     uint32_t size = 0;
-	if (n > 55) {
+    if (n > 55) {
         size += dump_nlzint(n, b, s - size);
         n = 55 + size;
     }
@@ -897,22 +897,22 @@ static uint32_t dump_varlen(uint8_t base, uint8_t c, uint32_t n, uint8_t *b, uin
 
 static uint32_t parse_varlen(const uint8_t *&b, uint32_t &s, bool &is_list)
 {
-	if (s < 1) throw INVALID_ENCODING;
+    if (s < 1) throw INVALID_ENCODING;
     uint8_t n = b[0];
     if (n < 0x80) { is_list = false; return 1; }
     b++; s--;
-	if (n >= 0xc0 + 56) {
-		uint32_t l = parse_nlzint(b, s, n - (0xc0 + 56) + 1).cast32();
-		if (l < 56) throw INVALID_ENCODING;
+    if (n >= 0xc0 + 56) {
+        uint32_t l = parse_nlzint(b, s, n - (0xc0 + 56) + 1).cast32();
+        if (l < 56) throw INVALID_ENCODING;
         is_list = true; return l;
     }
-	if (n >= 0xc0) { is_list = true; return n - 0xc0; }
-	if (n >= 0x80 + 56) {
-		uint32_t l = parse_nlzint(b, s, n - (0x80 + 56) + 1).cast32();
-		if (l < 56) throw INVALID_ENCODING;
+    if (n >= 0xc0) { is_list = true; return n - 0xc0; }
+    if (n >= 0x80 + 56) {
+        uint32_t l = parse_nlzint(b, s, n - (0x80 + 56) + 1).cast32();
+        if (l < 56) throw INVALID_ENCODING;
         is_list = true; return l;
     }
-	if (n == 0x81) {
+    if (n == 0x81) {
         if (s < 1) throw INVALID_ENCODING;
         uint8_t n = b[0];
         if (n < 0x80) throw INVALID_ENCODING;
@@ -971,8 +971,8 @@ static uint32_t dump_rlp(const struct rlp &rlp, uint8_t *b, uint32_t s)
 static void parse_rlp(const uint8_t *&b, uint32_t &s, struct rlp &rlp)
 {
     bool is_list;
-	uint32_t l = parse_varlen(b, s, is_list);
-	if (l > s) throw INVALID_ENCODING;
+    uint32_t l = parse_varlen(b, s, is_list);
+    if (l > s) throw INVALID_ENCODING;
     const uint8_t *_b = b;
     uint32_t _s = l;
     b += l; s -= l;
@@ -2420,8 +2420,8 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
                 success = false;
                 return_size = 0;
             }
+            if (success) storage.register_code(code_address, return_data, return_size);
             if (!success) storage.rollback(commit_id);
-			if (success) storage.register_code(code_address, return_data, return_size);
             stack.push(success);
             break;
         }
@@ -2926,6 +2926,7 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
         } catch (Error e) {
             success = false;
         }
+        if (success) storage.register_code(to, return_data, return_size);
     }
 
     delete return_data;
