@@ -2086,8 +2086,7 @@ static bool vm_run(Release release, Block &block, Storage &storage,
     if (code_size == 0) return false;
     Stack stack;
     Memory memory;
-    uint32_t pc = 0;
-    for (;;) {
+    for (uint32_t pc = 0; ; pc++) {
         uint8_t opc = pc < code_size ? code[pc] : STOP;
         std::cout << opcodes[opc] << std::endl;
         if ((is[release] & (1 << opc)) == 0) throw INVALID_OPCODE;
@@ -2099,10 +2098,10 @@ static bool vm_run(Release release, Block &block, Storage &storage,
 
         switch (opc) {
         case STOP: { return false; }
-        case ADD: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 + v2); pc++; break; }
-        case MUL: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 * v2); pc++; break; }
-        case SUB: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 - v2); pc++; break; }
-        case DIV: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2 == 0 ? 0 : v1 / v2); pc++; break; }
+        case ADD: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 + v2); break; }
+        case MUL: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 * v2); break; }
+        case SUB: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 - v2); break; }
+        case DIV: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2 == 0 ? 0 : v1 / v2); break; }
         case SDIV: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             bool is_neg1 = (v1[0] & 0x80) > 0;
@@ -2112,10 +2111,9 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint256_t v3 = v2 == 0 ? 0 : v1 / v2;
             if (is_neg1 != is_neg2) v3 = -v3;
             stack.push(v3);
-            pc++;
             break;
         }
-        case MOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2 == 0 ? 0 : v1 % v2); pc++; break; }
+        case MOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v2 == 0 ? 0 : v1 % v2); break; }
         case SMOD: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             bool is_neg1 = (v1[0] & 0x80) > 0;
@@ -2125,27 +2123,26 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint256_t v3 = v2 == 0 ? 0 : v1 % v2;
             if (is_neg1) v3 = -v3;
             stack.push(v3);
-            pc++;
             break;
         }
-        case ADDMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(v3 == 0 ? 0 : uint256_t::addmod(v1, v2, v3)); pc++; break; }
-        case MULMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(v3 == 0 ? 0 : uint256_t::mulmod(v1, v2, v3)); pc++; break; }
-        case EXP: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(uint256_t::pow(v1, v2)); pc++; break; }
-        case SIGNEXTEND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < 32 ? v2.sigext(v1.cast32()) : v2); pc++; break; }
-        case LT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < v2); pc++; break; }
-        case GT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > v2); pc++; break; }
-        case SLT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1.sigflip() < v2.sigflip()); pc++; break; }
-        case SGT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1.sigflip() > v2.sigflip()); pc++; break; }
-        case EQ: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 == v2); pc++; break; }
-        case ISZERO: { uint256_t v1 = stack.pop(); stack.push(v1 == 0); pc++; break; }
-        case AND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 & v2); pc++; break; }
-        case OR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 | v2); pc++; break; }
-        case XOR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 ^ v2); pc++; break; }
-        case NOT: { uint256_t v1 = stack.pop(); stack.push(~v1); pc++; break; }
-        case BYTE: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < 32 ? v2[v1.cast32()] : 0); pc++; }
-        case SHL: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > 255 ? 0 : v2 << v1.cast32()); pc++; break; }
-        case SHR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > 255 ? 0 : v2 >> v1.cast32()); pc++; break; }
-        case SAR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > 255 ? ((v2[0] & 0x80) > 0 ? ~(uint256_t)0 : 0) : uint256_t::sar(v2, v1.cast32())); pc++; break; }
+        case ADDMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(v3 == 0 ? 0 : uint256_t::addmod(v1, v2, v3)); break; }
+        case MULMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(v3 == 0 ? 0 : uint256_t::mulmod(v1, v2, v3)); break; }
+        case EXP: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(uint256_t::pow(v1, v2)); break; }
+        case SIGNEXTEND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < 32 ? v2.sigext(v1.cast32()) : v2); break; }
+        case LT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < v2); break; }
+        case GT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > v2); break; }
+        case SLT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1.sigflip() < v2.sigflip()); break; }
+        case SGT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1.sigflip() > v2.sigflip()); break; }
+        case EQ: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 == v2); break; }
+        case ISZERO: { uint256_t v1 = stack.pop(); stack.push(v1 == 0); break; }
+        case AND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 & v2); break; }
+        case OR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 | v2); break; }
+        case XOR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 ^ v2); break; }
+        case NOT: { uint256_t v1 = stack.pop(); stack.push(~v1); break; }
+        case BYTE: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < 32 ? v2[v1.cast32()] : 0); break; }
+        case SHL: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > 255 ? 0 : v2 << v1.cast32()); break; }
+        case SHR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > 255 ? 0 : v2 >> v1.cast32()); break; }
+        case SAR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > 255 ? ((v2[0] & 0x80) > 0 ? ~(uint256_t)0 : 0) : uint256_t::sar(v2, v1.cast32())); break; }
         case SHA3: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t offset = v1.cast32(), size = v2.cast32();
@@ -2153,24 +2150,22 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             memory.dump(offset, size, buffer);
             uint256_t v3 = sha3(buffer, size);
             stack.push(v3);
-            pc++;
             break;
         }
-        case ADDRESS: { stack.push(owner_address); pc++; break; }
-        case BALANCE: { uint256_t v1 = stack.pop(); stack.push(storage.balance(v1)); pc++; break; }
-        case ORIGIN: { stack.push(origin_address); pc++; break; }
-        case CALLER: { stack.push(caller_address); pc++; break; }
-        case CALLVALUE: { stack.push(call_value); pc++; break; }
+        case ADDRESS: { stack.push(owner_address); break; }
+        case BALANCE: { uint256_t v1 = stack.pop(); stack.push(storage.balance(v1)); break; }
+        case ORIGIN: { stack.push(origin_address); break; }
+        case CALLER: { stack.push(caller_address); break; }
+        case CALLVALUE: { stack.push(call_value); break; }
         case CALLDATALOAD: {
             uint256_t v1 = stack.pop();
             uint32_t offset = v1.cast32();
             uint32_t size = 32;
             if (offset + size > call_size) size = call_size - offset;
             stack.push(uint256_t::from(&call_data[offset], size));
-            pc++;
             break;
         }
-        case CALLDATASIZE: { stack.push(call_size); pc++; break; }
+        case CALLDATASIZE: { stack.push(call_size); break; }
         case CALLDATACOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
             uint32_t offset1 = v1.cast32();
@@ -2178,10 +2173,9 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint32_t size = v3.cast32();
             if (offset2 + size > call_size) size = call_size - offset2;
             memory.burn(offset1, size, &call_data[offset2]);
-            pc++;
             break;
         }
-        case CODESIZE: { stack.push(code_size); pc++; break; }
+        case CODESIZE: { stack.push(code_size); break; }
         case CODECOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
             uint32_t offset1 = v1.cast32();
@@ -2189,11 +2183,10 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint32_t size = v3.cast32();
             if (offset2 + size > code_size) size = code_size - offset2;
             memory.burn(offset1, size, &code[offset2]);
-            pc++;
             break;
         }
-        case GASPRICE: { stack.push(gas_price); pc++; break; }
-        case EXTCODESIZE: { uint256_t v1 = stack.pop(); stack.push(storage.code_size(v1)); pc++; break; }
+        case GASPRICE: { stack.push(gas_price); break; }
+        case EXTCODESIZE: { uint256_t v1 = stack.pop(); stack.push(storage.code_size(v1)); break; }
         case EXTCODECOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             uint32_t address = v1.cast32();
@@ -2204,10 +2197,9 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             const uint32_t code_size = storage.code_size(address);
             if (offset2 + size > code_size) size = code_size - offset2;
             memory.burn(offset1, size, &code[offset2]);
-            pc++;
             break;
         }
-        case RETURNDATASIZE: { stack.push(return_size); pc++; break; }
+        case RETURNDATASIZE: { stack.push(return_size); break; }
         case RETURNDATACOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
             uint32_t offset1 = v1.cast32();
@@ -2215,34 +2207,31 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint32_t size = v3.cast32();
             if (offset2 + size > return_size) size = return_size - offset2;
             memory.burn(offset1, size, &return_data[offset2]);
-            pc++;
             break;
         }
-        case EXTCODEHASH: { uint256_t v1 = stack.pop(); stack.push(storage.code_hash(v1)); pc++; break; }
-        case BLOCKHASH: { uint256_t v1 = stack.pop(); stack.push(v1 < block.number()-256 || v1 >= block.number() ? 0 : block.hash(v1.cast32())); pc++; break; }
-        case COINBASE: { stack.push(block.coinbase()); pc++; break; }
-        case TIMESTAMP: { stack.push(block.timestamp()); pc++; break; }
-        case NUMBER: { stack.push(block.number()); pc++; break; }
-        case DIFFICULTY: { stack.push(block.difficulty()); pc++; break; }
-        case GASLIMIT: { stack.push(block.gaslimit()); pc++; break; }
-        case CHAINID: { stack.push(block.chainid()); pc++; break; }
-        case SELFBALANCE: { stack.push(storage.balance(owner_address)); pc++; break; }
-        case POP: { stack.pop(); pc++; break; }
-        case MLOAD: { uint256_t v1 = stack.pop(); stack.push(memory.load(v1.cast32())); pc++; break; }
-        case MSTORE: { uint256_t v1 = stack.pop(), v2 = stack.pop(); memory.store(v1.cast32(), v2); pc++; break; }
+        case EXTCODEHASH: { uint256_t v1 = stack.pop(); stack.push(storage.code_hash(v1)); break; }
+        case BLOCKHASH: { uint256_t v1 = stack.pop(); stack.push(v1 < block.number()-256 || v1 >= block.number() ? 0 : block.hash(v1.cast32())); break; }
+        case COINBASE: { stack.push(block.coinbase()); break; }
+        case TIMESTAMP: { stack.push(block.timestamp()); break; }
+        case NUMBER: { stack.push(block.number()); break; }
+        case DIFFICULTY: { stack.push(block.difficulty()); break; }
+        case GASLIMIT: { stack.push(block.gaslimit()); break; }
+        case CHAINID: { stack.push(block.chainid()); break; }
+        case SELFBALANCE: { stack.push(storage.balance(owner_address)); break; }
+        case POP: { stack.pop(); break; }
+        case MLOAD: { uint256_t v1 = stack.pop(); stack.push(memory.load(v1.cast32())); break; }
+        case MSTORE: { uint256_t v1 = stack.pop(), v2 = stack.pop(); memory.store(v1.cast32(), v2); break; }
         case MSTORE8: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint8_t buffer[1];
             buffer[0] = v2.cast32() & 0xff;
             memory.burn(v1.cast32(), 1, buffer);
-            pc++;
             break;
         }
-        case SLOAD: { uint256_t v1 = stack.pop(); stack.push(storage.load(owner_address, v1)); pc++; break; }
+        case SLOAD: { uint256_t v1 = stack.pop(); stack.push(storage.load(owner_address, v1)); break; }
         case SSTORE: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             storage.store(owner_address, v1, v2);
-            pc++;
             break;
         }
         case JUMP: {
@@ -2260,84 +2249,82 @@ static bool vm_run(Release release, Block &block, Storage &storage,
                 if (opc != JUMPDEST) throw ILLEGAL_TARGET;
                 break;
             }
-            pc++;
             break;
         }
-        case PC: { stack.push(pc); pc++; break; }
-        case MSIZE: { stack.push(memory.size()); pc++; break; }
-        case GAS: { stack.push(gas); pc++; break; }
-        case JUMPDEST: { pc++; break; }
-        case PUSH1: { const int n = 1; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH2: { const int n = 2; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH3: { const int n = 3; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH4: { const int n = 4; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH5: { const int n = 5; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH6: { const int n = 6; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH7: { const int n = 7; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH8: { const int n = 8; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH9: { const int n = 9; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH10: { const int n = 10; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH11: { const int n = 11; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH12: { const int n = 12; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH13: { const int n = 13; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH14: { const int n = 14; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH15: { const int n = 15; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH16: { const int n = 16; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH17: { const int n = 17; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH18: { const int n = 18; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH19: { const int n = 19; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH20: { const int n = 20; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH21: { const int n = 21; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH22: { const int n = 22; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH23: { const int n = 23; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH24: { const int n = 24; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH25: { const int n = 25; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH26: { const int n = 26; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH27: { const int n = 27; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH28: { const int n = 28; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH29: { const int n = 29; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH30: { const int n = 30; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH31: { const int n = 31; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case PUSH32: { const int n = 32; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += 1 + n; break; }
-        case DUP1: { uint256_t v1 = stack[-1]; stack.push(v1); pc++; break; }
-        case DUP2: { uint256_t v1 = stack[-2]; stack.push(v1); pc++; break; }
-        case DUP3: { uint256_t v1 = stack[-3]; stack.push(v1); pc++; break; }
-        case DUP4: { uint256_t v1 = stack[-4]; stack.push(v1); pc++; break; }
-        case DUP5: { uint256_t v1 = stack[-5]; stack.push(v1); pc++; break; }
-        case DUP6: { uint256_t v1 = stack[-6]; stack.push(v1); pc++; break; }
-        case DUP7: { uint256_t v1 = stack[-7]; stack.push(v1); pc++; break; }
-        case DUP8: { uint256_t v1 = stack[-8]; stack.push(v1); pc++; break; }
-        case DUP9: { uint256_t v1 = stack[-9]; stack.push(v1); pc++; break; }
-        case DUP10: { uint256_t v1 = stack[-10]; stack.push(v1); pc++; break; }
-        case DUP11: { uint256_t v1 = stack[-11]; stack.push(v1); pc++; break; }
-        case DUP12: { uint256_t v1 = stack[-12]; stack.push(v1); pc++; break; }
-        case DUP13: { uint256_t v1 = stack[-13]; stack.push(v1); pc++; break; }
-        case DUP14: { uint256_t v1 = stack[-14]; stack.push(v1); pc++; break; }
-        case DUP15: { uint256_t v1 = stack[-15]; stack.push(v1); pc++; break; }
-        case DUP16: { uint256_t v1 = stack[-16]; stack.push(v1); pc++; break; }
-        case SWAP1: { uint256_t v1 = stack[-1]; stack[-1] = stack[-2]; stack[-2] = v1; pc++; break; }
-        case SWAP2: { uint256_t v1 = stack[-1]; stack[-1] = stack[-3]; stack[-3] = v1; pc++; break; }
-        case SWAP3: { uint256_t v1 = stack[-1]; stack[-1] = stack[-4]; stack[-4] = v1; pc++; break; }
-        case SWAP4: { uint256_t v1 = stack[-1]; stack[-1] = stack[-5]; stack[-5] = v1; pc++; break; }
-        case SWAP5: { uint256_t v1 = stack[-1]; stack[-1] = stack[-6]; stack[-6] = v1; pc++; break; }
-        case SWAP6: { uint256_t v1 = stack[-1]; stack[-1] = stack[-7]; stack[-7] = v1; pc++; break; }
-        case SWAP7: { uint256_t v1 = stack[-1]; stack[-1] = stack[-8]; stack[-8] = v1; pc++; break; }
-        case SWAP8: { uint256_t v1 = stack[-1]; stack[-1] = stack[-9]; stack[-9] = v1; pc++; break; }
-        case SWAP9: { uint256_t v1 = stack[-1]; stack[-1] = stack[-10]; stack[-10] = v1; pc++; break; }
-        case SWAP10: { uint256_t v1 = stack[-1]; stack[-1] = stack[-11]; stack[-11] = v1; pc++; break; }
-        case SWAP11: { uint256_t v1 = stack[-1]; stack[-1] = stack[-12]; stack[-12] = v1; pc++; break; }
-        case SWAP12: { uint256_t v1 = stack[-1]; stack[-1] = stack[-13]; stack[-13] = v1; pc++; break; }
-        case SWAP13: { uint256_t v1 = stack[-1]; stack[-1] = stack[-14]; stack[-14] = v1; pc++; break; }
-        case SWAP14: { uint256_t v1 = stack[-1]; stack[-1] = stack[-15]; stack[-15] = v1; pc++; break; }
-        case SWAP15: { uint256_t v1 = stack[-1]; stack[-1] = stack[-16]; stack[-16] = v1; pc++; break; }
-        case SWAP16: { uint256_t v1 = stack[-1]; stack[-1] = stack[-17]; stack[-17] = v1; pc++; break; }
+        case PC: { stack.push(pc); break; }
+        case MSIZE: { stack.push(memory.size()); break; }
+        case GAS: { stack.push(gas); break; }
+        case JUMPDEST: { break; }
+        case PUSH1: { const int n = 1; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH2: { const int n = 2; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH3: { const int n = 3; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH4: { const int n = 4; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH5: { const int n = 5; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH6: { const int n = 6; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH7: { const int n = 7; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH8: { const int n = 8; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH9: { const int n = 9; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH10: { const int n = 10; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH11: { const int n = 11; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH12: { const int n = 12; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH13: { const int n = 13; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH14: { const int n = 14; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH15: { const int n = 15; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH16: { const int n = 16; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH17: { const int n = 17; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH18: { const int n = 18; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH19: { const int n = 19; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH20: { const int n = 20; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH21: { const int n = 21; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH22: { const int n = 22; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH23: { const int n = 23; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH24: { const int n = 24; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH25: { const int n = 25; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH26: { const int n = 26; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH27: { const int n = 27; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH28: { const int n = 28; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH29: { const int n = 29; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH30: { const int n = 30; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH31: { const int n = 31; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case PUSH32: { const int n = 32; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
+        case DUP1: { uint256_t v1 = stack[-1]; stack.push(v1); break; }
+        case DUP2: { uint256_t v1 = stack[-2]; stack.push(v1); break; }
+        case DUP3: { uint256_t v1 = stack[-3]; stack.push(v1); break; }
+        case DUP4: { uint256_t v1 = stack[-4]; stack.push(v1); break; }
+        case DUP5: { uint256_t v1 = stack[-5]; stack.push(v1); break; }
+        case DUP6: { uint256_t v1 = stack[-6]; stack.push(v1); break; }
+        case DUP7: { uint256_t v1 = stack[-7]; stack.push(v1); break; }
+        case DUP8: { uint256_t v1 = stack[-8]; stack.push(v1); break; }
+        case DUP9: { uint256_t v1 = stack[-9]; stack.push(v1); break; }
+        case DUP10: { uint256_t v1 = stack[-10]; stack.push(v1); break; }
+        case DUP11: { uint256_t v1 = stack[-11]; stack.push(v1); break; }
+        case DUP12: { uint256_t v1 = stack[-12]; stack.push(v1); break; }
+        case DUP13: { uint256_t v1 = stack[-13]; stack.push(v1); break; }
+        case DUP14: { uint256_t v1 = stack[-14]; stack.push(v1); break; }
+        case DUP15: { uint256_t v1 = stack[-15]; stack.push(v1); break; }
+        case DUP16: { uint256_t v1 = stack[-16]; stack.push(v1); break; }
+        case SWAP1: { uint256_t v1 = stack[-1]; stack[-1] = stack[-2]; stack[-2] = v1; break; }
+        case SWAP2: { uint256_t v1 = stack[-1]; stack[-1] = stack[-3]; stack[-3] = v1; break; }
+        case SWAP3: { uint256_t v1 = stack[-1]; stack[-1] = stack[-4]; stack[-4] = v1; break; }
+        case SWAP4: { uint256_t v1 = stack[-1]; stack[-1] = stack[-5]; stack[-5] = v1; break; }
+        case SWAP5: { uint256_t v1 = stack[-1]; stack[-1] = stack[-6]; stack[-6] = v1; break; }
+        case SWAP6: { uint256_t v1 = stack[-1]; stack[-1] = stack[-7]; stack[-7] = v1; break; }
+        case SWAP7: { uint256_t v1 = stack[-1]; stack[-1] = stack[-8]; stack[-8] = v1; break; }
+        case SWAP8: { uint256_t v1 = stack[-1]; stack[-1] = stack[-9]; stack[-9] = v1; break; }
+        case SWAP9: { uint256_t v1 = stack[-1]; stack[-1] = stack[-10]; stack[-10] = v1; break; }
+        case SWAP10: { uint256_t v1 = stack[-1]; stack[-1] = stack[-11]; stack[-11] = v1; break; }
+        case SWAP11: { uint256_t v1 = stack[-1]; stack[-1] = stack[-12]; stack[-12] = v1; break; }
+        case SWAP12: { uint256_t v1 = stack[-1]; stack[-1] = stack[-13]; stack[-13] = v1; break; }
+        case SWAP13: { uint256_t v1 = stack[-1]; stack[-1] = stack[-14]; stack[-14] = v1; break; }
+        case SWAP14: { uint256_t v1 = stack[-1]; stack[-1] = stack[-15]; stack[-15] = v1; break; }
+        case SWAP15: { uint256_t v1 = stack[-1]; stack[-1] = stack[-16]; stack[-16] = v1; break; }
+        case SWAP16: { uint256_t v1 = stack[-1]; stack[-1] = stack[-17]; stack[-17] = v1; break; }
         case LOG0: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             storage.log0(owner_address, buffer, size);
-            pc++;
             break;
         }
         case LOG1: {
@@ -2346,7 +2333,6 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             storage.log1(owner_address, v3, buffer, size);
-            pc++;
             break;
         }
         case LOG2: {
@@ -2355,7 +2341,6 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             storage.log2(owner_address, v3, v4, buffer, size);
-            pc++;
             break;
         }
         case LOG3: {
@@ -2364,7 +2349,6 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             storage.log3(owner_address, v3, v4, v5, buffer, size);
-            pc++;
             break;
         }
         case LOG4: {
@@ -2373,7 +2357,6 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             storage.log4(owner_address, v3, v4, v5, v6, buffer, size);
-            pc++;
             break;
         }
         case CREATE: {
@@ -2381,7 +2364,6 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint32_t offset = v2.cast32();
             uint32_t size = v3.cast32();
             // create_contract(v1, offset, size);
-            pc++;
             break;
         }
         case CALL: {
@@ -2412,7 +2394,6 @@ static bool vm_run(Release release, Block &block, Storage &storage,
                 stack.push(0);
             }
 
-            pc++;
             break;
         }
         case CALLCODE: throw UNIMPLEMENTED;
@@ -2429,7 +2410,6 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint32_t offset = v2.cast32();
             uint32_t size = v3.cast32();
             // create_contract(v1, offset, size, v4);
-            pc++;
             break;
         }
         case STATICCALL: throw UNIMPLEMENTED;
