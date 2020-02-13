@@ -678,6 +678,77 @@ static uint160_t ripemd160(const uint8_t *buffer, uint32_t size)
     return uint160_t::from(output);
 }
 
+static inline uint64_t ror(uint64_t x, int n) { return (x << (64 - n)) ^ (x >> n); }
+
+static inline void mix(
+    uint64_t a, uint64_t b, uint64_t c, uint64_t d,
+    uint64_t x, uint64_t y,
+    uint64_t &_a, uint64_t &_b, uint64_t &_c, uint64_t &_d) {
+    a = a + b + x;
+    d = ror(d ^ a, 32);
+    c = c + d;
+    b = ror(b ^ c, 24);
+    a = a + b + y;
+    d = ror(d ^ a, 16);
+    c = c + d;
+    b = ror(b ^ c, 63);
+    _a = a; _b = b; _c = c; _d = d;
+}
+
+static void blake2f(const uint32_t ROUNDS,
+    uint64_t &h0, uint64_t &h1, uint64_t &h2, uint64_t &h3,
+    uint64_t &h4, uint64_t &h5, uint64_t &h6, uint64_t &h7,
+    uint64_t w[16], uint64_t t0, uint64_t t1, bool last_chunk) {
+    static const uint8_t SIGMA[10][16] = {
+        {  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15 },
+        { 14, 10,  4,  8,  9, 15, 13,  6,  1, 12,  0,  2, 11,  7,  5,  3 },
+        { 11,  8, 12,  0,  5,  2, 15, 13, 10, 14,  3,  6,  7,  1,  9,  4 },
+        {  7,  9,  3,  1, 13, 12, 11, 14,  2,  6,  5, 10,  4,  0, 15,  8 },
+        {  9,  0,  5,  7,  2,  4, 10, 15, 14,  1, 11, 12,  6,  8,  3, 13 },
+        {  2, 12,  6, 10,  0, 11,  8,  3,  4, 13,  7,  5, 15, 14,  1,  9 },
+        { 12,  5,  1, 15, 14, 13,  4, 10,  0,  7,  6,  3,  9,  2,  8, 11 },
+        { 13, 11,  7, 14, 12,  1,  3,  9,  5,  0, 15,  4,  8,  6,  2, 10 },
+        {  6, 15, 14,  9, 11,  3,  0,  8, 12,  2, 13,  7,  1,  4, 10,  5 },
+        { 10,  2,  8,  4,  7,  6,  1,  5, 15, 11,  9, 14,  3, 12, 13,  0 },
+    };
+    static const uint64_t iv[8] = {
+        0x6a09e667f3bcc908, 0xbb67ae8584caa73b,
+        0x3c6ef372fe94f82b, 0xa54ff53a5f1d36f1,
+        0x510e527fade682d1, 0x9b05688c2b3e6c1f,
+        0x1f83d9abfb41bd6b, 0x5be0cd19137e2179
+    };
+    uint64_t v0 = h0,  v1 = h1, v2 = h2, v3 = h3, v4 = h4, v5 = h5, v6 = h6, v7 = h7;
+    uint64_t v8 = iv[0], v9 = iv[1], v10 = iv[2], v11 = iv[3], v12 = iv[4], v13 = iv[5], v14 = iv[6], v15 = iv[7];
+    v12 ^= t0;
+    v13 ^= t1;
+    if (last_chunk) v14 ^= 0xffffffffffffffffL;
+    for (uint32_t r = 0; r < ROUNDS; r++) {
+        const uint8_t *indexes = SIGMA[r % 10];
+        uint64_t m[16];
+        for (int i = 0; i < 16; i++) m[i] = w[indexes[i]];
+        uint64_t _v0, _v1, _v2, _v3, _v4, _v5, _v6, _v7;
+        uint64_t _v8, _v9, _v10, _v11, _v12, _v13, _v14, _v15;
+        mix(v0, v4, v8, v12, m[0], m[1], _v0, _v4, _v8, _v12);
+        mix(v1, v5, v9, v13, m[2], m[3], _v1, _v5, _v9, _v13);
+        mix(v2, v6, v10, v14, m[4], m[5], _v2, _v6, _v10, _v14);
+        mix(v3, v7, v11, v15, m[6], m[7], _v3, _v7, _v11, _v15);
+        mix(_v0, _v5, _v10, _v15, m[8], m[9], _v0, _v5, _v10, _v15);
+        mix(_v1, _v6, _v11, _v12, m[10], m[11], _v1, _v6, _v11, _v12);
+        mix(_v2, _v7, _v8, _v13, m[12], m[13], _v2, _v7, _v8, _v13);
+        mix(_v3, _v4, _v9, _v14, m[14], m[15], _v3, _v4, _v9, _v14);
+        v0 = _v0; v1 = _v1; v2 = _v2; v3 = _v3; v4 = _v4; v5 = _v5; v6 = _v6; v7 = _v7;
+        v8 = _v8; v9 = _v9; v10 = _v10; v11 = _v11; v12 = _v12; v13 = _v13; v14 = _v14; v15 = _v15;
+    }
+    h0 ^= v0 ^ v8;
+    h1 ^= v1 ^ v9;
+    h2 ^= v2 ^ v10;
+    h3 ^= v3 ^ v11;
+    h4 ^= v4 ^ v12;
+    h5 ^= v5 ^ v13;
+    h6 ^= v6 ^ v14;
+    h7 ^= v7 ^ v15;
+}
+
 /* secp256k1 */
 
 const uint256_t _N[2] = {
@@ -2208,7 +2279,42 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
                 case BN256ADD: throw UNIMPLEMENTED;
                 case BN256SCALARMUL: throw UNIMPLEMENTED;
                 case BN256PAIRING: throw UNIMPLEMENTED;
-                case BLAKE2F: throw UNIMPLEMENTED;
+                case BLAKE2F: {
+                    if (call_size != 4 + 8 * 8 + 16 * 8 + 2 * 8 + 1) throw UNIMPLEMENTED;
+                    if (call_data[call_size-1] > 1) throw UNIMPLEMENTED;
+                    uint32_t call_offset = 0;
+                    uint32_t rounds = b2w32be(&call_data[call_offset]); call_offset += 4;
+                    uint64_t h0 = b2w64le(&call_data[call_offset]); call_offset += 8;
+                    uint64_t h1 = b2w64le(&call_data[call_offset]); call_offset += 8;
+                    uint64_t h2 = b2w64le(&call_data[call_offset]); call_offset += 8;
+                    uint64_t h3 = b2w64le(&call_data[call_offset]); call_offset += 8;
+                    uint64_t h4 = b2w64le(&call_data[call_offset]); call_offset += 8;
+                    uint64_t h5 = b2w64le(&call_data[call_offset]); call_offset += 8;
+                    uint64_t h6 = b2w64le(&call_data[call_offset]); call_offset += 8;
+                    uint64_t h7 = b2w64le(&call_data[call_offset]); call_offset += 8;
+                    uint64_t w[16];
+                    for (int i = 0; i < 16; i++) { w[i] = b2w64le(&call_data[call_offset]); call_offset += 8; }
+                    uint64_t t0 = b2w64le(&call_data[call_offset]); call_offset += 8;
+                    uint64_t t1 = b2w64le(&call_data[call_offset]); call_offset += 8;
+                    bool last_chunk = call_data[call_size-1] > 0;
+                    blake2f(rounds,
+                        h0, h1, h2, h3,
+                        h4, h5, h6, h7,
+                        w, t0, t1, last_chunk);
+                    return_size = 8 * 8;
+                    _ensure_capacity(return_data, return_size, return_capacity);
+                    uint32_t return_offset = 0;
+                    w2b64le(h0, &return_data[return_offset]); return_offset += 8;
+                    w2b64le(h1, &return_data[return_offset]); return_offset += 8;
+                    w2b64le(h2, &return_data[return_offset]); return_offset += 8;
+                    w2b64le(h3, &return_data[return_offset]); return_offset += 8;
+                    w2b64le(h4, &return_data[return_offset]); return_offset += 8;
+                    w2b64le(h5, &return_data[return_offset]); return_offset += 8;
+                    w2b64le(h6, &return_data[return_offset]); return_offset += 8;
+                    w2b64le(h7, &return_data[return_offset]); return_offset += 8;
+                    return true;
+                }
+                default: break;
                 }
             }
         }
