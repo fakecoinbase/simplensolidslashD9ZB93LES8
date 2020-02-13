@@ -2089,7 +2089,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
     bool read_only, uint32_t depth)
 {
     if (depth > 1024) throw RECURSION_LIMITED;
-    if (code_size == 0) return false;
+    if (code_size == 0) { return_size = 0; return true; }
     return_size = 0;
     Stack stack;
     Memory memory;
@@ -2104,7 +2104,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
         gas -= cost;
 
         switch (opc) {
-        case STOP: { return false; }
+        case STOP: { return_size = 0; return true; }
         case ADD: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 + v2); break; }
         case MUL: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 * v2); break; }
         case SUB: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 - v2); break; }
@@ -2448,14 +2448,15 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             }
             memory.dump(offset, size, return_data);
             return_size = size;
-            return true;
+            return false;
         }
         case SELFDESTRUCT: {
             uint256_t v1 = stack.pop();
             uint256_t amount = storage.balance(owner_address);
             storage.add_balance(v1, amount);
             // kill contract
-            return false;
+            return_size = 0;
+            return true;
         }
         default: throw INVALID_OPCODE;
         }
