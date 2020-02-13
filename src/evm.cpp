@@ -2088,9 +2088,10 @@ static bool vm_run(Release release, Block &block, Storage &storage,
     Memory memory;
     uint32_t pc = 0;
     for (;;) {
-        uint8_t opc = pc <= code_size ? code[pc] : STOP;
-        if ((is[release] & (1 << opc)) == 0) throw INVALID_OPCODE;
+        uint8_t opc = pc < code_size ? code[pc] : STOP;
         std::cout << opcodes[opc] << std::endl;
+        if ((is[release] & (1 << opc)) == 0) throw INVALID_OPCODE;
+        if (read_only && (is_writes & (1 << opc)) > 0) throw ILLEGAL_UPDATE;
 
         uint256_t cost = opcode_gas(release, opc);
         if (cost > gas) throw GAS_EXAUSTED;
@@ -2239,7 +2240,6 @@ static bool vm_run(Release release, Block &block, Storage &storage,
         }
         case SLOAD: { uint256_t v1 = stack.pop(); stack.push(storage.load(owner_address, v1)); pc++; break; }
         case SSTORE: {
-            if (read_only) throw ILLEGAL_UPDATE;
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             storage.store(owner_address, v1, v2);
             pc++;
@@ -2377,7 +2377,6 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             break;
         }
         case CREATE: {
-            if (read_only) throw ILLEGAL_UPDATE;
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
             uint32_t offset = v2.cast32();
             uint32_t size = v3.cast32();
@@ -2426,7 +2425,6 @@ static bool vm_run(Release release, Block &block, Storage &storage,
         }
         case DELEGATECALL: throw UNIMPLEMENTED;
         case CREATE2: {
-            if (read_only) throw ILLEGAL_UPDATE;
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             uint32_t offset = v2.cast32();
             uint32_t size = v3.cast32();
