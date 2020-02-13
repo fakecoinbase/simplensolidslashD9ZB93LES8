@@ -1312,6 +1312,18 @@ static const GasType constgas[256] = {
     GasNone, GasNone, /*STATICCALL*/GasCall, GasNone, GasNone, /*REVERT*/GasNone, GasNone, /*SELFDESTRUCT*/GasNone,
 };
 
+enum Precompiled : uint8_t {
+    ECRECOVER = 0x01,
+    SHA256,
+    RIPEMD160,
+    DATACOPY,
+    BIGMODEEXP,
+    BN256ADD,
+    BN256SCALARMUL,
+    BN256PAIRING,
+    BLAKE2F,
+};
+
 enum Release {
     FRONTIER = 0,
     // FRONTIER_THAWING
@@ -1376,6 +1388,33 @@ static const uint256_t is[ISTANBUL+1] = {
     is_byzantium,
     is_constantinople,
     is_istanbul,
+};
+
+static uint256_t pre_frontier = 0;
+static uint256_t pre_homestead = pre_frontier
+    | 1 << ECRECOVER
+    | 1 << SHA256
+    | 1 << RIPEMD160
+    | 1 << DATACOPY;
+static uint256_t pre_tangerine_whistle = pre_homestead;
+static uint256_t pre_spurious_dragon = pre_tangerine_whistle;
+static uint256_t pre_byzantium = pre_spurious_dragon
+    | 1 << BIGMODEEXP
+    | 1 << BN256ADD
+    | 1 << BN256SCALARMUL
+    | 1 << BN256PAIRING;
+static uint256_t pre_constantinople = pre_byzantium;
+static uint256_t pre_istanbul = pre_constantinople
+    | 1 << BLAKE2F;
+
+static const uint256_t pre[ISTANBUL+1] = {
+    pre_frontier,
+    pre_homestead,
+    pre_tangerine_whistle,
+    pre_spurious_dragon,
+    pre_byzantium,
+    pre_constantinople,
+    pre_istanbul,
 };
 
 const uint256_t is_halts = 0
@@ -2112,6 +2151,22 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
     bool read_only, uint32_t depth)
 {
     if (depth > 1024) throw RECURSION_LIMITED;
+    if (code_size == 0 && (intptr_t)code < 256) {
+        uint8_t opc = (intptr_t)code;
+        if ((pre[release] & (1 << opc)) == 0) {
+            switch (opc) {
+            case ECRECOVER: throw UNIMPLEMENTED;
+            case SHA256: throw UNIMPLEMENTED;
+            case RIPEMD160: throw UNIMPLEMENTED;
+            case DATACOPY: throw UNIMPLEMENTED;
+            case BIGMODEEXP: throw UNIMPLEMENTED;
+            case BN256ADD: throw UNIMPLEMENTED;
+            case BN256SCALARMUL: throw UNIMPLEMENTED;
+            case BN256PAIRING: throw UNIMPLEMENTED;
+            case BLAKE2F: throw UNIMPLEMENTED;
+            }
+        }
+    }
     if (code_size == 0) { return_size = 0; return true; }
     return_size = 0;
     Stack stack;
@@ -2873,6 +2928,8 @@ static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
     Release release = ISTANBUL;
     _Block block;
     _Storage storage;
+
+    for (uint8_t i = ECRECOVER; i <= BLAKE2F; i++) storage.register_code(i, (uint8_t*)(intptr_t)i, 0);
 
     struct txn txn = decode_txn(buffer, size);
     if (!txn.is_signed) throw INVALID_TRANSACTION;
