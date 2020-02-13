@@ -2316,16 +2316,16 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
                 }
                 case BIGMODEEXP: throw UNIMPLEMENTED;
                 case BN256ADD: {
-                    if (call_size != 4 * 32) throw INVALID_SIZE;
+                    if (call_size != 2 * 2 * 32) throw INVALID_SIZE;
                     uint32_t call_offset = 0;
                     uint256_t x1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
                     uint256_t y1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
                     uint256_t x2 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
                     uint256_t y2 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
-                    if (mod_t(x1).as256() != x1) throw INVALID_ENCODING;
-                    if (mod_t(x2).as256() != x2) throw INVALID_ENCODING;
-                    if (mod_t(y1).as256() != y1) throw INVALID_ENCODING;
-                    if (mod_t(y2).as256() != y2) throw INVALID_ENCODING;
+                    if (mod_bn_t(x1).as256() != x1) throw INVALID_ENCODING;
+                    if (mod_bn_t(y1).as256() != y1) throw INVALID_ENCODING;
+                    if (mod_bn_t(x2).as256() != x2) throw INVALID_ENCODING;
+                    if (mod_bn_t(y2).as256() != y2) throw INVALID_ENCODING;
                     point_bn_t p1 = point_bn_t(x1, y1);
                     point_bn_t p2 = point_bn_t(x2, y2);
                     if (x1 == 0 && y1 == 0) p1 = point_bn_t::inf();
@@ -2338,7 +2338,23 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
                     uint512_t::to(p3.as512(), return_data);
                     return true;
                 }
-                case BN256SCALARMUL: throw UNIMPLEMENTED;
+                case BN256SCALARMUL: {
+                    if (call_size != 2 * 32 + 32) throw INVALID_SIZE;
+                    uint32_t call_offset = 0;
+                    uint256_t x1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
+                    uint256_t y1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
+                    uint256_t e = uint256_t::from(&call_data[call_offset]); call_offset += 32;
+                    if (mod_bn_t(x1).as256() != x1) throw INVALID_ENCODING;
+                    if (mod_bn_t(y1).as256() != y1) throw INVALID_ENCODING;
+                    point_bn_t p1 = point_bn_t(x1, y1);
+                    if (x1 == 0 && y1 == 0) p1 = point_bn_t::inf();
+                    else if (!p1.belongs()) throw INVALID_ENCODING;
+                    point_bn_t p2 = p1 * e;
+                    return_size = 2 * 32;
+                    _ensure_capacity(return_data, return_size, return_capacity);
+                    uint512_t::to(p2.as512(), return_data);
+                    return true;
+                }
                 case BN256PAIRING: throw UNIMPLEMENTED;
                 case BLAKE2F: {
                     if (call_size != 4 + 8 * 8 + 16 * 8 + 2 * 8 + 1) throw INVALID_SIZE;
