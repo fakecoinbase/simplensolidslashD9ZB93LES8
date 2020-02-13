@@ -2248,7 +2248,7 @@ static bool vm_run(Release release, Block &block, Storage &storage,
         case JUMP: {
             uint256_t v1 = stack.pop();
             pc = v1.cast32();
-            uint8_t opc = pc <= code_size ? code[pc] : STOP;
+            uint8_t opc = pc < code_size ? code[pc] : STOP;
             if (opc != JUMPDEST) throw ILLEGAL_TARGET;
             break;
         }
@@ -2256,7 +2256,7 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             if (v1 != 0) {
                 pc = v2.cast32();
-                uint8_t opc = pc <= code_size ? code[pc] : STOP;
+                uint8_t opc = pc < code_size ? code[pc] : STOP;
                 if (opc != JUMPDEST) throw ILLEGAL_TARGET;
                 break;
             }
