@@ -20,7 +20,7 @@ enum Error {
     INVALID_SIZE,
     INVALID_TRANSACTION,
     NONCE_MISMATCH,
-    OUTOFBOUND_INDEX,
+    OUTOFBOUND_INDEX, // VM
     RECURSION_LIMITED, // VM
     STACK_OVERFLOW, // VM
     STACK_UNDERFLOW, // VM
@@ -1991,6 +1991,11 @@ public:
             (*this)[offset+i] = buffer[i];
         }
     }
+    inline void clear(uint32_t offset, uint32_t size) {
+        for (uint32_t i = 0; i < size; i++) {
+            (*this)[offset+i] = 0;
+        }
+    }
 };
 
 struct account {
@@ -2160,9 +2165,13 @@ static bool vm_run(Release release, Block &block, Storage &storage,
         case CALLDATALOAD: {
             uint256_t v1 = stack.pop();
             uint32_t offset = v1.cast32();
+            uint8_t buffer[32];
             uint32_t size = 32;
+            if (offset > call_size) offset = call_size;
             if (offset + size > call_size) size = call_size - offset;
-            stack.push(uint256_t::from(&call_data[offset], size));
+            for (uint32_t i = 0; i < size; i++) buffer[i] = call_data[offset + i];
+            for (uint32_t i = size; i < 32; i++) buffer[i] = 0;
+            stack.push(uint256_t::from(buffer));
             break;
         }
         case CALLDATASIZE: { stack.push(call_size); break; }
@@ -2171,8 +2180,11 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint32_t offset1 = v1.cast32();
             uint32_t offset2 = v2.cast32();
             uint32_t size = v3.cast32();
+            uint32_t _size = size;
+            if (offset2 > call_size) offset2 = call_size;
             if (offset2 + size > call_size) size = call_size - offset2;
             memory.burn(offset1, size, &call_data[offset2]);
+            memory.clear(offset1 + size, _size - size);
             break;
         }
         case CODESIZE: { stack.push(code_size); break; }
@@ -2181,8 +2193,11 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint32_t offset1 = v1.cast32();
             uint32_t offset2 = v2.cast32();
             uint32_t size = v3.cast32();
+            uint32_t _size = size;
+            if (offset2 > code_size) offset2 = code_size;
             if (offset2 + size > code_size) size = code_size - offset2;
             memory.burn(offset1, size, &code[offset2]);
+            memory.clear(offset1 + size, _size - size);
             break;
         }
         case GASPRICE: { stack.push(gas_price); break; }
@@ -2195,8 +2210,11 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint32_t size = v4.cast32();
             const uint8_t *code = storage.code(address);
             const uint32_t code_size = storage.code_size(address);
+            uint32_t _size = size;
+            if (offset2 > code_size) offset2 = code_size;
             if (offset2 + size > code_size) size = code_size - offset2;
             memory.burn(offset1, size, &code[offset2]);
+            memory.clear(offset1 + size, _size - size);
             break;
         }
         case RETURNDATASIZE: { stack.push(return_size); break; }
@@ -2205,7 +2223,7 @@ static bool vm_run(Release release, Block &block, Storage &storage,
             uint32_t offset1 = v1.cast32();
             uint32_t offset2 = v2.cast32();
             uint32_t size = v3.cast32();
-            if (offset2 + size > return_size) size = return_size - offset2;
+            if (offset2 + size > return_size) throw OUTOFBOUND_INDEX;
             memory.burn(offset1, size, &return_data[offset2]);
             break;
         }
