@@ -2307,7 +2307,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
         if ((intptr_t)code < 256) {
             uint8_t opc = (intptr_t)code;
             std::cout << prenames[opc] << std::endl;
-            if ((pre[release] & (1 << opc)) == 0) {
+            if ((pre[release] & (_1 << opc)) == 0) {
                 switch (opc) {
                 case ECRECOVER: {
                     uint32_t size = 32 + 32 + 32 + 32;
@@ -2465,7 +2465,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
         uint8_t opc = pc < code_size ? code[pc] : STOP;
         std::cout << opcodes[opc] << std::endl;
         if ((is[release] & (_1 << opc)) == 0) throw INVALID_OPCODE;
-        if (read_only && (is_writes & (1 << opc)) > 0) throw ILLEGAL_UPDATE;
+        if (read_only && (is_writes & (_1 << opc)) > 0) throw ILLEGAL_UPDATE;
 
         uint256_t cost = opcode_gas(release, opc);
         if (cost > gas) throw GAS_EXAUSTED;
