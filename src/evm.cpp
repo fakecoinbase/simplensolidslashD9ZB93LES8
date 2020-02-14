@@ -2094,13 +2094,13 @@ private:
 public:
     inline const uint256_t pop() { if (top == 0) throw STACK_UNDERFLOW;  return data[--top]; }
     inline void push(const uint256_t& v) { if (top == L) throw STACK_OVERFLOW; data[top++] = v; }
-    inline uint256_t operator[](int i) const {
-        if (i < -top || i >= top) throw OUTOFBOUND_INDEX;
-        return data[i < 0 ? top - i: i];
+    inline const uint256_t &operator[](int i) const {
+        if (i < 1 || i > top) throw OUTOFBOUND_INDEX;
+        return data[top - i];
     }
     inline uint256_t& operator[](int i) {
-        if (i < -top || i >= top) throw OUTOFBOUND_INDEX;
-        return data[i < 0 ? top - i: i];
+        if (i < 1 || i > top) throw OUTOFBOUND_INDEX;
+        return data[top - i];
     }
 };
 
@@ -2674,38 +2674,38 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
         case PUSH30: { const int n = 30; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
         case PUSH31: { const int n = 31; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
         case PUSH32: { const int n = 32; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case DUP1: { uint256_t v1 = stack[-1]; stack.push(v1); break; }
-        case DUP2: { uint256_t v1 = stack[-2]; stack.push(v1); break; }
-        case DUP3: { uint256_t v1 = stack[-3]; stack.push(v1); break; }
-        case DUP4: { uint256_t v1 = stack[-4]; stack.push(v1); break; }
-        case DUP5: { uint256_t v1 = stack[-5]; stack.push(v1); break; }
-        case DUP6: { uint256_t v1 = stack[-6]; stack.push(v1); break; }
-        case DUP7: { uint256_t v1 = stack[-7]; stack.push(v1); break; }
-        case DUP8: { uint256_t v1 = stack[-8]; stack.push(v1); break; }
-        case DUP9: { uint256_t v1 = stack[-9]; stack.push(v1); break; }
-        case DUP10: { uint256_t v1 = stack[-10]; stack.push(v1); break; }
-        case DUP11: { uint256_t v1 = stack[-11]; stack.push(v1); break; }
-        case DUP12: { uint256_t v1 = stack[-12]; stack.push(v1); break; }
-        case DUP13: { uint256_t v1 = stack[-13]; stack.push(v1); break; }
-        case DUP14: { uint256_t v1 = stack[-14]; stack.push(v1); break; }
-        case DUP15: { uint256_t v1 = stack[-15]; stack.push(v1); break; }
-        case DUP16: { uint256_t v1 = stack[-16]; stack.push(v1); break; }
-        case SWAP1: { uint256_t v1 = stack[-1]; stack[-1] = stack[-2]; stack[-2] = v1; break; }
-        case SWAP2: { uint256_t v1 = stack[-1]; stack[-1] = stack[-3]; stack[-3] = v1; break; }
-        case SWAP3: { uint256_t v1 = stack[-1]; stack[-1] = stack[-4]; stack[-4] = v1; break; }
-        case SWAP4: { uint256_t v1 = stack[-1]; stack[-1] = stack[-5]; stack[-5] = v1; break; }
-        case SWAP5: { uint256_t v1 = stack[-1]; stack[-1] = stack[-6]; stack[-6] = v1; break; }
-        case SWAP6: { uint256_t v1 = stack[-1]; stack[-1] = stack[-7]; stack[-7] = v1; break; }
-        case SWAP7: { uint256_t v1 = stack[-1]; stack[-1] = stack[-8]; stack[-8] = v1; break; }
-        case SWAP8: { uint256_t v1 = stack[-1]; stack[-1] = stack[-9]; stack[-9] = v1; break; }
-        case SWAP9: { uint256_t v1 = stack[-1]; stack[-1] = stack[-10]; stack[-10] = v1; break; }
-        case SWAP10: { uint256_t v1 = stack[-1]; stack[-1] = stack[-11]; stack[-11] = v1; break; }
-        case SWAP11: { uint256_t v1 = stack[-1]; stack[-1] = stack[-12]; stack[-12] = v1; break; }
-        case SWAP12: { uint256_t v1 = stack[-1]; stack[-1] = stack[-13]; stack[-13] = v1; break; }
-        case SWAP13: { uint256_t v1 = stack[-1]; stack[-1] = stack[-14]; stack[-14] = v1; break; }
-        case SWAP14: { uint256_t v1 = stack[-1]; stack[-1] = stack[-15]; stack[-15] = v1; break; }
-        case SWAP15: { uint256_t v1 = stack[-1]; stack[-1] = stack[-16]; stack[-16] = v1; break; }
-        case SWAP16: { uint256_t v1 = stack[-1]; stack[-1] = stack[-17]; stack[-17] = v1; break; }
+        case DUP1: { uint256_t v1 = stack[1]; stack.push(v1); break; }
+        case DUP2: { uint256_t v1 = stack[2]; stack.push(v1); break; }
+        case DUP3: { uint256_t v1 = stack[3]; stack.push(v1); break; }
+        case DUP4: { uint256_t v1 = stack[4]; stack.push(v1); break; }
+        case DUP5: { uint256_t v1 = stack[5]; stack.push(v1); break; }
+        case DUP6: { uint256_t v1 = stack[6]; stack.push(v1); break; }
+        case DUP7: { uint256_t v1 = stack[7]; stack.push(v1); break; }
+        case DUP8: { uint256_t v1 = stack[8]; stack.push(v1); break; }
+        case DUP9: { uint256_t v1 = stack[9]; stack.push(v1); break; }
+        case DUP10: { uint256_t v1 = stack[10]; stack.push(v1); break; }
+        case DUP11: { uint256_t v1 = stack[11]; stack.push(v1); break; }
+        case DUP12: { uint256_t v1 = stack[12]; stack.push(v1); break; }
+        case DUP13: { uint256_t v1 = stack[13]; stack.push(v1); break; }
+        case DUP14: { uint256_t v1 = stack[14]; stack.push(v1); break; }
+        case DUP15: { uint256_t v1 = stack[15]; stack.push(v1); break; }
+        case DUP16: { uint256_t v1 = stack[16]; stack.push(v1); break; }
+        case SWAP1: { uint256_t v1 = stack[1]; stack[1] = stack[2]; stack[2] = v1; break; }
+        case SWAP2: { uint256_t v1 = stack[1]; stack[1] = stack[3]; stack[3] = v1; break; }
+        case SWAP3: { uint256_t v1 = stack[1]; stack[1] = stack[4]; stack[4] = v1; break; }
+        case SWAP4: { uint256_t v1 = stack[1]; stack[1] = stack[5]; stack[5] = v1; break; }
+        case SWAP5: { uint256_t v1 = stack[1]; stack[1] = stack[6]; stack[6] = v1; break; }
+        case SWAP6: { uint256_t v1 = stack[1]; stack[1] = stack[7]; stack[7] = v1; break; }
+        case SWAP7: { uint256_t v1 = stack[1]; stack[1] = stack[8]; stack[8] = v1; break; }
+        case SWAP8: { uint256_t v1 = stack[1]; stack[1] = stack[9]; stack[9] = v1; break; }
+        case SWAP9: { uint256_t v1 = stack[1]; stack[1] = stack[10]; stack[10] = v1; break; }
+        case SWAP10: { uint256_t v1 = stack[1]; stack[1] = stack[11]; stack[11] = v1; break; }
+        case SWAP11: { uint256_t v1 = stack[1]; stack[1] = stack[12]; stack[12] = v1; break; }
+        case SWAP12: { uint256_t v1 = stack[1]; stack[1] = stack[13]; stack[13] = v1; break; }
+        case SWAP13: { uint256_t v1 = stack[1]; stack[1] = stack[14]; stack[14] = v1; break; }
+        case SWAP14: { uint256_t v1 = stack[1]; stack[1] = stack[15]; stack[15] = v1; break; }
+        case SWAP15: { uint256_t v1 = stack[1]; stack[1] = stack[16]; stack[16] = v1; break; }
+        case SWAP16: { uint256_t v1 = stack[1]; stack[1] = stack[17]; stack[17] = v1; break; }
         case LOG0: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint32_t offset = v1.cast32(), size = v2.cast32();
