@@ -2551,11 +2551,10 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case CALLDATASIZE: { stack.push(call_size); break; }
         case CALLDATACOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
-            uint32_t offset1 = v1.cast32();
-            uint32_t offset2 = v2.cast32();
-            uint32_t size = v3.cast32();
+            uint32_t offset1 = v1.cast32(); // check memory size
+            uint32_t offset2 = v2 > call_size ? call_size : v2.cast32();
+            uint32_t size = v3.cast32(); // check memory size
             uint32_t _size = size;
-            if (offset2 > call_size) offset2 = call_size;
             if (offset2 + size > call_size) size = call_size - offset2;
             memory.burn(offset1, size, &call_data[offset2]);
             memory.clear(offset1 + size, _size - size);
@@ -2564,11 +2563,10 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case CODESIZE: { stack.push(code_size); break; }
         case CODECOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
-            uint32_t offset1 = v1.cast32();
-            uint32_t offset2 = v2.cast32();
-            uint32_t size = v3.cast32();
+            uint32_t offset1 = v1.cast32(); // check memory size
+            uint32_t offset2 = v2 > code_size ? code_size : v2.cast32();
+            uint32_t size = v3.cast32(); // check memory size
             uint32_t _size = size;
-            if (offset2 > code_size) offset2 = code_size;
             if (offset2 + size > code_size) size = code_size - offset2;
             memory.burn(offset1, size, &code[offset2]);
             memory.clear(offset1 + size, _size - size);
@@ -2579,13 +2577,12 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case EXTCODECOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             uint32_t address = v1.cast32();
-            uint32_t offset1 = v2.cast32();
-            uint32_t offset2 = v3.cast32();
-            uint32_t size = v4.cast32();
+            uint32_t offset1 = v2.cast32(); // check memory size
+            uint32_t offset2 = v2 > code_size ? code_size : v2.cast32();
+            uint32_t size = v4.cast32(); // check memory size
             const uint8_t *code = storage.code(address);
             const uint32_t code_size = storage.code_size(address);
             uint32_t _size = size;
-            if (offset2 > code_size) offset2 = code_size;
             if (offset2 + size > code_size) size = code_size - offset2;
             memory.burn(offset1, size, &code[offset2]);
             memory.clear(offset1 + size, _size - size);
@@ -2966,7 +2963,8 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t v1 = stack.pop();
             uint256_t amount = storage.balance(owner_address);
             storage.add_balance(v1, amount);
-            // kill contract
+            storage.set_balance(owner_address, 0);
+            // mark owner_address for deletion
             return_size = 0;
             return true;
         }
