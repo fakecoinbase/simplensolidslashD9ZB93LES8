@@ -2140,7 +2140,7 @@ public:
             pages[page_index] = new uint8_t[P]();
             if (pages[page_index] == nullptr) throw MEMORY_EXAUSTED;
         }
-        if (i > limit) limit = i + 1;
+        if (i > limit) limit = (((i + 1) + 31) / 32) * 32;
         return pages[page_index][byte_index];
     }
     inline uint256_t load(uint32_t offset) const {
@@ -2631,6 +2631,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             pc = v1.cast32();
             uint8_t opc = pc < code_size ? code[pc] : STOP;
             if (opc != JUMPDEST) throw ILLEGAL_TARGET;
+            pc--;
             break;
         }
         case JUMPI: {
@@ -2639,6 +2640,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                 pc = v1.cast32();
                 uint8_t opc = pc < code_size ? code[pc] : STOP;
                 if (opc != JUMPDEST) throw ILLEGAL_TARGET;
+                pc--;
                 break;
             }
             break;
