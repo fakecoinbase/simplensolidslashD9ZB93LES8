@@ -231,6 +231,18 @@ public:
         }
         return x1;
     }
+    static inline const uintX_t powmod(const uintX_t &v1, const uintX_t &v2, const uintX_t &v3) {
+        uintX_t x1 = 1;
+        uintX_t x2 = v1;
+        for (int n = X - 1; n >= 0; n--) {
+            int i = n / 32;
+            int j = n % 32;
+            uintX_t t = (v2.data[i] & (1 << j)) == 0 ? x1 : x2;
+            x1 = mulmod(x1, t, v3);
+            x2 = mulmod(x2, t, v3);
+        }
+        return x1;
+    }
     static inline const uintX_t addmod(const uintX_t &v1, const uintX_t &v2, const uintX_t &v3) {
         uintX_t<X+32> _v1 = v1;
         uintX_t<X+32> _v2 = v2;
@@ -290,6 +302,13 @@ public:
     inline uint512_t() {}
     inline uint512_t(uint32_t v) : uintX_t(v) {}
     inline uint512_t(const uintX_t& v) : uintX_t(v) {}
+};
+
+class uint4096_t : public uintX_t<4096> {
+public:
+    inline uint4096_t() {}
+    inline uint4096_t(uint32_t v) : uintX_t(v) {}
+    inline uint4096_t(const uintX_t& v) : uintX_t(v) {}
 };
 
 /* crypto */
@@ -760,8 +779,8 @@ const uint256_t _N[8] = {
     // bn
     uint256_t::from("\x30\x64\x4e\x72\xe1\x31\xa0\x29\xb8\x50\x45\xb6\x81\x81\x58\x5d\x97\x81\x6a\x91\x68\x71\xca\x8d\x3c\x20\x8c\x16\xd8\x7c\xfd\x47"),
     uint256_t::from("\x30\x64\x4e\x72\xe1\x31\xa0\x29\xb8\x50\x45\xb6\x81\x81\x58\x5d\x28\x33\xe8\x48\x79\xb9\x70\x91\x43\xe1\xf5\x93\xf0\x00\x00\x01"),
-    0,
-    0,
+    1,
+    2,
 };
 
 template<int N>
@@ -791,18 +810,7 @@ public:
     friend inline const modN_t operator/(const modN_t& v1, const modN_t& v2) { return v1.u * pow(v2.u, -(modN_t)2); }
     friend inline bool operator==(const modN_t& v1, const modN_t& v2) { return v1.u == v2.u; }
     friend inline bool operator!=(const modN_t& v1, const modN_t& v2) { return v1.u != v2.u; }
-    static inline const modN_t pow(const modN_t &v1, const modN_t &v2) {
-        modN_t x1 = 1;
-        modN_t x2 = v1;
-        for (int n = 256 - 1; n >= 0; n--) {
-            int i = 31 - n / 8;
-            int j = n % 8;
-            modN_t t = (v2.u[i] & (1 << j)) == 0 ? x1 : x2;
-            x1 *= t;
-            x2 *= t;
-        }
-        return x1;
-    }
+    static inline const modN_t pow(const modN_t &v1, const modN_t &v2) { return modN_t(uint256_t::powmod(v1.u, v2.u, n())); }
     friend std::ostream& operator<<(std::ostream &os, const modN_t &v) {
         os << v.u;
         return os;
@@ -2314,7 +2322,23 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
                     for (uint32_t i = 0; i < return_size; i++) return_data[i] = call_data[i];
                     return true;
                 }
-                case BIGMODEEXP: throw UNIMPLEMENTED;
+                case BIGMODEEXP: {
+                    if (call_size < 3 * 4) throw INVALID_SIZE;
+                    uint32_t call_offset = 0;
+                    uint32_t base_len = b2w32be(&call_data[call_offset]); call_offset += 4;
+                    uint32_t exp_len = b2w32be(&call_data[call_offset]); call_offset += 4;
+                    uint32_t mod_len = b2w32be(&call_data[call_offset]); call_offset += 4;
+                    if (call_size != 3 * 4 + base_len + exp_len + mod_len) throw INVALID_SIZE;
+                    if (base_len > 512 || exp_len > 512 || mod_len > 512) throw UNIMPLEMENTED;
+                    uint4096_t base = uint4096_t::from(&call_data[call_offset], base_len); call_offset += base_len;
+                    uint4096_t exp = uint4096_t::from(&call_data[call_offset], exp_len); call_offset += exp_len;
+                    uint4096_t mod = uint4096_t::from(&call_data[call_offset], mod_len); call_offset += mod_len;
+                    uint4096_t res = uint4096_t::powmod(base, exp, mod);
+                    return_size = mod_len;
+                    _ensure_capacity(return_data, return_size, return_capacity);
+                    uint4096_t::to(res, return_data, mod_len);
+                    return true;
+                }
                 case BN256ADD: {
                     if (call_size != 2 * 2 * 32) throw INVALID_SIZE;
                     uint32_t call_offset = 0;
