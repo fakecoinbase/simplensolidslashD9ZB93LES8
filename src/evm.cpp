@@ -1442,6 +1442,19 @@ enum Precompiled : uint8_t {
     BLAKE2F,
 };
 
+static const char *prenames[BLAKE2F+1] = {
+    "?",
+    "ECRECOVER",
+    "SHA256",
+    "RIPEMD160",
+    "DATACOPY",
+    "BIGMODEXP",
+    "BN256ADD",
+    "BN256SCALARMUL",
+    "BN256PAIRING",
+    "BLAKE2F",
+};
+
 enum Release {
     FRONTIER = 0,
     // FRONTIER_THAWING
@@ -2293,6 +2306,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
     if (code_size == 0) {
         if ((intptr_t)code < 256) {
             uint8_t opc = (intptr_t)code;
+            std::cout << prenames[opc] << std::endl;
             if ((pre[release] & (1 << opc)) == 0) {
                 switch (opc) {
                 case ECRECOVER: {
