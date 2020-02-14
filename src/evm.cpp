@@ -2207,11 +2207,21 @@ public:
     virtual void log4(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *buffer, uint32_t size) = 0;
     virtual uint32_t commit() = 0;
     virtual void rollback(uint32_t commit_id) = 0;
+    inline void set_nonce(const uint256_t &v, const uint256_t &nonce) {
+        const struct account *account = find_account(v);
+        uint256_t balance = account == nullptr ? 0 : account->balance;
+        update(v, nonce, balance);
+    }
     inline void increment_nonce(const uint256_t &v) {
         const struct account *account = find_account(v);
         uint256_t nonce = account == nullptr ? 0 : account->nonce;
         uint256_t balance = account == nullptr ? 0 : account->balance;
         update(v, nonce + 1, balance);
+    }
+    inline void set_balance(const uint256_t &v, const uint256_t &balance) {
+        const struct account *account = find_account(v);
+        uint256_t nonce = account == nullptr ? 0 : account->nonce;
+        update(v, nonce, balance);
     }
     inline void add_balance(const uint256_t &v, uint256_t amount) {
         const struct account *account = find_account(v);
@@ -3148,32 +3158,26 @@ public:
 };
 
 class _Block : public Block {
+private:
+    uint32_t _timestamp = 0;
+    uint32_t _number = 0;
+    uint256_t _coinbase = 0;
+    uint256_t _gaslimit = 10000000;
+    uint256_t _difficulty = 0;
 public:
-    uint32_t chainid() {
-        return 1; // configurable
-    }
-    uint32_t timestamp() {
-        return 0; // eos block
-    }
-    uint32_t number() {
-        return 0; // eos block
-    }
-    const uint256_t& coinbase() {
-        static uint256_t t = 0; // static
-        return t;
-    }
-    const uint256_t& gaslimit() {
-        static uint256_t t = 10000000; // static
-        return t;
-    }
-    const uint256_t& difficulty() {
-        static uint256_t t = 0; // static
-        return t;
-    }
+    _Block() {}
+    _Block(uint32_t timestamp, uint32_t number, const uint256_t& coinbase, const uint256_t &gaslimit, const uint256_t &difficulty)
+        : _timestamp(timestamp), _number(number), _coinbase(coinbase), _gaslimit(gaslimit), _difficulty(difficulty) {}
+    uint32_t chainid() { return 1; } // configurable
+    uint32_t timestamp() { return _timestamp; }
+    uint32_t number() { return _number; }
+    const uint256_t& coinbase() { return _coinbase; }
+    const uint256_t& gaslimit() { return _gaslimit; }
+    const uint256_t& difficulty() { return _difficulty; }
     uint256_t hash(uint32_t number) {
         uint8_t buffer[4];
         w2b32le(number, buffer);
-        return (uint256_t)ripemd160(buffer, 4);
+        return sha3(buffer, 4);
     }
 };
 
@@ -3302,6 +3306,33 @@ static inline bool parse_hex(const char *hexstr, uint8_t *buffer, uint32_t size)
 
 int main(int argc, const char *argv[])
 {
+/*
+    if (true) {
+        try {
+            uint8_t in[3*32+3*512];
+            uint8_t out[512];
+            for (int i = 0; i < 3*32+3*512; i++) in[i] = 0;
+            in[30] = 2;
+            in[62] = 2;
+            in[94] = 2;
+            for (int i = 3*32+0*512+200; i < 3*32+1*512; i++) in[i] = (uint8_t)3*i;
+            for (int i = 3*32+1*512+310; i < 3*32+2*512; i++) in[i] = (uint8_t)2*i;
+            for (int i = 3*32+2*512+100; i < 3*32+3*512; i++) in[i] = (uint8_t)1*i;
+            for (int i = 0; i < 3*32+3*512; i++) {
+                std::cerr << (int)in[i] << " ";
+            }
+            std::cerr << std::endl;
+            test(3*32+3*512, in, 512, 512, out);
+            for (int i = 0; i < 512; i++) {
+                std::cerr << (int)out[i] << " ";
+            }
+            std::cerr << std::endl;
+        } catch (Error e) {
+            std::cerr << "error " << errors[e] << std::endl; return 1;
+        }
+        return 0;
+    }
+*/
 /*
     uint256_t v = 27;
     uint256_t h = uint256_t::from("\xda\xf5\xa7\x79\xae\x97\x2f\x97\x21\x97\x30\x3d\x7b\x57\x47\x46\xc7\xef\x83\xea\xda\xc0\xf2\x79\x1a\xd2\x3d\xb9\x2e\x4c\x8e\x53");
