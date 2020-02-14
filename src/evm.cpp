@@ -220,7 +220,6 @@ public:
         rem = _num;
     }
     static inline const uintX_t pow(const uintX_t &v1, const uintX_t &v2) {
-        if (v2 == 0) return 1;
         uintX_t x1 = 1;
         uintX_t x2 = v1;
         for (int n = X - 1; n >= 0; n--) {
@@ -233,7 +232,6 @@ public:
         return x1;
     }
     static inline const uintX_t powmod(const uintX_t &v1, const uintX_t &v2, const uintX_t &v3) {
-        if (v2 == 0) return 1;
         uintX_t x1 = 1;
         uintX_t x2 = v1;
         for (int n = X - 1; n >= 0; n--) {
