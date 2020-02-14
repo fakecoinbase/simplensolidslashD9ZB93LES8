@@ -2306,7 +2306,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
     if (code_size == 0) {
         if ((intptr_t)code < 256) {
             uint8_t opc = (intptr_t)code;
-            std::cout << prenames[opc] << std::endl;
+            if (std::getenv("EVM_DEBUG")) std::cout << prenames[opc] << std::endl;
             if ((pre[release] & (_1 << opc)) == 0) {
                 switch (opc) {
                 case ECRECOVER: {
@@ -2463,7 +2463,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
     Memory memory;
     for (uint32_t pc = 0; ; pc++) {
         uint8_t opc = pc < code_size ? code[pc] : STOP;
-        std::cout << opcodes[opc] << std::endl;
+        if (std::getenv("EVM_DEBUG")) std::cout << opcodes[opc] << std::endl;
         if ((is[release] & (_1 << opc)) == 0) throw INVALID_OPCODE;
         if (read_only && (is_writes & (_1 << opc)) > 0) throw ILLEGAL_UPDATE;
 
