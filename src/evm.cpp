@@ -2140,7 +2140,7 @@ public:
             pages[page_index] = new uint8_t[P]();
             if (pages[page_index] == nullptr) throw MEMORY_EXAUSTED;
         }
-        if (i > limit) limit = i;
+        if (i > limit) limit = i + 1;
         return pages[page_index][byte_index];
     }
     inline uint256_t load(uint32_t offset) const {
