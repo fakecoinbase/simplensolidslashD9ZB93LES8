@@ -82,6 +82,7 @@ public:
     }
     inline uintX_t& operator=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] = v.data[i]; return *this; }
     inline uint32_t cast32() const { return data[0]; }
+    inline uint32_t cast64() const { return ((uint64_t)data[1] << 32) | data[0]; }
     inline const uintX_t sigflip() const { uintX_t v = *this; v.data[W-1] ^= 0x80000000; return v; }
     inline const uintX_t operator~() const { uintX_t v; for (int i = 0; i < W; i++) v.data[i] = ~data[i]; return v; }
     inline const uintX_t operator-() const { uintX_t v = ~(*this); return ++v; }
@@ -2108,31 +2109,31 @@ class Memory {
 private:
     static constexpr int P = 4096;
     static constexpr int S = P / sizeof(uint8_t*);
-    uint32_t limit = 0;
-    uint32_t page_count = 0;
+    uint64_t limit = 0;
+    uint64_t page_count = 0;
     uint8_t **pages;
 public:
     ~Memory() {
-        for (uint32_t i = 0; i < page_count; i++) delete pages[i];
+        for (uint64_t i = 0; i < page_count; i++) delete pages[i];
         delete pages;
     }
-    inline uint32_t size() const { return limit; }
-    inline uint8_t operator[](uint32_t i) const {
-        uint32_t page_index = i / P;
-        uint32_t byte_index = i % P;
+    inline uint64_t size() const { return limit; }
+    inline uint8_t operator[](uint64_t i) const {
+        uint64_t page_index = i / P;
+        uint64_t byte_index = i % P;
         if (page_index >= page_count) return 0;
         if (pages[page_index] == nullptr) return 0;
         return pages[page_index][byte_index];
     }
-    inline uint8_t& operator[](uint32_t i) {
-        uint32_t page_index = i / P;
-        uint32_t byte_index = i % P;
+    inline uint8_t& operator[](uint64_t i) {
+        uint64_t page_index = i / P;
+        uint64_t byte_index = i % P;
         if (page_index >= page_count) {
-            uint32_t new_page_count = ((page_index / S) + 1) * S;
+            uint64_t new_page_count = ((page_index / S) + 1) * S;
             uint8_t **new_pages = new uint8_t*[new_page_count];
             if (new_pages == nullptr) throw MEMORY_EXAUSTED;
-            for (uint32_t i = 0; i < page_count; i++) new_pages[i] = pages[i];
-            for (uint32_t i = page_count; i < new_page_count; i++) new_pages[i] = nullptr;
+            for (uint64_t i = 0; i < page_count; i++) new_pages[i] = pages[i];
+            for (uint64_t i = page_count; i < new_page_count; i++) new_pages[i] = nullptr;
             page_count = new_page_count;
             pages = new_pages;
         }
@@ -2143,29 +2144,35 @@ public:
         if (i > limit) limit = (((i + 1) + 31) / 32) * 32;
         return pages[page_index][byte_index];
     }
-    inline uint256_t load(uint32_t offset) const {
+    inline uint256_t load(const uint256_t &offset) const {
         uint8_t buffer[32];
         dump(offset, 32, buffer);
         return uint256_t::from(buffer);
     }
-    inline void store(uint32_t offset, const uint256_t& v) {
+    inline void store(const uint256_t &offset, const uint256_t& v) {
         uint8_t buffer[32];
         uint256_t::to(v, buffer);
         burn(offset, 32, buffer);
     }
-    inline void dump(uint32_t offset, uint32_t size, uint8_t *buffer) const {
-        for (uint32_t i = 0; i < size; i++) {
-            buffer[i] = (*this)[offset+i];
+    inline void dump(const uint256_t &offset, const uint256_t &size, uint8_t *buffer) const {
+        uint64_t _offset = offset.cast64();
+        uint64_t _size = size.cast64();
+        for (uint64_t i = 0; i < _size; i++) {
+            buffer[i] = (*this)[_offset+i];
         }
     }
-    inline void burn(uint32_t offset, uint32_t size, const uint8_t *buffer) {
-        for (uint32_t i = 0; i < size; i++) {
-            (*this)[offset+i] = buffer[i];
+    inline void burn(const uint256_t &offset, const uint256_t &size, const uint8_t *buffer) {
+        uint64_t _offset = offset.cast64();
+        uint64_t _size = size.cast64();
+        for (uint64_t i = 0; i < _size; i++) {
+            (*this)[_offset+i] = buffer[i];
         }
     }
-    inline void clear(uint32_t offset, uint32_t size) {
-        for (uint32_t i = 0; i < size; i++) {
-            (*this)[offset+i] = 0;
+    inline void clear(const uint256_t &offset, const uint256_t &size) {
+        uint64_t _offset = offset.cast64();
+        uint64_t _size = size.cast64();
+        for (uint64_t i = 0; i < _size; i++) {
+            (*this)[_offset+i] = 0;
         }
     }
 };
@@ -2288,6 +2295,11 @@ static inline uint160_t gen_address(const uint256_t &from, const uint256_t &salt
 }
 
 static inline uint32_t _min(uint32_t v1, uint32_t v2) { return v1 < v2 ? v1 : v2;}
+
+static inline void _memory_check(const uint256_t &offset, const uint256_t&size) {
+    if ((offset >> 64) > 0) throw OUTOFBOUND_INDEX;
+    if (((offset + size) >> 64) > 0) throw OUTOFBOUND_INDEX;
+}
 
 static inline void _ensure_capacity(uint8_t *&data, uint32_t &size, uint32_t &capacity)
 {
@@ -2525,6 +2537,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case SAR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > 255 ? ((v2[0] & 0x80) > 0 ? ~(uint256_t)0 : 0) : uint256_t::sar(v2, v1.cast32())); break; }
         case SHA3: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
+            _memory_check(v1, v2);
             uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
@@ -2551,6 +2564,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case CALLDATASIZE: { stack.push(call_size); break; }
         case CALLDATACOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
+            _memory_check(v1, v3);
             uint32_t offset1 = v1.cast32(); // check memory size
             uint32_t offset2 = v2 > call_size ? call_size : v2.cast32();
             uint32_t size = v3.cast32(); // check memory size
@@ -2563,6 +2577,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case CODESIZE: { stack.push(code_size); break; }
         case CODECOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
+            _memory_check(v1, v3);
             uint32_t offset1 = v1.cast32(); // check memory size
             uint32_t offset2 = v2 > code_size ? code_size : v2.cast32();
             uint32_t size = v3.cast32(); // check memory size
@@ -2576,6 +2591,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case EXTCODESIZE: { uint256_t v1 = stack.pop(); stack.push(storage.code_size(v1)); break; }
         case EXTCODECOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
+            _memory_check(v2, v4);
             uint32_t address = v1.cast32();
             uint32_t offset1 = v2.cast32(); // check memory size
             uint32_t offset2 = v2 > code_size ? code_size : v2.cast32();
@@ -2591,6 +2607,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case RETURNDATASIZE: { stack.push(return_size); break; }
         case RETURNDATACOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
+            _memory_check(v1, v3);
             uint32_t offset1 = v1.cast32();
             uint32_t offset2 = v2.cast32();
             uint32_t size = v3.cast32();
@@ -2608,10 +2625,11 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case CHAINID: { stack.push(block.chainid()); break; }
         case SELFBALANCE: { stack.push(storage.balance(owner_address)); break; }
         case POP: { stack.pop(); break; }
-        case MLOAD: { uint256_t v1 = stack.pop(); stack.push(memory.load(v1.cast32())); break; }
-        case MSTORE: { uint256_t v1 = stack.pop(), v2 = stack.pop(); memory.store(v1.cast32(), v2); break; }
+        case MLOAD: { uint256_t v1 = stack.pop(); _memory_check(v1, 32); stack.push(memory.load(v1.cast32())); break; }
+        case MSTORE: { uint256_t v1 = stack.pop(), v2 = stack.pop(); _memory_check(v1, 32); memory.store(v1.cast32(), v2); break; }
         case MSTORE8: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
+            _memory_check(v1, 1);
             uint8_t buffer[1];
             buffer[0] = v2.cast32() & 0xff;
             memory.burn(v1.cast32(), 1, buffer);
@@ -2712,6 +2730,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case SWAP16: { uint256_t v1 = stack[1]; stack[1] = stack[17]; stack[17] = v1; break; }
         case LOG0: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
+            _memory_check(v1, v2);
             uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
@@ -2720,6 +2739,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         }
         case LOG1: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
+            _memory_check(v1, v2);
             uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
@@ -2728,6 +2748,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         }
         case LOG2: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
+            _memory_check(v1, v2);
             uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
@@ -2736,6 +2757,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         }
         case LOG3: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop(), v5 = stack.pop();
+            _memory_check(v1, v2);
             uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
@@ -2744,6 +2766,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         }
         case LOG4: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop(), v5 = stack.pop(), v6 = stack.pop();
+            _memory_check(v1, v2);
             uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
@@ -2753,6 +2776,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case CREATE: {
             uint256_t value = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop();
+            _memory_check(v1, v2);
             uint32_t init_offset = v1.cast32(), init_size = v2.cast32();
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t init[init_size];
@@ -2787,6 +2811,8 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t code_address = stack.pop();
             uint256_t value = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
+            _memory_check(v1, v2);
+            _memory_check(v3, v4);
             uint32_t args_offset = v1.cast32(), args_size = v2.cast32(), ret_offset = v3.cast32(), ret_size = v4.cast32();
             if (read_only && value != 0) throw ILLEGAL_UPDATE;
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
@@ -2823,6 +2849,8 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t code_address = stack.pop();
             uint256_t value = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
+            _memory_check(v1, v2);
+            _memory_check(v3, v4);
             uint32_t args_offset = v1.cast32(), args_size = v2.cast32(), ret_offset = v3.cast32(), ret_size = v4.cast32();
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t args_data[args_size];
@@ -2852,6 +2880,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         }
         case RETURN: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
+            _memory_check(v1, v2);
             uint32_t offset = v1.cast32(), size = v2.cast32();
             return_size = size;
             _ensure_capacity(return_data, return_size, return_capacity);
@@ -2862,6 +2891,8 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t _gas = stack.pop();
             uint256_t code_address = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
+            _memory_check(v1, v2);
+            _memory_check(v3, v4);
             uint32_t args_offset = v1.cast32(), args_size = v2.cast32(), ret_offset = v3.cast32(), ret_size = v4.cast32();
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
@@ -2892,6 +2923,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t value = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint256_t salt = stack.pop();
+            _memory_check(v1, v2);
             uint32_t init_offset = v1.cast32(), init_size = v2.cast32();
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t init[init_size];
@@ -2924,6 +2956,8 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t _gas = stack.pop();
             uint256_t code_address = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
+            _memory_check(v1, v2);
+            _memory_check(v3, v4);
             uint32_t args_offset = v1.cast32(), args_size = v2.cast32(), ret_offset = v3.cast32(), ret_size = v4.cast32();
             storage.add_balance(code_address, 0);
             uint8_t args_data[args_size];
@@ -2953,6 +2987,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         }
         case REVERT: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
+            _memory_check(v1, v2);
             uint32_t offset = v1.cast32(), size = v2.cast32();
             return_size = size;
             _ensure_capacity(return_data, return_size, return_capacity);
