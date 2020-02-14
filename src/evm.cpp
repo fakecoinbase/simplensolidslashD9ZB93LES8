@@ -2464,7 +2464,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
     for (uint32_t pc = 0; ; pc++) {
         uint8_t opc = pc < code_size ? code[pc] : STOP;
         std::cout << opcodes[opc] << std::endl;
-        if ((is[release] & (1 << opc)) == 0) throw INVALID_OPCODE;
+        if ((is[release] & (_1 << opc)) == 0) throw INVALID_OPCODE;
         if (read_only && (is_writes & (1 << opc)) > 0) throw ILLEGAL_UPDATE;
 
         uint256_t cost = opcode_gas(release, opc);
