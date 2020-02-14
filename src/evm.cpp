@@ -2503,7 +2503,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
         case ADDMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(v3 == 0 ? 0 : uint256_t::addmod(v1, v2, v3)); break; }
         case MULMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(v3 == 0 ? 0 : uint256_t::mulmod(v1, v2, v3)); break; }
         case EXP: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(uint256_t::pow(v1, v2)); break; }
-        case SIGNEXTEND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < 32 ? v2.sigext(v1.cast32()) : v2); break; }
+        case SIGNEXTEND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < 31 ? v2.sigext(31 - v1.cast32()) : v2); break; }
         case LT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < v2); break; }
         case GT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > v2); break; }
         case SLT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1.sigflip() < v2.sigflip()); break; }
@@ -2630,8 +2630,8 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
         }
         case JUMPI: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
-            if (v1 != 0) {
-                pc = v2.cast32();
+            if (v2 != 0) {
+                pc = v1.cast32();
                 uint8_t opc = pc < code_size ? code[pc] : STOP;
                 if (opc != JUMPDEST) throw ILLEGAL_TARGET;
                 break;
@@ -3195,7 +3195,7 @@ public:
     }
 };
 
-static void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
+void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
 {
     Release release = ISTANBUL;
     _Block block;
