@@ -2255,7 +2255,7 @@ class Block {
 public:
     virtual uint32_t chainid() = 0;
     virtual uint32_t timestamp() = 0;
-    virtual uint32_t number() = 0;
+    virtual const uint256_t& number() = 0;
     virtual const uint256_t& coinbase() = 0;
     virtual const uint256_t& gaslimit() = 0;
     virtual const uint256_t& difficulty() = 0;
@@ -3174,17 +3174,17 @@ public:
 class _Block : public Block {
 private:
     uint32_t _timestamp = 0;
-    uint32_t _number = 0;
+    uint256_t _number = 0;
     uint256_t _coinbase = 0;
     uint256_t _gaslimit = 10000000;
     uint256_t _difficulty = 0;
 public:
     _Block() {}
-    _Block(uint32_t timestamp, uint32_t number, const uint256_t& coinbase, const uint256_t &gaslimit, const uint256_t &difficulty)
+    _Block(uint32_t timestamp, uint256_t number, const uint256_t& coinbase, const uint256_t &gaslimit, const uint256_t &difficulty)
         : _timestamp(timestamp), _number(number), _coinbase(coinbase), _gaslimit(gaslimit), _difficulty(difficulty) {}
     uint32_t chainid() { return 1; } // configurable
     uint32_t timestamp() { return _timestamp; }
-    uint32_t number() { return _number; }
+    const uint256_t& number() { return _number; }
     const uint256_t& coinbase() { return _coinbase; }
     const uint256_t& gaslimit() { return _gaslimit; }
     const uint256_t& difficulty() { return _difficulty; }
