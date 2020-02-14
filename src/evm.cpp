@@ -220,6 +220,7 @@ public:
         rem = _num;
     }
     static inline const uintX_t pow(const uintX_t &v1, const uintX_t &v2) {
+        if (v2 == 0) return 1;
         uintX_t x1 = 1;
         uintX_t x2 = v1;
         for (int n = X - 1; n >= 0; n--) {
@@ -232,6 +233,7 @@ public:
         return x1;
     }
     static inline const uintX_t powmod(const uintX_t &v1, const uintX_t &v2, const uintX_t &v3) {
+        if (v2 == 0) return 1;
         uintX_t x1 = 1;
         uintX_t x2 = v1;
         for (int n = X - 1; n >= 0; n--) {
@@ -1435,7 +1437,7 @@ enum Precompiled : uint8_t {
     SHA256,
     RIPEMD160,
     DATACOPY,
-    BIGMODEEXP,
+    BIGMODEXP,
     BN256ADD,
     BN256SCALARMUL,
     BN256PAIRING,
@@ -1517,7 +1519,7 @@ static uint256_t pre_homestead = pre_frontier
 static uint256_t pre_tangerine_whistle = pre_homestead;
 static uint256_t pre_spurious_dragon = pre_tangerine_whistle;
 static uint256_t pre_byzantium = pre_spurious_dragon
-    | 1 << BIGMODEEXP
+    | 1 << BIGMODEXP
     | 1 << BN256ADD
     | 1 << BN256SCALARMUL
     | 1 << BN256PAIRING;
@@ -2322,21 +2324,33 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
                     for (uint32_t i = 0; i < return_size; i++) return_data[i] = call_data[i];
                     return true;
                 }
-                case BIGMODEEXP: {
-                    if (call_size < 3 * 4) throw INVALID_SIZE;
-                    uint32_t call_offset = 0;
-                    uint32_t base_len = b2w32be(&call_data[call_offset]); call_offset += 4;
-                    uint32_t exp_len = b2w32be(&call_data[call_offset]); call_offset += 4;
-                    uint32_t mod_len = b2w32be(&call_data[call_offset]); call_offset += 4;
-                    if (call_size != 3 * 4 + base_len + exp_len + mod_len) throw INVALID_SIZE;
-                    if (base_len > 512 || exp_len > 512 || mod_len > 512) throw UNIMPLEMENTED;
-                    uint4096_t base = uint4096_t::from(&call_data[call_offset], base_len); call_offset += base_len;
-                    uint4096_t exp = uint4096_t::from(&call_data[call_offset], exp_len); call_offset += exp_len;
-                    uint4096_t mod = uint4096_t::from(&call_data[call_offset], mod_len); call_offset += mod_len;
-                    uint4096_t res = uint4096_t::powmod(base, exp, mod);
+                case BIGMODEXP: {
+                    uint32_t size1 = 3 * 32;
+                    uint8_t buffer1[size1];
+                    uint32_t minsize1 = _min(size1, call_size);
+                    for (uint32_t i = 0; i < minsize1; i++) buffer1[i] = call_data[i];
+                    for (uint32_t i = minsize1; i < size1; i++) buffer1[i] = 0;
+                    uint32_t offset1 = 0;
+                    uint256_t _base_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
+                    uint256_t _exp_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
+                    uint256_t _mod_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
+                    if (_base_len > 512 || _exp_len > 512 || _mod_len > 512) throw UNIMPLEMENTED;
+                    uint32_t base_len = _base_len.cast32();
+                    uint32_t exp_len = _exp_len.cast32();
+                    uint32_t mod_len = _mod_len.cast32();
+                    uint32_t size2 = base_len + exp_len + mod_len;
+                    uint8_t buffer2[size2];
+                    uint32_t minsize2 = _min(size2, call_size - minsize1);
+                    for (uint32_t i = 0; i < minsize2; i++) buffer2[i] = call_data[minsize1 + i];
+                    for (uint32_t i = minsize2; i < size2; i++) buffer2[i] = 0;
+                    uint32_t offset2 = 0;
+                    uint4096_t base = uint4096_t::from(&buffer2[offset2], base_len); offset2 += base_len;
+                    uint4096_t exp = uint4096_t::from(&buffer2[offset2], exp_len); offset2 += exp_len;
+                    uint4096_t mod = uint4096_t::from(&buffer2[offset2], mod_len); offset2 += mod_len;
+                    uint4096_t res = mod == 0 ? 0 : uint4096_t::powmod(base, exp, mod);
                     return_size = mod_len;
                     _ensure_capacity(return_data, return_size, return_capacity);
-                    uint4096_t::to(res, return_data, mod_len);
+                    uint4096_t::to(res, return_data, return_size);
                     return true;
                 }
                 case BN256ADD: {
