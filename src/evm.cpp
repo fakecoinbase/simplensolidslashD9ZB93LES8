@@ -2213,11 +2213,6 @@ public:
     virtual void register_code(const uint256_t &account, const uint8_t *buffer, uint32_t size) = 0;
     virtual const uint256_t& load(const uint256_t &account, const uint256_t &address) = 0;
     virtual void store(const uint256_t &account, const uint256_t &address, const uint256_t& v) = 0;
-    virtual void log0(const uint256_t &owner, const uint8_t *buffer, uint32_t size) = 0;
-    virtual void log1(const uint256_t &owner, const uint256_t &v1, const uint8_t *buffer, uint32_t size) = 0;
-    virtual void log2(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint8_t *buffer, uint32_t size) = 0;
-    virtual void log3(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *buffer, uint32_t size) = 0;
-    virtual void log4(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *buffer, uint32_t size) = 0;
     virtual uint32_t commit() = 0;
     virtual void rollback(uint32_t commit_id) = 0;
     inline void set_nonce(const uint256_t &v, const uint256_t &nonce) {
@@ -2249,6 +2244,16 @@ public:
         if (amount > account->balance) throw INSUFFICIENT_BALANCE;
         update(v, nonce, balance - amount);
     }
+};
+
+class Log {
+protected:
+public:
+    virtual void log0(const uint256_t &owner, const uint8_t *buffer, uint32_t size) = 0;
+    virtual void log1(const uint256_t &owner, const uint256_t &v1, const uint8_t *buffer, uint32_t size) = 0;
+    virtual void log2(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint8_t *buffer, uint32_t size) = 0;
+    virtual void log3(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *buffer, uint32_t size) = 0;
+    virtual void log4(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *buffer, uint32_t size) = 0;
 };
 
 class Block {
@@ -2295,7 +2300,7 @@ static inline void _ensure_capacity(uint8_t *&data, uint32_t &size, uint32_t &ca
     }
 }
 
-static bool vm_run(const Release release, Block &block, Storage &storage,
+static bool vm_run(const Release release, Block &block, Storage &storage, Log &log,
     const uint256_t &origin_address, const uint256_t &gas_price,
     const uint256_t &owner_address, const uint8_t *code, const uint32_t code_size,
     const uint256_t &caller_address, const uint256_t &call_value, const uint8_t *call_data, const uint32_t call_size,
@@ -2711,7 +2716,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            storage.log0(owner_address, buffer, size);
+            log.log0(owner_address, buffer, size);
             break;
         }
         case LOG1: {
@@ -2719,7 +2724,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            storage.log1(owner_address, v3, buffer, size);
+            log.log1(owner_address, v3, buffer, size);
             break;
         }
         case LOG2: {
@@ -2727,7 +2732,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            storage.log2(owner_address, v3, v4, buffer, size);
+            log.log2(owner_address, v3, v4, buffer, size);
             break;
         }
         case LOG3: {
@@ -2735,7 +2740,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            storage.log3(owner_address, v3, v4, v5, buffer, size);
+            log.log3(owner_address, v3, v4, v5, buffer, size);
             break;
         }
         case LOG4: {
@@ -2743,7 +2748,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             uint32_t offset = v1.cast32(), size = v2.cast32();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            storage.log4(owner_address, v3, v4, v5, v6, buffer, size);
+            log.log4(owner_address, v3, v4, v5, v6, buffer, size);
             break;
         }
         case CREATE: {
@@ -2763,7 +2768,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             storage.add_balance(code_address, value);
             bool success;
             try {
-                success = vm_run(release, block, storage,
+                success = vm_run(release, block, storage, log,
                                 origin_address, gas_price,
                                 code_address, init, init_size,
                                 owner_address, value, nullptr, 0,
@@ -2796,7 +2801,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             storage.add_balance(code_address, value);
             bool success;
             try {
-                success = vm_run(release, block, storage,
+                success = vm_run(release, block, storage, log,
                                 origin_address, gas_price,
                                 code_address, code, code_size,
                                 owner_address, value, args_data, args_size,
@@ -2828,7 +2833,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             uint32_t commit_id = storage.commit();
             bool success;
             try {
-                success = vm_run(release, block, storage,
+                success = vm_run(release, block, storage, log,
                                 origin_address, gas_price,
                                 owner_address, code, code_size,
                                 caller_address, value, args_data, args_size,
@@ -2866,7 +2871,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             uint32_t commit_id = storage.commit();
             bool success;
             try {
-                success = vm_run(release, block, storage,
+                success = vm_run(release, block, storage, log,
                                 origin_address, gas_price,
                                 owner_address, code, code_size,
                                 caller_address, call_value, args_data, args_size,
@@ -2902,7 +2907,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             storage.add_balance(code_address, value);
             bool success;
             try {
-                success = vm_run(release, block, storage,
+                success = vm_run(release, block, storage, log,
                                 origin_address, gas_price,
                                 code_address, init, init_size,
                                 owner_address, value, nullptr, 0,
@@ -2929,7 +2934,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             uint32_t commit_id = storage.commit();
             bool success;
             try {
-                success = vm_run(release, block, storage,
+                success = vm_run(release, block, storage, log,
                                 origin_address, gas_price,
                                 code_address, code, code_size,
                                 owner_address, 0, args_data, args_size,
@@ -3155,11 +3160,6 @@ public:
         account_list[index].code_size = size;
         account_list[index].code_hash = sha3(code, size);
     }
-    void log0(const uint256_t &owner, const uint8_t *buffer, uint32_t size) {}
-    void log1(const uint256_t &owner, const uint256_t &v1, const uint8_t *buffer, uint32_t size) {}
-    void log2(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint8_t *buffer, uint32_t size) {}
-    void log3(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *buffer, uint32_t size) {}
-    void log4(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *buffer, uint32_t size) {}
     uint32_t commit() {
         uint32_t commit_id = dump();
         std::stringstream ss;
@@ -3169,6 +3169,16 @@ public:
         return commit_id;
     }
     void rollback(uint32_t commit_id) { reset(); load(commit_id); }
+};
+
+class _Log : public Log {
+private:
+public:
+    void log0(const uint256_t &owner, const uint8_t *buffer, uint32_t size) {}
+    void log1(const uint256_t &owner, const uint256_t &v1, const uint8_t *buffer, uint32_t size) {}
+    void log2(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint8_t *buffer, uint32_t size) {}
+    void log3(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *buffer, uint32_t size) {}
+    void log4(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *buffer, uint32_t size) {}
 };
 
 class _Block : public Block {
@@ -3200,6 +3210,7 @@ void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
     Release release = ISTANBUL;
     _Block block;
     _Storage storage;
+    _Log log;
 
     for (uint8_t i = ECRECOVER; i <= BLAKE2F; i++) storage.register_code(i, (uint8_t*)(intptr_t)i, 0);
 
@@ -3260,7 +3271,7 @@ void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
     // message call
     if (txn.has_to) {
         try {
-            success = vm_run(release, block, storage,
+            success = vm_run(release, block, storage, log,
                             from, txn.gasprice,
                             to, storage.code(to), storage.code_size(to),
                             from, txn.value, txn.data, txn.data_size,
@@ -3274,7 +3285,7 @@ void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
     // contract creation
     if (!txn.has_to) {
         try {
-            success = vm_run(release, block, storage,
+            success = vm_run(release, block, storage, log,
                             from, txn.gasprice,
                             to, txn.data, txn.data_size,
                             from, txn.value, nullptr, 0,
