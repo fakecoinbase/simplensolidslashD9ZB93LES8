@@ -65,8 +65,7 @@ def execFile(fnamein):
     return subprocess.call([fnamein])
 
 def hexToInt(s):
-    if s[:2] != "0x": _die("Not hex:", s)
-    s = s[2:]
+    if s[:2] == "0x": s = s[2:]
     if s == "": s = "0"
     return int(s, 16)
 
@@ -120,6 +119,12 @@ def codeInitLocation(location, number):
             uint256_t number = uint256_t::from(\"""" + intToU256(number) + """\");
             storage.store(account, location, number);
         }
+"""
+
+def codeInitRlp(rlp):
+    return """
+    uint8_t *buffer = (uint8_t*)\"""" + rlp + """\";
+    uint64_t size = """ + str(len(rlp) // 4) + """;
 """
 
 def codeDoneLocation(location, number):
@@ -236,6 +241,21 @@ def codeDoneGas(fgas):
     }
 """
 
+def codeDoneRlp(sender, _hash):
+    return """
+    uint256_t _hash = uint256_t::from(\"""" + intToU256(_hash) + """\");
+    if (h != _hash) {
+        std::cerr << "post: invalid hash " << h << " " << _hash << std::endl;
+        return 1;
+    }
+
+    uint256_t sender = uint256_t::from(\"""" + intToU256(sender) + """\");
+    if (sender != sender) {
+        std::cerr << "post: invalid sender " << from << " " << sender << std::endl;
+        return 1;
+    }
+"""
+
 def vmTest(name, item, path):
     src = readFile("../src/evm.cpp")
 
@@ -346,6 +366,103 @@ int main()
     if result != 0:
         _report("Test failure")
 
+def txTest(name, item, path):
+    src = readFile("../src/evm.cpp")
+
+    src += """
+int main()
+{
+    Release release = ISTANBUL;
+    _Block block;
+"""
+
+    rlp = hexToBin(item["rlp"])
+    src += codeInitRlp(rlp);
+
+    src += """
+    uint256_t h;
+    uint256_t from;
+
+    bool success;
+    try {
+        struct txn txn = decode_txn(buffer, size);
+        if (!txn.is_signed) throw INVALID_TRANSACTION;
+
+        uint256_t offset = 8 + 2 * block.chainid();
+        if (txn.v != 27 && txn.v != 28 && txn.v != 27 + offset && txn.v != 28 + offset) throw INVALID_TRANSACTION;
+
+        {
+            uint256_t v = txn.v;
+            uint256_t r = txn.r;
+            uint256_t s = txn.s;
+            txn.is_signed = v > 28;
+            txn.v = block.chainid();
+            txn.r = 0;
+            txn.s = 0;
+            uint64_t unsigned_size = encode_txn(txn);
+            uint8_t unsigned_buffer[unsigned_size];
+            encode_txn(txn, unsigned_buffer, unsigned_size);
+            h = sha3(unsigned_buffer, unsigned_size);
+            txn.is_signed = true;
+            txn.v = v > 28 ? v - offset : v;
+            txn.r = r;
+            txn.s = s;
+        }
+        from = ecrecover(h, txn.v, txn.r, txn.s);
+
+        success = true;
+        if (std::getenv("EVM_DEBUG")) std::cerr << "tx success " << std::endl;
+    } catch (Error e) {
+        success = false;
+        if (std::getenv("EVM_DEBUG")) std::cerr << "tx exception " << errors[e] << std::endl;
+    }
+"""
+
+    data = item["Istanbul"];
+    if not "sender" in data:
+
+        src += """
+    if (success) {
+        std::cerr << "post: invalid success on failure" << std::endl;
+        return 1;
+    }
+"""
+
+    else:
+
+        src += """
+    if (!success) {
+        std::cerr << "post: invalid failure on success" << std::endl;
+        return 1;
+    }
+"""
+
+        sender = hexToInt(data["sender"])
+        _hash = hexToInt(data["hash"])
+        src += codeDoneRlp(sender, _hash);
+
+    src += """
+    return 0;
+}
+"""
+
+    writeFile("/tmp/" + name + ".cpp", src)
+    compileFile("/tmp/" + name + ".cpp", "/tmp/" + name);
+    result = execFile("/tmp/" + name)
+    if result != 0:
+        _report("Test failure")
+
+def gsTest(name, item, path):
+    src = readFile("../src/evm.cpp")
+
+    # implement
+
+    writeFile("/tmp/" + name + ".cpp", src)
+    compileFile("/tmp/" + name + ".cpp", "/tmp/" + name);
+    result = execFile("/tmp/" + name)
+    if result != 0:
+        _report("Test failure")
+
 def vmTests(filt):
     paths = listTests("./tests/VMTests", filePrefixes=[filt])
     for path in paths:
@@ -360,14 +477,23 @@ def txTests(filt):
         data = readFile(path)
         for name, item in data.items():
             print(path, name)
-#            txTest(name, item, path)
+            txTest(name, item, path)
+
+def gsTests(filt):
+    paths = listTests("./tests/GeneralStateTests", filePrefixes=[filt])
+    for path in paths:
+        data = readFile(path)
+        for name, item in data.items():
+            print(path, name)
+            gsTest(name, item, path)
 
 def main():
     filt = sys.argv[1] if len(sys.argv) == 2 else ""
-#    try: 
-    vmTests(filt)
-#    except: pass
-#    try: txTests(filt)
-#    except: pass
+    try:  vmTests(filt)
+    except: pass
+    try: txTests(filt)
+    except: pass
+    try: gsTests(filt)
+    except: pass
 
 if __name__ == '__main__': main()
