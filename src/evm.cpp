@@ -99,6 +99,7 @@ public:
     inline uintX_t& operator=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] = v.data[i]; return *this; }
     inline uint64_t cast64() const { return ((uint64_t)data[1] << 32) | data[0]; }
     inline const uintX_t sigflip() const { uintX_t v = *this; v.data[W-1] ^= 0x80000000; return v; }
+    inline uint64_t bytes() const { for (uint64_t i = 0; i < B; i++) if (this[i] != 0) return 32 - i; return 0; }
     inline const uintX_t operator~() const { uintX_t v; for (int i = 0; i < W; i++) v.data[i] = ~data[i]; return v; }
     inline const uintX_t operator-() const { uintX_t v = ~(*this); return ++v; }
     inline uintX_t& operator++() { for (int i = 0; i < W; i++) if (++data[i] != 0) break; return *this; }
@@ -1911,6 +1912,10 @@ static inline uint64_t _gas_sha3(Release release, uint32_t size) // aligned
     return words * _gas(release, GasSha3Word);
 }
 
+static inline uint64_t _gas_exp(Release release, uint64_t size)
+{
+    return size * _gas(release, GasExpByte);
+}
 
 static inline uint64_t _gas_call(Release release, bool funds, bool empty, bool exists)
 {
@@ -1955,20 +1960,6 @@ static inline uint64_t _gas_selfdestruct(Release release, bool exists)
 	if !evm.StateDB.HasSuicided(contract.Address()) {
 		evm.StateDB.AddRefund(params.SelfdestructRefundGas)
 	}*/
-	return gas;
-}
-
-static inline uint64_t _gas_exp(Release release)
-{
-    // review
-    uint64_t gas = 0;
-/*
-	expByteLen := uint64((stack.data[stack.len()-2].BitLen() + 7) / 8)
-	var (
-		gas      = expByteLen * params.ExpByteFrontier // no overflow check required. Max is 256 * ExpByte gas
-		overflow bool
-	)
-*/
 	return gas;
 }
 
@@ -2099,7 +2090,6 @@ static inline uint64_t opcode_gas(Release release, uint8_t opc)
     uint64_t gas = _gas(release, constgas[opc]);
     switch (opc) {
     case SELFDESTRUCT: //_gas_selfdestruct
-    case EXP: //_gas_Exp
     case SSTORE: //_gas_sstore
     default: break;
     }
@@ -2543,7 +2533,12 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         }
         case ADDMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(v3 == 0 ? 0 : uint256_t::addmod(v1, v2, v3)); break; }
         case MULMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(v3 == 0 ? 0 : uint256_t::mulmod(v1, v2, v3)); break; }
-        case EXP: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(uint256_t::pow(v1, v2)); break; }
+        case EXP: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop();
+            _consume_gas(gas, _gas_exp(release, v2.bytes()));
+            stack.push(uint256_t::pow(v1, v2));
+            break;
+        }
         case SIGNEXTEND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < 31 ? v2.sigext(31 - v1.cast64()) : v2); break; }
         case LT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < v2); break; }
         case GT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > v2); break; }
