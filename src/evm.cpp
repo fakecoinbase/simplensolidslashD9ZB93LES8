@@ -2185,6 +2185,7 @@ private:
     uint64_t page_count = 0;
     uint8_t **pages = nullptr;
     inline void mark(uint64_t end) {
+        // check overflow
         if (end > limit) limit = ((end + 31) / 32) * 32;
     }
     inline void expand(uint64_t end) {
@@ -2204,6 +2205,7 @@ private:
             pages[page_index] = _new<uint8_t>(P);
             for (uint64_t i = 0; i < P; i++) pages[page_index][i] = 0;
         }
+        // check overflow
         if (end > limit) limit = ((end + 31) / 32) * 32;
     }
     inline uint8_t get(uint64_t i) const {
