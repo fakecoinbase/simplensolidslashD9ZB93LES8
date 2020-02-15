@@ -951,6 +951,15 @@ static uint256_t ecrecover(const uint256_t &h, const uint256_t &v, const uint256
 
 /* decoder */
 
+template<typename T>
+static inline T *_new(uint64_t size)
+{
+    if (size == 0) return nullptr;
+    T* p = new(std::nothrow) T[size];
+    if (p == nullptr) throw MEMORY_EXAUSTED;
+    return p;
+}
+
 struct txn {
     uint256_t nonce;
     uint256_t gasprice;
@@ -1100,8 +1109,7 @@ static void parse_rlp(const uint8_t *&b, uint64_t &s, struct rlp &rlp)
         struct rlp *list = nullptr;
         while (_s > 0) {
             try {
-                struct rlp *new_list = new struct rlp[size + 1];
-                if (new_list == nullptr) throw MEMORY_EXAUSTED;
+                struct rlp *new_list = _new<struct rlp>(size + 1);
                 for (uint64_t i = 0; i < size; i++) new_list[i] = list[i];
                 delete list;
                 list = new_list;
@@ -1118,8 +1126,7 @@ static void parse_rlp(const uint8_t *&b, uint64_t &s, struct rlp &rlp)
         rlp.list = list;
     } else {
         uint64_t size = _s;
-        uint8_t *data = new uint8_t[size];
-        if (data == nullptr) throw MEMORY_EXAUSTED;
+        uint8_t *data = _new<uint8_t>(size);
         for (uint64_t i = 0; i < size; i++) data[i] = _b[i];
         rlp.is_list = is_list;
         rlp.size = size;
@@ -1132,8 +1139,7 @@ static uint64_t encode_txn(const struct txn &txn, uint8_t *buffer, uint64_t size
     struct rlp rlp;
     rlp.is_list = true;
     rlp.size = txn.is_signed ? 9 : 6;
-    rlp.list = new struct rlp[rlp.size];
-    if (rlp.list == nullptr) throw MEMORY_EXAUSTED;
+    rlp.list = _new<struct rlp>(rlp.size);
     for (uint64_t i = 0; i < rlp.size; i++) {
         rlp.list[i].is_list = false;
         rlp.list[i].size = 0;
@@ -1153,8 +1159,7 @@ static uint64_t encode_txn(const struct txn &txn, uint8_t *buffer, uint64_t size
         }
         for (uint64_t i = 0; i < rlp.size; i++) {
             if (rlp.list[i].size > 0) {
-                rlp.list[i].data = new uint8_t[rlp.list[i].size];
-                if (rlp.list == nullptr) throw MEMORY_EXAUSTED;
+                rlp.list[i].data = _new<uint8_t>(rlp.list[i].size);
             }
         }
         dump_nlzint(txn.nonce, rlp.list[0].data, rlp.list[0].size);
@@ -1206,8 +1211,7 @@ static struct txn decode_txn(const uint8_t *buffer, uint64_t size)
         }
         txn.value = parse_nlzint(rlp.list[4].data, rlp.list[4].size);
         txn.data_size = rlp.list[5].size;
-        txn.data = new uint8_t[txn.data_size];
-        if (txn.data == nullptr) throw MEMORY_EXAUSTED;
+        txn.data = _new<uint8_t>(txn.data_size);
         for (uint64_t i = 0; i < txn.data_size; i++) txn.data[i] = rlp.list[5].data[i];
         txn.is_signed = rlp.size > 6;
         if (txn.is_signed) {
@@ -1229,8 +1233,7 @@ static uint64_t encode_cid(const uint256_t &from, const uint256_t &nonce, uint8_
     struct rlp rlp;
     rlp.is_list = true;
     rlp.size = 2;
-    rlp.list = new struct rlp[rlp.size];
-    if (rlp.list == nullptr) throw MEMORY_EXAUSTED;
+    rlp.list = _new<struct rlp>(rlp.size);
     for (uint64_t i = 0; i < rlp.size; i++) {
         rlp.list[i].is_list = false;
         rlp.list[i].size = 0;
@@ -1241,8 +1244,7 @@ static uint64_t encode_cid(const uint256_t &from, const uint256_t &nonce, uint8_
         rlp.list[1].size = dump_nlzint(nonce);
         for (uint64_t i = 0; i < rlp.size; i++) {
             if (rlp.list[i].size > 0) {
-                rlp.list[i].data = new uint8_t[rlp.list[i].size];
-                if (rlp.list == nullptr) throw MEMORY_EXAUSTED;
+                rlp.list[i].data = _new<uint8_t>(rlp.list[i].size);
             }
         }
         dump_nlzint(from, rlp.list[0].data, rlp.list[0].size);
@@ -2121,16 +2123,14 @@ private:
         uint64_t page_index = i / P;
         if (page_index >= page_count) {
             uint64_t new_page_count = ((page_index / S) + 1) * S;
-            uint8_t **new_pages = new uint8_t*[new_page_count];
-            if (new_pages == nullptr) throw MEMORY_EXAUSTED;
+            uint8_t **new_pages = _new<uint8_t*>(new_page_count);
             for (uint64_t i = 0; i < page_count; i++) new_pages[i] = pages[i];
             for (uint64_t i = page_count; i < new_page_count; i++) new_pages[i] = nullptr;
             page_count = new_page_count;
             pages = new_pages;
         }
         if (pages[page_index] == nullptr) {
-            pages[page_index] = new uint8_t[P];
-            if (pages[page_index] == nullptr) throw MEMORY_EXAUSTED;
+            pages[page_index] = _new<uint8_t>(P);
             for (uint64_t i = 0; i < P; i++) pages[i] = 0;
         }
         if (end > limit) limit = ((end + 31) / 32) * 32;
@@ -2312,8 +2312,7 @@ static inline void _memory_check(const uint256_t &offset, const uint256_t&size) 
 static inline void _ensure_capacity(uint8_t *&data, uint64_t &size, uint64_t &capacity)
 {
     if (size > capacity) {
-        uint8_t *buffer = new uint8_t[size];
-        if (buffer == nullptr) throw MEMORY_EXAUSTED;
+        uint8_t *buffer = _new<uint8_t>(size);
         delete data;
         data = buffer;
         capacity = size;
@@ -3075,8 +3074,7 @@ private:
             account_list[i].nonce = uint256_t::from(&buffer[offset]); offset += 32;
             account_list[i].balance = uint256_t::from(&buffer[offset]); offset += 32;
             account_list[i].code_size = b2w32le(&buffer[offset]); offset += 4;
-            account_list[i].code = new uint8_t[account_list[i].code_size];
-            if (account_list[i].code == nullptr) throw MEMORY_EXAUSTED;
+            account_list[i].code = _new<uint8_t>(account_list[i].code_size);
             for (uint64_t j = 0; j < account_list[i].code_size; j++) {
                 account_list[i].code[j] = buffer[offset]; offset++;
             }
@@ -3196,8 +3194,7 @@ public:
             account_size++;
         }
         if (account_list[index].code != nullptr) throw CODE_CONFLICT;
-        uint8_t *code = new uint8_t[size];
-        if (code == nullptr) throw MEMORY_EXAUSTED;
+        uint8_t *code = _new<uint8_t>(size);
         for (uint64_t i = 0; i < size; i++) code[i] = buffer[i];
         account_list[index].code = code;
         account_list[index].code_size = size;
