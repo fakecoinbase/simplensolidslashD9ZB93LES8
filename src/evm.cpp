@@ -2312,6 +2312,7 @@ static inline uint160_t gen_address(const uint256_t &from, const uint256_t &salt
 static inline uint64_t _min(uint64_t v1, uint64_t v2) { return v1 < v2 ? v1 : v2;}
 
 static inline void _memory_check(const uint256_t &offset, const uint256_t&size) {
+    if ((size >> 64) > 0) throw OUTOFBOUND_INDEX;
     if ((offset >> 64) > 0) throw OUTOFBOUND_INDEX;
     if (((offset + size) >> 64) > 0) throw OUTOFBOUND_INDEX;
 }
