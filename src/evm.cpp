@@ -2118,7 +2118,6 @@ private:
         if (end == 0) return;
         uint64_t i = end - 1;
         uint64_t page_index = i / P;
-        uint64_t byte_index = i % P;
         if (page_index >= page_count) {
             uint64_t new_page_count = ((page_index / S) + 1) * S;
             uint8_t **new_pages = new uint8_t*[new_page_count];
@@ -2129,8 +2128,9 @@ private:
             pages = new_pages;
         }
         if (pages[page_index] == nullptr) {
-            pages[page_index] = new uint8_t[P]();
+            pages[page_index] = new uint8_t[P];
             if (pages[page_index] == nullptr) throw MEMORY_EXAUSTED;
+            for (uint64_t i = 0; i < P; i++) pages[i] = 0;
         }
         if (end > limit) limit = ((end + 31) / 32) * 32;
     }
