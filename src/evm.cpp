@@ -74,15 +74,14 @@ private:
     }
 public:
     inline uintX_t() {}
-    inline uintX_t(uint32_t v) { data[0] = v; for (int i = 1; i < W; i++) data[i] = 0; }
+    inline uintX_t(uint64_t v) { data[0] = v; data[1] = v >> 32; for (int i = 2; i < W; i++) data[i] = 0; }
     template<int Y> inline uintX_t(const uintX_t<Y> &v) {
         int s = v.W < W ? v.W : W;
         for (int i = 0; i < s; i++) data[i] = v.data[i];
         for (int i = s; i < W; i++) data[i] = 0;
     }
     inline uintX_t& operator=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] = v.data[i]; return *this; }
-    inline uint32_t cast32() const { return data[0]; }
-    inline uint32_t cast64() const { return ((uint64_t)data[1] << 32) | data[0]; }
+    inline uint64_t cast64() const { return ((uint64_t)data[1] << 32) | data[0]; }
     inline const uintX_t sigflip() const { uintX_t v = *this; v.data[W-1] ^= 0x80000000; return v; }
     inline const uintX_t operator~() const { uintX_t v; for (int i = 0; i < W; i++) v.data[i] = ~data[i]; return v; }
     inline const uintX_t operator-() const { uintX_t v = ~(*this); return ++v; }
@@ -287,28 +286,28 @@ public:
 class uint160_t : public uintX_t<160> {
 public:
     inline uint160_t() {}
-    inline uint160_t(uint32_t v) : uintX_t(v) {}
+    inline uint160_t(uint64_t v) : uintX_t(v) {}
     inline uint160_t(const uintX_t& v) : uintX_t(v) {}
 };
 
 class uint256_t : public uintX_t<256> {
 public:
     inline uint256_t() {}
-    inline uint256_t(uint32_t v) : uintX_t(v) {}
+    inline uint256_t(uint64_t v) : uintX_t(v) {}
     inline uint256_t(const uintX_t& v) : uintX_t(v) {}
 };
 
 class uint512_t : public uintX_t<512> {
 public:
     inline uint512_t() {}
-    inline uint512_t(uint32_t v) : uintX_t(v) {}
+    inline uint512_t(uint64_t v) : uintX_t(v) {}
     inline uint512_t(const uintX_t& v) : uintX_t(v) {}
 };
 
 class uint4096_t : public uintX_t<4096> {
 public:
     inline uint4096_t() {}
-    inline uint4096_t(uint32_t v) : uintX_t(v) {}
+    inline uint4096_t(uint64_t v) : uintX_t(v) {}
     inline uint4096_t(const uintX_t& v) : uintX_t(v) {}
 };
 
@@ -341,15 +340,15 @@ static inline void w2b64le(uint64_t w, uint8_t *b)
     b[7] = (uint8_t)(w >> 56);
 }
 
-static void sha3(const uint8_t *message, uint32_t size, bool compressed, uint32_t r, uint8_t eof, uint8_t *output)
+static void sha3(const uint8_t *message, uint64_t size, bool compressed, uint64_t r, uint8_t eof, uint8_t *output)
 {
     if (!compressed) {
         uint64_t bitsize = 8 * size;
-        uint32_t padding = (r - bitsize % r) / 8;
-        uint32_t b_len = size + padding;
+        uint64_t padding = (r - bitsize % r) / 8;
+        uint64_t b_len = size + padding;
         uint8_t b[b_len];
-        for (uint32_t i = 0; i < size; i++) b[i] = message[i];
-        for (uint32_t i = size; i < b_len; i++) b[i] = 0;
+        for (uint64_t i = 0; i < size; i++) b[i] = message[i];
+        for (uint64_t i = size; i < b_len; i++) b[i] = 0;
         b[size] |= eof;
         b[b_len-1] |= 0x80;
         sha3(b, b_len, true, r, eof, output);
@@ -378,10 +377,10 @@ static void sha3(const uint8_t *message, uint32_t size, bool compressed, uint32_
             s[x][y] = 0;
         }
     }
-    uint32_t k = r / 64;
-    for (uint32_t j = 0; j < size/8; j += k) {
+    uint64_t k = r / 64;
+    for (uint64_t j = 0; j < size/8; j += k) {
         uint64_t w[25];
-        for (uint32_t i = 0; i < k; i++) {
+        for (uint64_t i = 0; i < k; i++) {
             w[i] = b2w64le(&message[8*(j+i)]);
         }
         for (int i = k; i < 25; i++) {
@@ -430,7 +429,7 @@ static void sha3(const uint8_t *message, uint32_t size, bool compressed, uint32_
     w2b64le(s[2][1], &output[56]);
 }
 
-static uint256_t sha3(const uint8_t *buffer, uint32_t size)
+static uint256_t sha3(const uint8_t *buffer, uint64_t size)
 {
     uint8_t output[64];
     sha3(buffer, size, false, 1088, 0x01, output);
@@ -462,16 +461,16 @@ static inline void w2b32be(uint32_t w, uint8_t *b)
     b[0] = (uint8_t)(w >> 24);
 }
 
-static void sha256(const uint8_t *message, uint32_t size, bool compressed, uint8_t *output)
+static void sha256(const uint8_t *message, uint64_t size, bool compressed, uint8_t *output)
 {
     if (!compressed) {
         uint64_t bitsize = 8 * size;
-        uint32_t modulo = (size + 1 + 8) % 64;
-        uint32_t padding = modulo > 0 ? 64 - modulo : 0;
-        uint32_t b_len = size + 1 + padding + 8;
+        uint64_t modulo = (size + 1 + 8) % 64;
+        uint64_t padding = modulo > 0 ? 64 - modulo : 0;
+        uint64_t b_len = size + 1 + padding + 8;
         uint8_t b[b_len];
-        for (uint32_t i = 0; i < size; i++) b[i] = message[i];
-        for (uint32_t i = size; i < b_len; i++) b[i] = 0;
+        for (uint64_t i = 0; i < size; i++) b[i] = message[i];
+        for (uint64_t i = size; i < b_len; i++) b[i] = 0;
         b[size] = 0x80;
         w2b32be(bitsize >> 32, &b[b_len-8]);
         w2b32be(bitsize, &b[b_len-4]);
@@ -555,7 +554,7 @@ static void sha256(const uint8_t *message, uint32_t size, bool compressed, uint8
     w2b32be(s7, &output[28]);
 }
 
-static uint256_t sha256(const uint8_t *buffer, uint32_t size)
+static uint256_t sha256(const uint8_t *buffer, uint64_t size)
 {
     uint8_t output[32];
     sha256(buffer, size, false, output);
@@ -587,16 +586,16 @@ static inline uint32_t h(uint32_t x, uint32_t y, uint32_t z) { return (x | ~y) ^
 static inline uint32_t i(uint32_t x, uint32_t y, uint32_t z) { return (x & z) ^ (y & ~z); }
 static inline uint32_t j(uint32_t x, uint32_t y, uint32_t z) { return x ^ (y | ~z); }
 
-static void ripemd160(const uint8_t *message, uint32_t size, bool compressed, uint8_t *output)
+static void ripemd160(const uint8_t *message, uint64_t size, bool compressed, uint8_t *output)
 {
     if (!compressed) {
         uint64_t bitsize = 8 * size;
-        uint32_t modulo = (size + 1 + 8) % 64;
-        uint32_t padding = modulo > 0 ? 64 - modulo : 0;
-        uint32_t b_len = size + 1 + padding + 8;
+        uint64_t modulo = (size + 1 + 8) % 64;
+        uint64_t padding = modulo > 0 ? 64 - modulo : 0;
+        uint64_t b_len = size + 1 + padding + 8;
         uint8_t b[b_len];
-        for (uint32_t i = 0; i < size; i++) b[i] = message[i];
-        for (uint32_t i = size; i < b_len; i++) b[i] = 0;
+        for (uint64_t i = 0; i < size; i++) b[i] = message[i];
+        for (uint64_t i = size; i < b_len; i++) b[i] = 0;
         b[size] = 0x80;
         w2b32le(bitsize, &b[b_len-8]);
         w2b32le(bitsize >> 32, &b[b_len-4]);
@@ -637,7 +636,7 @@ static void ripemd160(const uint8_t *message, uint32_t size, bool compressed, ui
     };
     const uint32_t S[5] = { 0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0 };
     uint32_t s0 = S[0], s1 = S[1], s2 = S[2], s3 = S[3], s4 = S[4];
-    for (uint32_t j = 0; j < size/4; j += 16) {
+    for (uint64_t j = 0; j < size/4; j += 16) {
         uint32_t w[64];
         for (int i = 0; i < 16; i++) {
             w[i] = b2w32le(&message[4*(j+i)]);
@@ -691,7 +690,7 @@ static void ripemd160(const uint8_t *message, uint32_t size, bool compressed, ui
     w2b32le(s4, &output[16]);
 }
 
-static uint160_t ripemd160(const uint8_t *buffer, uint32_t size)
+static uint160_t ripemd160(const uint8_t *buffer, uint64_t size)
 {
     uint8_t output[20];
     ripemd160(buffer, size, false, output);
@@ -792,7 +791,7 @@ private:
 public:
     inline const uint256_t &as256() const { return u; }
     inline modN_t() {}
-    inline modN_t(uint32_t v) : u(v) {}
+    inline modN_t(uint64_t v) : u(v) {}
     inline modN_t(const uint256_t &v) : u(v % n()) {}
     inline modN_t(const modN_t &v) : u(v.u) {}
     inline modN_t& operator=(const modN_t& v) { u = v.u; return *this; }
@@ -890,7 +889,7 @@ public:
 class mod_t : public modN_t<0> {
 public:
     inline mod_t() {}
-    inline mod_t(uint32_t v) : modN_t(v) {}
+    inline mod_t(uint64_t v) : modN_t(v) {}
     inline mod_t(const uint256_t &v) : modN_t(v) {}
     inline mod_t(const modN_t &v) : modN_t(v) {}
 };
@@ -898,7 +897,7 @@ public:
 class mud_t : public modN_t<1> {
 public:
     inline mud_t() {}
-    inline mud_t(uint32_t v) : modN_t(v) {}
+    inline mud_t(uint64_t v) : modN_t(v) {}
     inline mud_t(const uint256_t &v) : modN_t(v) {}
     inline mud_t(const modN_t &v) : modN_t(v) {}
 };
@@ -913,7 +912,7 @@ public:
 class mod_bn_t : public modN_t<4> {
 public:
     inline mod_bn_t() {}
-    inline mod_bn_t(uint32_t v) : modN_t(v) {}
+    inline mod_bn_t(uint64_t v) : modN_t(v) {}
     inline mod_bn_t(const uint256_t &v) : modN_t(v) {}
     inline mod_bn_t(const modN_t &v) : modN_t(v) {}
 };
@@ -921,7 +920,7 @@ public:
 class mud_bn_t : public modN_t<5> {
 public:
     inline mud_bn_t() {}
-    inline mud_bn_t(uint32_t v) : modN_t(v) {}
+    inline mud_bn_t(uint64_t v) : modN_t(v) {}
     inline mud_bn_t(const uint256_t &v) : modN_t(v) {}
     inline mud_bn_t(const modN_t &v) : modN_t(v) {}
 };
@@ -959,16 +958,16 @@ struct txn {
     uint256_t to;
     uint256_t value;
     uint8_t *data;
-    uint32_t data_size;
+    uint64_t data_size;
     bool is_signed;
     uint256_t v;
     uint256_t r;
     uint256_t s;
 };
 
-static uint32_t dump_nlzint(uint256_t v, uint8_t *b, uint32_t s)
+static uint64_t dump_nlzint(uint256_t v, uint8_t *b, uint64_t s)
 {
-    uint32_t l = 32;
+    uint64_t l = 32;
     while (l > 0 && v[32 - l] == 0) l--;
     if (b != nullptr) {
         if (s < l) throw INSUFFICIENT_SPACE;
@@ -977,12 +976,12 @@ static uint32_t dump_nlzint(uint256_t v, uint8_t *b, uint32_t s)
     return l;
 }
 
-static uint32_t dump_nlzint(uint256_t v)
+static uint64_t dump_nlzint(uint256_t v)
 {
     return dump_nlzint(v, nullptr, 0);
 }
 
-static uint256_t parse_nlzint(const uint8_t *&b, uint32_t &s, uint32_t l)
+static uint256_t parse_nlzint(const uint8_t *&b, uint64_t &s, uint64_t l)
 {
     if (l == 0) return 0;
     if (s < l) throw INVALID_ENCODING;
@@ -993,15 +992,15 @@ static uint256_t parse_nlzint(const uint8_t *&b, uint32_t &s, uint32_t l)
     return v;
 }
 
-static uint256_t parse_nlzint(const uint8_t *b, uint32_t s)
+static uint256_t parse_nlzint(const uint8_t *b, uint64_t s)
 {
     return parse_nlzint(b, s, s);
 }
 
-static uint32_t dump_varlen(uint8_t base, uint8_t c, uint32_t n, uint8_t *b, uint32_t s)
+static uint64_t dump_varlen(uint8_t base, uint8_t c, uint64_t n, uint8_t *b, uint64_t s)
 {
     if (base == 0x80 && c < 0x80 && n == 1) return 0;
-    uint32_t size = 0;
+    uint64_t size = 0;
     if (n > 55) {
         size += dump_nlzint(n, b, s - size);
         n = 55 + size;
@@ -1014,20 +1013,20 @@ static uint32_t dump_varlen(uint8_t base, uint8_t c, uint32_t n, uint8_t *b, uin
     return size;
 }
 
-static uint32_t parse_varlen(const uint8_t *&b, uint32_t &s, bool &is_list)
+static uint64_t parse_varlen(const uint8_t *&b, uint64_t &s, bool &is_list)
 {
     if (s < 1) throw INVALID_ENCODING;
     uint8_t n = b[0];
     if (n < 0x80) { is_list = false; return 1; }
     b++; s--;
     if (n >= 0xc0 + 56) {
-        uint32_t l = parse_nlzint(b, s, n - (0xc0 + 56) + 1).cast32();
+        uint64_t l = parse_nlzint(b, s, n - (0xc0 + 56) + 1).cast64();
         if (l < 56) throw INVALID_ENCODING;
         is_list = true; return l;
     }
     if (n >= 0xc0) { is_list = true; return n - 0xc0; }
     if (n >= 0x80 + 56) {
-        uint32_t l = parse_nlzint(b, s, n - (0x80 + 56) + 1).cast32();
+        uint64_t l = parse_nlzint(b, s, n - (0x80 + 56) + 1).cast64();
         if (l < 56) throw INVALID_ENCODING;
         is_list = true; return l;
     }
@@ -1041,7 +1040,7 @@ static uint32_t parse_varlen(const uint8_t *&b, uint32_t &s, bool &is_list)
 
 struct rlp {
     bool is_list;
-    uint32_t size;
+    uint64_t size;
     union {
         uint8_t *data;
         struct rlp *list;
@@ -1051,7 +1050,7 @@ struct rlp {
 static void free_rlp(struct rlp &rlp)
 {
     if (rlp.is_list) {
-        for (uint32_t i = 0; i < rlp.size; i++) free_rlp(rlp.list[i]);
+        for (uint64_t i = 0; i < rlp.size; i++) free_rlp(rlp.list[i]);
         delete rlp.list;
         rlp.size = 0;
         rlp.list = nullptr;
@@ -1062,13 +1061,13 @@ static void free_rlp(struct rlp &rlp)
     }
 }
 
-static uint32_t dump_rlp(const struct rlp &rlp, uint8_t *b, uint32_t s)
+static uint64_t dump_rlp(const struct rlp &rlp, uint8_t *b, uint64_t s)
 {
-    uint32_t size = 0;
+    uint64_t size = 0;
     if (rlp.is_list) {
         uint8_t c = 0;
-        for (uint32_t i = 0; i < rlp.size; i++) {
-            uint32_t j = rlp.size - (i + 1);
+        for (uint64_t i = 0; i < rlp.size; i++) {
+            uint64_t j = rlp.size - (i + 1);
             size += dump_rlp(rlp.list[j], b, s - size);
         }
         size += dump_varlen(0xc0, c, size, b, s - size);
@@ -1076,8 +1075,8 @@ static uint32_t dump_rlp(const struct rlp &rlp, uint8_t *b, uint32_t s)
         uint8_t c = rlp.size > 0 ? rlp.data[0] : 0;
         if (b != nullptr) {
             if (s < rlp.size) throw INSUFFICIENT_SPACE;
-            for (uint32_t i = 0; i < rlp.size; i++) {
-                uint32_t j = (s - rlp.size) + i;
+            for (uint64_t i = 0; i < rlp.size; i++) {
+                uint64_t j = (s - rlp.size) + i;
                 b[j] = rlp.data[i];
             }
         }
@@ -1087,27 +1086,27 @@ static uint32_t dump_rlp(const struct rlp &rlp, uint8_t *b, uint32_t s)
     return size;
 }
 
-static void parse_rlp(const uint8_t *&b, uint32_t &s, struct rlp &rlp)
+static void parse_rlp(const uint8_t *&b, uint64_t &s, struct rlp &rlp)
 {
     bool is_list;
-    uint32_t l = parse_varlen(b, s, is_list);
+    uint64_t l = parse_varlen(b, s, is_list);
     if (l > s) throw INVALID_ENCODING;
     const uint8_t *_b = b;
-    uint32_t _s = l;
+    uint64_t _s = l;
     b += l; s -= l;
     if (is_list) {
-        uint32_t size = 0;
+        uint64_t size = 0;
         struct rlp *list = nullptr;
         while (_s > 0) {
             try {
                 struct rlp *new_list = new struct rlp[size + 1];
                 if (new_list == nullptr) throw MEMORY_EXAUSTED;
-                for (uint32_t i = 0; i < size; i++) new_list[i] = list[i];
+                for (uint64_t i = 0; i < size; i++) new_list[i] = list[i];
                 delete list;
                 list = new_list;
                 parse_rlp(_b, _s, list[size]);
             } catch (Error e) {
-                for (uint32_t i = 0; i < size; i++) free_rlp(list[i]);
+                for (uint64_t i = 0; i < size; i++) free_rlp(list[i]);
                 delete list;
                 throw e;
             }
@@ -1117,24 +1116,24 @@ static void parse_rlp(const uint8_t *&b, uint32_t &s, struct rlp &rlp)
         rlp.size = size;
         rlp.list = list;
     } else {
-        uint32_t size = _s;
+        uint64_t size = _s;
         uint8_t *data = new uint8_t[size];
         if (data == nullptr) throw MEMORY_EXAUSTED;
-        for (uint32_t i = 0; i < size; i++) data[i] = _b[i];
+        for (uint64_t i = 0; i < size; i++) data[i] = _b[i];
         rlp.is_list = is_list;
         rlp.size = size;
         rlp.data = data;
     }
 }
 
-static uint32_t encode_txn(const struct txn &txn, uint8_t *buffer, uint32_t size)
+static uint64_t encode_txn(const struct txn &txn, uint8_t *buffer, uint64_t size)
 {
     struct rlp rlp;
     rlp.is_list = true;
     rlp.size = txn.is_signed ? 9 : 6;
     rlp.list = new struct rlp[rlp.size];
     if (rlp.list == nullptr) throw MEMORY_EXAUSTED;
-    for (uint32_t i = 0; i < rlp.size; i++) {
+    for (uint64_t i = 0; i < rlp.size; i++) {
         rlp.list[i].is_list = false;
         rlp.list[i].size = 0;
         rlp.list[i].data = nullptr;
@@ -1151,7 +1150,7 @@ static uint32_t encode_txn(const struct txn &txn, uint8_t *buffer, uint32_t size
             rlp.list[7].size = dump_nlzint(txn.r);
             rlp.list[8].size = dump_nlzint(txn.s);
         }
-        for (uint32_t i = 0; i < rlp.size; i++) {
+        for (uint64_t i = 0; i < rlp.size; i++) {
             if (rlp.list[i].size > 0) {
                 rlp.list[i].data = new uint8_t[rlp.list[i].size];
                 if (rlp.list == nullptr) throw MEMORY_EXAUSTED;
@@ -1164,13 +1163,13 @@ static uint32_t encode_txn(const struct txn &txn, uint8_t *buffer, uint32_t size
             uint256_t::to(txn.to, rlp.list[3].data, rlp.list[3].size);
         }
         dump_nlzint(txn.value, rlp.list[4].data, rlp.list[4].size);
-        for (uint32_t i = 0; i < txn.data_size; i++) rlp.list[5].data[i] = txn.data[i];
+        for (uint64_t i = 0; i < txn.data_size; i++) rlp.list[5].data[i] = txn.data[i];
         if (txn.is_signed) {
             dump_nlzint(txn.v, rlp.list[6].data, rlp.list[6].size);
             dump_nlzint(txn.r, rlp.list[7].data, rlp.list[7].size);
             dump_nlzint(txn.s, rlp.list[8].data, rlp.list[8].size);
         }
-        uint32_t result = dump_rlp(rlp, buffer, size);
+        uint64_t result = dump_rlp(rlp, buffer, size);
         free_rlp(rlp);
         return result;
     } catch (Error e) {
@@ -1179,12 +1178,12 @@ static uint32_t encode_txn(const struct txn &txn, uint8_t *buffer, uint32_t size
     }
 }
 
-static uint32_t encode_txn(const struct txn &txn)
+static uint64_t encode_txn(const struct txn &txn)
 {
     return encode_txn(txn, nullptr, 0);
 }
 
-static struct txn decode_txn(const uint8_t *buffer, uint32_t size)
+static struct txn decode_txn(const uint8_t *buffer, uint64_t size)
 {
     struct rlp rlp;
     parse_rlp(buffer, size, rlp);
@@ -1193,7 +1192,7 @@ static struct txn decode_txn(const uint8_t *buffer, uint32_t size)
         if (size > 0) throw INVALID_TRANSACTION;
         if (rlp.size != 6 && rlp.size != 9) throw INVALID_TRANSACTION;
         if (!rlp.is_list) throw INVALID_TRANSACTION;
-        for (uint32_t i = 0; i < rlp.size; i++) {
+        for (uint64_t i = 0; i < rlp.size; i++) {
             if (rlp.list[i].is_list) throw INVALID_TRANSACTION;
         }
         txn.nonce = parse_nlzint(rlp.list[0].data, rlp.list[0].size);
@@ -1208,7 +1207,7 @@ static struct txn decode_txn(const uint8_t *buffer, uint32_t size)
         txn.data_size = rlp.list[5].size;
         txn.data = new uint8_t[txn.data_size];
         if (txn.data == nullptr) throw MEMORY_EXAUSTED;
-        for (uint32_t i = 0; i < txn.data_size; i++) txn.data[i] = rlp.list[5].data[i];
+        for (uint64_t i = 0; i < txn.data_size; i++) txn.data[i] = rlp.list[5].data[i];
         txn.is_signed = rlp.size > 6;
         if (txn.is_signed) {
             txn.v = parse_nlzint(rlp.list[6].data, rlp.list[6].size);
@@ -1224,14 +1223,14 @@ static struct txn decode_txn(const uint8_t *buffer, uint32_t size)
     return txn;
 }
 
-static uint32_t encode_cid(const uint256_t &from, const uint256_t &nonce, uint8_t *buffer, uint32_t size)
+static uint64_t encode_cid(const uint256_t &from, const uint256_t &nonce, uint8_t *buffer, uint64_t size)
 {
     struct rlp rlp;
     rlp.is_list = true;
     rlp.size = 2;
     rlp.list = new struct rlp[rlp.size];
     if (rlp.list == nullptr) throw MEMORY_EXAUSTED;
-    for (uint32_t i = 0; i < rlp.size; i++) {
+    for (uint64_t i = 0; i < rlp.size; i++) {
         rlp.list[i].is_list = false;
         rlp.list[i].size = 0;
         rlp.list[i].data = nullptr;
@@ -1239,7 +1238,7 @@ static uint32_t encode_cid(const uint256_t &from, const uint256_t &nonce, uint8_
     try {
         rlp.list[0].size = dump_nlzint(from);
         rlp.list[1].size = dump_nlzint(nonce);
-        for (uint32_t i = 0; i < rlp.size; i++) {
+        for (uint64_t i = 0; i < rlp.size; i++) {
             if (rlp.list[i].size > 0) {
                 rlp.list[i].data = new uint8_t[rlp.list[i].size];
                 if (rlp.list == nullptr) throw MEMORY_EXAUSTED;
@@ -1247,7 +1246,7 @@ static uint32_t encode_cid(const uint256_t &from, const uint256_t &nonce, uint8_
         }
         dump_nlzint(from, rlp.list[0].data, rlp.list[0].size);
         dump_nlzint(nonce, rlp.list[1].data, rlp.list[1].size);
-        uint32_t result = dump_rlp(rlp, buffer, size);
+        uint64_t result = dump_rlp(rlp, buffer, size);
         free_rlp(rlp);
         return result;
     } catch (Error e) {
@@ -1256,7 +1255,7 @@ static uint32_t encode_cid(const uint256_t &from, const uint256_t &nonce, uint8_
     }
 }
 
-static uint32_t encode_cid(const uint256_t &from, const uint256_t &nonce)
+static uint64_t encode_cid(const uint256_t &from, const uint256_t &nonce)
 {
     return encode_cid(from, nonce, nullptr, 0);
 }
@@ -1287,7 +1286,7 @@ enum GasType : uint8_t {
     GasTxDataNonZero,
 };
 
-enum GasValue : uint32_t {
+enum GasValue : uint64_t {
     _GasNone = 0,
     _GasQuickStep = 2,
     _GasFastestStep = 3,
@@ -1567,7 +1566,7 @@ const uint256_t is_returns = 0
     | _1 << CALL | _1 << CALLCODE | _1 << DELEGATECALL | _1 << STATICCALL
     | _1 << REVERT;
 
-static const uint32_t is_gas_table[4][GasTxDataNonZero+1] = {
+static const uint64_t is_gas_table[4][GasTxDataNonZero+1] = {
     {   // frontier
         _GasNone,
         _GasQuickStep,
@@ -1663,12 +1662,12 @@ static const uint32_t is_gas_table[4][GasTxDataNonZero+1] = {
 };
 static uint8_t is_gas_index[ISTANBUL+1] = { 0, 1, 2, 2, 2, 2, 3 };
 
-static inline uint32_t _gas(Release release, GasType type)
+static inline uint64_t _gas(Release release, GasType type)
 {
     return is_gas_table[is_gas_index[release]][type];
 }
 
-static inline uint32_t opcode_gas(Release release, uint8_t opc)
+static inline uint64_t opcode_gas(Release release, uint8_t opc)
 {
     return _gas(release, constgas[opc]);
 }
@@ -2181,7 +2180,7 @@ struct account {
     uint256_t nonce;
     uint256_t balance;
     uint8_t *code;
-    uint32_t code_size;
+    uint64_t code_size;
     uint256_t code_hash;
 };
 
@@ -2209,7 +2208,7 @@ public:
         const struct account *account = find_account(v);
         return account == nullptr ? nullptr : account->code;
     }
-    inline uint32_t code_size(const uint256_t &v) {
+    inline uint64_t code_size(const uint256_t &v) {
         const struct account *account = find_account(v);
         return account == nullptr ? 0 : account->code_size;
     }
@@ -2217,11 +2216,11 @@ public:
         const struct account *account = find_account(v);
         return account == nullptr ? 0 : account->code_hash;
     }
-    virtual void register_code(const uint256_t &account, const uint8_t *buffer, uint32_t size) = 0;
+    virtual void register_code(const uint256_t &account, const uint8_t *buffer, uint64_t size) = 0;
     virtual const uint256_t& load(const uint256_t &account, const uint256_t &address) = 0;
     virtual void store(const uint256_t &account, const uint256_t &address, const uint256_t& v) = 0;
-    virtual uint32_t commit() = 0;
-    virtual void rollback(uint32_t commit_id) = 0;
+    virtual uint64_t commit() = 0;
+    virtual void rollback(uint64_t commit_id) = 0;
     inline void set_nonce(const uint256_t &v, const uint256_t &nonce) {
         const struct account *account = find_account(v);
         uint256_t balance = account == nullptr ? 0 : account->balance;
@@ -2256,27 +2255,27 @@ public:
 class Log {
 protected:
 public:
-    virtual void log0(const uint256_t &owner, const uint8_t *buffer, uint32_t size) = 0;
-    virtual void log1(const uint256_t &owner, const uint256_t &v1, const uint8_t *buffer, uint32_t size) = 0;
-    virtual void log2(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint8_t *buffer, uint32_t size) = 0;
-    virtual void log3(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *buffer, uint32_t size) = 0;
-    virtual void log4(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *buffer, uint32_t size) = 0;
+    virtual void log0(const uint256_t &owner, const uint8_t *buffer, uint64_t size) = 0;
+    virtual void log1(const uint256_t &owner, const uint256_t &v1, const uint8_t *buffer, uint64_t size) = 0;
+    virtual void log2(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint8_t *buffer, uint64_t size) = 0;
+    virtual void log3(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *buffer, uint64_t size) = 0;
+    virtual void log4(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *buffer, uint64_t size) = 0;
 };
 
 class Block {
 public:
-    virtual uint32_t chainid() = 0;
-    virtual uint32_t timestamp() = 0;
+    virtual const uint256_t& chainid() = 0;
+    virtual const uint256_t& timestamp() = 0;
     virtual const uint256_t& number() = 0;
     virtual const uint256_t& coinbase() = 0;
     virtual const uint256_t& gaslimit() = 0;
     virtual const uint256_t& difficulty() = 0;
-    virtual uint256_t hash(uint32_t number) = 0;
+    virtual uint256_t hash(const uint256_t &number) = 0;
 };
 
 static inline uint160_t gen_address(const uint256_t &from, const uint256_t &nonce)
 {
-    uint32_t size = encode_cid(from, nonce);
+    uint64_t size = encode_cid(from, nonce);
     uint8_t buffer[size];
     encode_cid(from, nonce, buffer, size);
     return (uint160_t)sha3(buffer, size);
@@ -2284,9 +2283,9 @@ static inline uint160_t gen_address(const uint256_t &from, const uint256_t &nonc
 
 static inline uint160_t gen_address(const uint256_t &from, const uint256_t &salt, const uint256_t &hash)
 {
-    uint32_t size = 1 + 20 + 32 + 32;
+    uint64_t size = 1 + 20 + 32 + 32;
     uint8_t buffer[size];
-    uint32_t offset = 0;
+    uint64_t offset = 0;
     buffer[offset] = 0xff; offset += 1;
     uint160_t::to((uint160_t)from, &buffer[offset]); offset += 20;
     uint256_t::to(salt, &buffer[offset]); offset += 32;
@@ -2294,14 +2293,14 @@ static inline uint160_t gen_address(const uint256_t &from, const uint256_t &salt
     return (uint160_t)sha3(buffer, size);
 }
 
-static inline uint32_t _min(uint32_t v1, uint32_t v2) { return v1 < v2 ? v1 : v2;}
+static inline uint64_t _min(uint64_t v1, uint64_t v2) { return v1 < v2 ? v1 : v2;}
 
 static inline void _memory_check(const uint256_t &offset, const uint256_t&size) {
     if ((offset >> 64) > 0) throw OUTOFBOUND_INDEX;
     if (((offset + size) >> 64) > 0) throw OUTOFBOUND_INDEX;
 }
 
-static inline void _ensure_capacity(uint8_t *&data, uint32_t &size, uint32_t &capacity)
+static inline void _ensure_capacity(uint8_t *&data, uint64_t &size, uint64_t &capacity)
 {
     if (size > capacity) {
         uint8_t *buffer = new uint8_t[size];
@@ -2314,10 +2313,10 @@ static inline void _ensure_capacity(uint8_t *&data, uint32_t &size, uint32_t &ca
 
 static bool vm_run(const Release release, Block &block, Storage &storage, Log &log,
     const uint256_t &origin_address, const uint256_t &gas_price,
-    const uint256_t &owner_address, const uint8_t *code, const uint32_t code_size,
-    const uint256_t &caller_address, const uint256_t &call_value, const uint8_t *call_data, const uint32_t call_size,
-    uint8_t *&return_data, uint32_t &return_size, uint32_t &return_capacity, uint256_t &gas,
-    bool read_only, uint32_t depth)
+    const uint256_t &owner_address, const uint8_t *code, const uint64_t code_size,
+    const uint256_t &caller_address, const uint256_t &call_value, const uint8_t *call_data, const uint64_t call_size,
+    uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint256_t &gas,
+    bool read_only, uint64_t depth)
 {
     if (depth > 1024) throw RECURSION_LIMITED;
     if (code_size == 0) {
@@ -2327,12 +2326,12 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             if ((pre[release] & (_1 << opc)) == 0) {
                 switch (opc) {
                 case ECRECOVER: {
-                    uint32_t size = 32 + 32 + 32 + 32;
+                    uint64_t size = 32 + 32 + 32 + 32;
                     uint8_t buffer[size];
-                    uint32_t minsize = _min(size, call_size);
-                    for (uint32_t i = 0; i < minsize; i++) buffer[i] = call_data[i];
-                    for (uint32_t i = minsize; i < size; i++) buffer[i] = 0;
-                    uint32_t offset = 0;
+                    uint64_t minsize = _min(size, call_size);
+                    for (uint64_t i = 0; i < minsize; i++) buffer[i] = call_data[i];
+                    for (uint64_t i = minsize; i < size; i++) buffer[i] = 0;
+                    uint64_t offset = 0;
                     uint256_t h = uint256_t::from(&buffer[offset]); offset += 32;
                     uint256_t v = uint256_t::from(&buffer[offset]); offset += 32;
                     uint256_t r = uint256_t::from(&buffer[offset]); offset += 32;
@@ -2360,29 +2359,29 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                 case DATACOPY: {
                     return_size = call_size;
                     _ensure_capacity(return_data, return_size, return_capacity);
-                    for (uint32_t i = 0; i < return_size; i++) return_data[i] = call_data[i];
+                    for (uint64_t i = 0; i < return_size; i++) return_data[i] = call_data[i];
                     return true;
                 }
                 case BIGMODEXP: {
-                    uint32_t size1 = 3 * 32;
+                    uint64_t size1 = 3 * 32;
                     uint8_t buffer1[size1];
-                    uint32_t minsize1 = _min(size1, call_size);
-                    for (uint32_t i = 0; i < minsize1; i++) buffer1[i] = call_data[i];
-                    for (uint32_t i = minsize1; i < size1; i++) buffer1[i] = 0;
-                    uint32_t offset1 = 0;
+                    uint64_t minsize1 = _min(size1, call_size);
+                    for (uint64_t i = 0; i < minsize1; i++) buffer1[i] = call_data[i];
+                    for (uint64_t i = minsize1; i < size1; i++) buffer1[i] = 0;
+                    uint64_t offset1 = 0;
                     uint256_t _base_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
                     uint256_t _exp_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
                     uint256_t _mod_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
                     if (_base_len > 512 || _exp_len > 512 || _mod_len > 512) throw UNIMPLEMENTED;
-                    uint32_t base_len = _base_len.cast32();
-                    uint32_t exp_len = _exp_len.cast32();
-                    uint32_t mod_len = _mod_len.cast32();
-                    uint32_t size2 = base_len + exp_len + mod_len;
+                    uint64_t base_len = _base_len.cast64();
+                    uint64_t exp_len = _exp_len.cast64();
+                    uint64_t mod_len = _mod_len.cast64();
+                    uint64_t size2 = base_len + exp_len + mod_len;
                     uint8_t buffer2[size2];
-                    uint32_t minsize2 = _min(size2, call_size - minsize1);
-                    for (uint32_t i = 0; i < minsize2; i++) buffer2[i] = call_data[minsize1 + i];
-                    for (uint32_t i = minsize2; i < size2; i++) buffer2[i] = 0;
-                    uint32_t offset2 = 0;
+                    uint64_t minsize2 = _min(size2, call_size - minsize1);
+                    for (uint64_t i = 0; i < minsize2; i++) buffer2[i] = call_data[minsize1 + i];
+                    for (uint64_t i = minsize2; i < size2; i++) buffer2[i] = 0;
+                    uint64_t offset2 = 0;
                     uint4096_t base = uint4096_t::from(&buffer2[offset2], base_len); offset2 += base_len;
                     uint4096_t exp = uint4096_t::from(&buffer2[offset2], exp_len); offset2 += exp_len;
                     uint4096_t mod = uint4096_t::from(&buffer2[offset2], mod_len); offset2 += mod_len;
@@ -2394,7 +2393,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                 }
                 case BN256ADD: {
                     if (call_size != 2 * 2 * 32) throw INVALID_SIZE;
-                    uint32_t call_offset = 0;
+                    uint64_t call_offset = 0;
                     uint256_t x1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
                     uint256_t y1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
                     uint256_t x2 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
@@ -2417,7 +2416,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                 }
                 case BN256SCALARMUL: {
                     if (call_size != 2 * 32 + 32) throw INVALID_SIZE;
-                    uint32_t call_offset = 0;
+                    uint64_t call_offset = 0;
                     uint256_t x1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
                     uint256_t y1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
                     uint256_t e = uint256_t::from(&call_data[call_offset]); call_offset += 32;
@@ -2436,7 +2435,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                 case BLAKE2F: {
                     if (call_size != 4 + 8 * 8 + 16 * 8 + 2 * 8 + 1) throw INVALID_SIZE;
                     if (call_data[call_size-1] > 1) throw INVALID_ENCODING;
-                    uint32_t call_offset = 0;
+                    uint64_t call_offset = 0;
                     uint32_t rounds = b2w32be(&call_data[call_offset]); call_offset += 4;
                     uint64_t h0 = b2w64le(&call_data[call_offset]); call_offset += 8;
                     uint64_t h1 = b2w64le(&call_data[call_offset]); call_offset += 8;
@@ -2457,7 +2456,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                         w, t0, t1, last_chunk);
                     return_size = 8 * 8;
                     _ensure_capacity(return_data, return_size, return_capacity);
-                    uint32_t return_offset = 0;
+                    uint64_t return_offset = 0;
                     w2b64le(h0, &return_data[return_offset]); return_offset += 8;
                     w2b64le(h1, &return_data[return_offset]); return_offset += 8;
                     w2b64le(h2, &return_data[return_offset]); return_offset += 8;
@@ -2478,7 +2477,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
     return_size = 0;
     Stack stack;
     Memory memory;
-    for (uint32_t pc = 0; ; pc++) {
+    for (uint64_t pc = 0; ; pc++) {
         uint8_t opc = pc < code_size ? code[pc] : STOP;
         if (std::getenv("EVM_DEBUG")) std::cout << opcodes[opc] << std::endl;
         if ((is[release] & (_1 << opc)) == 0) throw INVALID_OPCODE;
@@ -2520,7 +2519,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case ADDMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(v3 == 0 ? 0 : uint256_t::addmod(v1, v2, v3)); break; }
         case MULMOD: { uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(); stack.push(v3 == 0 ? 0 : uint256_t::mulmod(v1, v2, v3)); break; }
         case EXP: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(uint256_t::pow(v1, v2)); break; }
-        case SIGNEXTEND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < 31 ? v2.sigext(31 - v1.cast32()) : v2); break; }
+        case SIGNEXTEND: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < 31 ? v2.sigext(31 - v1.cast64()) : v2); break; }
         case LT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < v2); break; }
         case GT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > v2); break; }
         case SLT: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1.sigflip() < v2.sigflip()); break; }
@@ -2531,14 +2530,14 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case OR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 | v2); break; }
         case XOR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 ^ v2); break; }
         case NOT: { uint256_t v1 = stack.pop(); stack.push(~v1); break; }
-        case BYTE: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < 32 ? v2[v1.cast32()] : 0); break; }
-        case SHL: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > 255 ? 0 : v2 << v1.cast32()); break; }
-        case SHR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > 255 ? 0 : v2 >> v1.cast32()); break; }
-        case SAR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > 255 ? ((v2[0] & 0x80) > 0 ? ~(uint256_t)0 : 0) : uint256_t::sar(v2, v1.cast32())); break; }
+        case BYTE: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 < 32 ? v2[v1.cast64()] : 0); break; }
+        case SHL: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > 255 ? 0 : v2 << v1.cast64()); break; }
+        case SHR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > 255 ? 0 : v2 >> v1.cast64()); break; }
+        case SAR: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 > 255 ? ((v2[0] & 0x80) > 0 ? ~(uint256_t)0 : 0) : uint256_t::sar(v2, v1.cast64())); break; }
         case SHA3: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             _memory_check(v1, v2);
-            uint32_t offset = v1.cast32(), size = v2.cast32();
+            uint64_t offset = v1.cast64(), size = v2.cast64();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             stack.push(sha3(buffer, size));
@@ -2551,13 +2550,13 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case CALLVALUE: { stack.push(call_value); break; }
         case CALLDATALOAD: {
             uint256_t v1 = stack.pop();
-            uint32_t offset = v1.cast32();
+            uint64_t offset = v1.cast64();
             uint8_t buffer[32];
-            uint32_t size = 32;
+            uint64_t size = 32;
             if (offset > call_size) offset = call_size;
             if (offset + size > call_size) size = call_size - offset;
-            for (uint32_t i = 0; i < size; i++) buffer[i] = call_data[offset + i];
-            for (uint32_t i = size; i < 32; i++) buffer[i] = 0;
+            for (uint64_t i = 0; i < size; i++) buffer[i] = call_data[offset + i];
+            for (uint64_t i = size; i < 32; i++) buffer[i] = 0;
             stack.push(uint256_t::from(buffer));
             break;
         }
@@ -2565,10 +2564,10 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case CALLDATACOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
             _memory_check(v1, v3);
-            uint32_t offset1 = v1.cast32(); // check memory size
-            uint32_t offset2 = v2 > call_size ? call_size : v2.cast32();
-            uint32_t size = v3.cast32(); // check memory size
-            uint32_t _size = size;
+            uint64_t offset1 = v1.cast64();
+            uint64_t offset2 = v2 > call_size ? call_size : v2.cast64();
+            uint64_t size = v3.cast64();
+            uint64_t _size = size;
             if (offset2 + size > call_size) size = call_size - offset2;
             memory.burn(offset1, size, &call_data[offset2]);
             memory.clear(offset1 + size, _size - size);
@@ -2578,10 +2577,10 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case CODECOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
             _memory_check(v1, v3);
-            uint32_t offset1 = v1.cast32(); // check memory size
-            uint32_t offset2 = v2 > code_size ? code_size : v2.cast32();
-            uint32_t size = v3.cast32(); // check memory size
-            uint32_t _size = size;
+            uint64_t offset1 = v1.cast64();
+            uint64_t offset2 = v2 > code_size ? code_size : v2.cast64();
+            uint64_t size = v3.cast64();
+            uint64_t _size = size;
             if (offset2 + size > code_size) size = code_size - offset2;
             memory.burn(offset1, size, &code[offset2]);
             memory.clear(offset1 + size, _size - size);
@@ -2592,13 +2591,13 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case EXTCODECOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             _memory_check(v2, v4);
-            uint32_t address = v1.cast32();
-            uint32_t offset1 = v2.cast32(); // check memory size
-            uint32_t offset2 = v2 > code_size ? code_size : v2.cast32();
-            uint32_t size = v4.cast32(); // check memory size
+            uint64_t address = v1.cast64();
+            uint64_t offset1 = v2.cast64();
+            uint64_t offset2 = v2 > code_size ? code_size : v2.cast64();
+            uint64_t size = v4.cast64();
             const uint8_t *code = storage.code(address);
-            const uint32_t code_size = storage.code_size(address);
-            uint32_t _size = size;
+            const uint64_t code_size = storage.code_size(address);
+            uint64_t _size = size;
             if (offset2 + size > code_size) size = code_size - offset2;
             memory.burn(offset1, size, &code[offset2]);
             memory.clear(offset1 + size, _size - size);
@@ -2608,15 +2607,15 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case RETURNDATACOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
             _memory_check(v1, v3);
-            uint32_t offset1 = v1.cast32();
-            uint32_t offset2 = v2.cast32();
-            uint32_t size = v3.cast32();
+            uint64_t offset1 = v1.cast64();
+            uint64_t offset2 = v2.cast64();
+            uint64_t size = v3.cast64();
             if (offset2 + size > return_size) throw OUTOFBOUND_INDEX;
             memory.burn(offset1, size, &return_data[offset2]);
             break;
         }
         case EXTCODEHASH: { uint256_t v1 = stack.pop(); stack.push(storage.code_hash(v1)); break; }
-        case BLOCKHASH: { uint256_t v1 = stack.pop(); stack.push(v1 < block.number()-256 || v1 >= block.number() ? 0 : block.hash(v1.cast32())); break; }
+        case BLOCKHASH: { uint256_t v1 = stack.pop(); stack.push(v1 < block.number()-256 || v1 >= block.number() ? 0 : block.hash(v1)); break; }
         case COINBASE: { stack.push(block.coinbase()); break; }
         case TIMESTAMP: { stack.push(block.timestamp()); break; }
         case NUMBER: { stack.push(block.number()); break; }
@@ -2625,14 +2624,14 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case CHAINID: { stack.push(block.chainid()); break; }
         case SELFBALANCE: { stack.push(storage.balance(owner_address)); break; }
         case POP: { stack.pop(); break; }
-        case MLOAD: { uint256_t v1 = stack.pop(); _memory_check(v1, 32); stack.push(memory.load(v1.cast32())); break; }
-        case MSTORE: { uint256_t v1 = stack.pop(), v2 = stack.pop(); _memory_check(v1, 32); memory.store(v1.cast32(), v2); break; }
+        case MLOAD: { uint256_t v1 = stack.pop(); _memory_check(v1, 32); stack.push(memory.load(v1)); break; }
+        case MSTORE: { uint256_t v1 = stack.pop(), v2 = stack.pop(); _memory_check(v1, 32); memory.store(v1, v2); break; }
         case MSTORE8: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             _memory_check(v1, 1);
             uint8_t buffer[1];
-            buffer[0] = v2.cast32() & 0xff;
-            memory.burn(v1.cast32(), 1, buffer);
+            buffer[0] = v2[31];
+            memory.burn(v1, 1, buffer);
             break;
         }
         case SLOAD: { uint256_t v1 = stack.pop(); stack.push(storage.load(owner_address, v1)); break; }
@@ -2643,7 +2642,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         }
         case JUMP: {
             uint256_t v1 = stack.pop();
-            pc = v1.cast32();
+            pc = v1.cast64();
             uint8_t opc = pc < code_size ? code[pc] : STOP;
             if (opc != JUMPDEST) throw ILLEGAL_TARGET;
             pc--;
@@ -2652,7 +2651,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case JUMPI: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             if (v2 != 0) {
-                pc = v1.cast32();
+                pc = v1.cast64();
                 uint8_t opc = pc < code_size ? code[pc] : STOP;
                 if (opc != JUMPDEST) throw ILLEGAL_TARGET;
                 pc--;
@@ -2731,7 +2730,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case LOG0: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             _memory_check(v1, v2);
-            uint32_t offset = v1.cast32(), size = v2.cast32();
+            uint64_t offset = v1.cast64(), size = v2.cast64();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             log.log0(owner_address, buffer, size);
@@ -2740,7 +2739,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case LOG1: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
             _memory_check(v1, v2);
-            uint32_t offset = v1.cast32(), size = v2.cast32();
+            uint64_t offset = v1.cast64(), size = v2.cast64();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             log.log1(owner_address, v3, buffer, size);
@@ -2749,7 +2748,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case LOG2: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             _memory_check(v1, v2);
-            uint32_t offset = v1.cast32(), size = v2.cast32();
+            uint64_t offset = v1.cast64(), size = v2.cast64();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             log.log2(owner_address, v3, v4, buffer, size);
@@ -2758,7 +2757,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case LOG3: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop(), v5 = stack.pop();
             _memory_check(v1, v2);
-            uint32_t offset = v1.cast32(), size = v2.cast32();
+            uint64_t offset = v1.cast64(), size = v2.cast64();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             log.log3(owner_address, v3, v4, v5, buffer, size);
@@ -2767,7 +2766,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case LOG4: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop(), v5 = stack.pop(), v6 = stack.pop();
             _memory_check(v1, v2);
-            uint32_t offset = v1.cast32(), size = v2.cast32();
+            uint64_t offset = v1.cast64(), size = v2.cast64();
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             log.log4(owner_address, v3, v4, v5, v6, buffer, size);
@@ -2777,14 +2776,14 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t value = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             _memory_check(v1, v2);
-            uint32_t init_offset = v1.cast32(), init_size = v2.cast32();
+            uint64_t init_offset = v1.cast64(), init_size = v2.cast64();
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t init[init_size];
             memory.dump(init_offset, init_size, init);
             uint256_t code_address = (uint256_t)gen_address(owner_address, storage.nonce(owner_address));
             storage.increment_nonce(owner_address);
             // check conflict and throw
-            uint32_t commit_id = storage.commit();
+            uint64_t commit_id = storage.commit();
             // create account
             // optionally set nonce 1
             storage.sub_balance(owner_address, value);
@@ -2813,14 +2812,14 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             _memory_check(v1, v2);
             _memory_check(v3, v4);
-            uint32_t args_offset = v1.cast32(), args_size = v2.cast32(), ret_offset = v3.cast32(), ret_size = v4.cast32();
+            uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
             if (read_only && value != 0) throw ILLEGAL_UPDATE;
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
-            const uint32_t code_size = storage.code_size(code_address);
+            const uint64_t code_size = storage.code_size(code_address);
             const uint8_t *code = storage.code(code_address);
-            uint32_t commit_id = storage.commit();
+            uint64_t commit_id = storage.commit();
             // create account or return
             storage.sub_balance(owner_address, value);
             storage.add_balance(code_address, value);
@@ -2837,7 +2836,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                 return_size = 0;
             }
             if (!success) storage.rollback(commit_id);
-            uint32_t size = ret_size;
+            uint64_t size = ret_size;
             if (size > return_size) size = return_size;
             memory.burn(ret_offset, size, return_data);
             memory.clear(ret_offset + size, ret_size - size);
@@ -2851,13 +2850,13 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             _memory_check(v1, v2);
             _memory_check(v3, v4);
-            uint32_t args_offset = v1.cast32(), args_size = v2.cast32(), ret_offset = v3.cast32(), ret_size = v4.cast32();
+            uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
-            const uint32_t code_size = storage.code_size(code_address);
+            const uint64_t code_size = storage.code_size(code_address);
             const uint8_t *code = storage.code(code_address);
-            uint32_t commit_id = storage.commit();
+            uint64_t commit_id = storage.commit();
             bool success;
             try {
                 success = vm_run(release, block, storage, log,
@@ -2871,7 +2870,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                 return_size = 0;
             }
             if (!success) storage.rollback(commit_id);
-            uint32_t size = ret_size;
+            uint64_t size = ret_size;
             if (size > return_size) size = return_size;
             memory.burn(ret_offset, size, return_data);
             memory.clear(ret_offset + size, ret_size - size);
@@ -2881,7 +2880,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case RETURN: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             _memory_check(v1, v2);
-            uint32_t offset = v1.cast32(), size = v2.cast32();
+            uint64_t offset = v1.cast64(), size = v2.cast64();
             return_size = size;
             _ensure_capacity(return_data, return_size, return_capacity);
             memory.dump(offset, return_size, return_data);
@@ -2893,12 +2892,12 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             _memory_check(v1, v2);
             _memory_check(v3, v4);
-            uint32_t args_offset = v1.cast32(), args_size = v2.cast32(), ret_offset = v3.cast32(), ret_size = v4.cast32();
+            uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
-            const uint32_t code_size = storage.code_size(code_address);
+            const uint64_t code_size = storage.code_size(code_address);
             const uint8_t *code = storage.code(code_address);
-            uint32_t commit_id = storage.commit();
+            uint64_t commit_id = storage.commit();
             bool success;
             try {
                 success = vm_run(release, block, storage, log,
@@ -2912,7 +2911,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                 return_size = 0;
             }
             if (!success) storage.rollback(commit_id);
-            uint32_t size = ret_size;
+            uint64_t size = ret_size;
             if (size > return_size) size = return_size;
             memory.burn(ret_offset, size, return_data);
             memory.clear(ret_offset + size, ret_size - size);
@@ -2924,14 +2923,14 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             uint256_t salt = stack.pop();
             _memory_check(v1, v2);
-            uint32_t init_offset = v1.cast32(), init_size = v2.cast32();
+            uint64_t init_offset = v1.cast64(), init_size = v2.cast64();
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t init[init_size];
             memory.dump(init_offset, init_size, init);
             uint256_t code_address = (uint256_t)gen_address(owner_address, salt, sha3(init, init_size));
             storage.increment_nonce(owner_address);
             // check conflict and throw
-            uint32_t commit_id = storage.commit();
+            uint64_t commit_id = storage.commit();
             // create account
             // optionally set nonce 1
             storage.sub_balance(owner_address, value);
@@ -2958,13 +2957,13 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             _memory_check(v1, v2);
             _memory_check(v3, v4);
-            uint32_t args_offset = v1.cast32(), args_size = v2.cast32(), ret_offset = v3.cast32(), ret_size = v4.cast32();
+            uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
             storage.add_balance(code_address, 0);
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
-            const uint32_t code_size = storage.code_size(code_address);
+            const uint64_t code_size = storage.code_size(code_address);
             const uint8_t *code = storage.code(code_address);
-            uint32_t commit_id = storage.commit();
+            uint64_t commit_id = storage.commit();
             bool success;
             try {
                 success = vm_run(release, block, storage, log,
@@ -2978,7 +2977,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                 return_size = 0;
             }
             if (!success) storage.rollback(commit_id);
-            uint32_t size = ret_size;
+            uint64_t size = ret_size;
             if (size > return_size) size = return_size;
             memory.burn(ret_offset, size, return_data);
             memory.clear(ret_offset + size, ret_size - size);
@@ -2988,7 +2987,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case REVERT: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             _memory_check(v1, v2);
-            uint32_t offset = v1.cast32(), size = v2.cast32();
+            uint64_t offset = v1.cast64(), size = v2.cast64();
             return_size = size;
             _ensure_capacity(return_data, return_size, return_capacity);
             memory.dump(offset, return_size, return_data);
@@ -3049,17 +3048,17 @@ private:
         account_size = 0;
         keyvalue_size = 0;
     }
-    void load(uint32_t hash) {
+    void load(uint64_t hash) {
         std::stringstream ss;
         ss << std::hex << std::setw(8) << std::setfill('0') << hash;
         std::string name(ss.str());
         std::ifstream fs("states/" + name + ".dat", std::ios::ate | std::ios::binary);
         if (!fs.is_open()) throw UNKNOWN_FILE;
-        uint32_t size = fs.tellg();
+        uint64_t size = fs.tellg();
         uint8_t buffer[size];
         fs.seekg(0, std::ios::beg);
         fs.read((char*)buffer, size);
-        uint32_t offset = 0;
+        uint64_t offset = 0;
         account_size = b2w32le(&buffer[offset]); offset += 4;
         if (account_size > L) throw INSUFFICIENT_SPACE;
         for (int i = 0; i < account_size; i++) {
@@ -3069,7 +3068,7 @@ private:
             account_list[i].code_size = b2w32le(&buffer[offset]); offset += 4;
             account_list[i].code = new uint8_t[account_list[i].code_size];
             if (account_list[i].code == nullptr) throw MEMORY_EXAUSTED;
-            for (uint32_t j = 0; j < account_list[i].code_size; j++) {
+            for (uint64_t j = 0; j < account_list[i].code_size; j++) {
                 account_list[i].code[j] = buffer[offset]; offset++;
             }
             account_list[i].code_hash = uint256_t::from(&buffer[offset]); offset += 32;
@@ -3082,8 +3081,8 @@ private:
             keyvalue_list[i][1] = uint256_t::from(&buffer[offset]); offset += 32;
         }
     }
-    uint32_t dump() const {
-        uint32_t size = 0;
+    uint64_t dump() const {
+        uint64_t size = 0;
         size += 4;
         for (int i = 0; i < account_size; i++) {
             size += 20 + 32 + 32 + 4 + account_list[i].code_size + 32;
@@ -3093,14 +3092,14 @@ private:
             size += 4 + 32 + 32;
         }
         uint8_t buffer[size];
-        uint32_t offset = 0;
+        uint64_t offset = 0;
         w2b32le(account_size, &buffer[offset]); offset += 4;
         for (int i = 0; i < account_size; i++) {
             uint160_t::to(account_index[i], &buffer[offset]); offset += 20;
             uint256_t::to(account_list[i].nonce, &buffer[offset]); offset += 32;
             uint256_t::to(account_list[i].balance, &buffer[offset]); offset += 32;
             w2b32le(account_list[i].code_size, &buffer[offset]); offset += 4;
-            for (uint32_t j = 0; j < account_list[i].code_size; j++) {
+            for (uint64_t j = 0; j < account_list[i].code_size; j++) {
                 buffer[offset] = account_list[i].code[j]; offset++;
             }
             uint256_t::to(account_list[i].code_hash, &buffer[offset]); offset += 32;
@@ -3111,7 +3110,7 @@ private:
             uint256_t::to(keyvalue_list[i][0], &buffer[offset]); offset += 32;
             uint256_t::to(keyvalue_list[i][1], &buffer[offset]); offset += 32;
         }
-        uint32_t hash = sha256(buffer, size).cast32();
+        uint64_t hash = sha256(buffer, size).cast64();
         std::stringstream ss;
         ss << std::hex << std::setw(8) << std::setfill('0') << hash;
         std::string name(ss.str());
@@ -3123,7 +3122,7 @@ public:
     _Storage() {
         const char *name = std::getenv("EVM_STATE");
         if (name != nullptr) {
-            uint32_t hash;
+            uint64_t hash;
             std::stringstream ss;
             ss << std::hex << name;
             ss >> hash;
@@ -3169,7 +3168,7 @@ public:
         keyvalue_list[keyvalue_size][1] = v;
         keyvalue_size++;
     }
-    void register_code(const uint256_t &account, const uint8_t *buffer, uint32_t size) {
+    void register_code(const uint256_t &account, const uint8_t *buffer, uint64_t size) {
         int index = account_size;
         for (int i = 0; i < account_size; i++) {
             if ((uint160_t)account == account_index[i]) {
@@ -3190,57 +3189,57 @@ public:
         if (account_list[index].code != nullptr) throw CODE_CONFLICT;
         uint8_t *code = new uint8_t[size];
         if (code == nullptr) throw MEMORY_EXAUSTED;
-        for (uint32_t i = 0; i < size; i++) code[i] = buffer[i];
+        for (uint64_t i = 0; i < size; i++) code[i] = buffer[i];
         account_list[index].code = code;
         account_list[index].code_size = size;
         account_list[index].code_hash = sha3(code, size);
     }
-    uint32_t commit() {
-        uint32_t commit_id = dump();
+    uint64_t commit() {
+        uint64_t commit_id = dump();
         std::stringstream ss;
         ss << std::hex << std::setw(8) << std::setfill('0') << commit_id;
         std::string name(ss.str());
         std::cout << "EVM_STATE=" << name << std::endl;
         return commit_id;
     }
-    void rollback(uint32_t commit_id) { reset(); load(commit_id); }
+    void rollback(uint64_t commit_id) { reset(); load(commit_id); }
 };
 
 class _Log : public Log {
 private:
 public:
-    void log0(const uint256_t &owner, const uint8_t *buffer, uint32_t size) {}
-    void log1(const uint256_t &owner, const uint256_t &v1, const uint8_t *buffer, uint32_t size) {}
-    void log2(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint8_t *buffer, uint32_t size) {}
-    void log3(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *buffer, uint32_t size) {}
-    void log4(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *buffer, uint32_t size) {}
+    void log0(const uint256_t &owner, const uint8_t *buffer, uint64_t size) {}
+    void log1(const uint256_t &owner, const uint256_t &v1, const uint8_t *buffer, uint64_t size) {}
+    void log2(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint8_t *buffer, uint64_t size) {}
+    void log3(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *buffer, uint64_t size) {}
+    void log4(const uint256_t &owner, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *buffer, uint64_t size) {}
 };
 
 class _Block : public Block {
 private:
-    uint32_t _timestamp = 0;
+    uint256_t _timestamp = 0;
     uint256_t _number = 0;
     uint256_t _coinbase = 0;
     uint256_t _gaslimit = 10000000;
     uint256_t _difficulty = 0;
 public:
     _Block() {}
-    _Block(uint32_t timestamp, uint256_t number, const uint256_t& coinbase, const uint256_t &gaslimit, const uint256_t &difficulty)
+    _Block(uint256_t timestamp, uint256_t number, const uint256_t& coinbase, const uint256_t &gaslimit, const uint256_t &difficulty)
         : _timestamp(timestamp), _number(number), _coinbase(coinbase), _gaslimit(gaslimit), _difficulty(difficulty) {}
-    uint32_t chainid() { return 1; } // configurable
-    uint32_t timestamp() { return _timestamp; }
+    const uint256_t& chainid() { return _1; } // configurable
+    const uint256_t& timestamp() { return _timestamp; }
     const uint256_t& number() { return _number; }
     const uint256_t& coinbase() { return _coinbase; }
     const uint256_t& gaslimit() { return _gaslimit; }
     const uint256_t& difficulty() { return _difficulty; }
-    uint256_t hash(uint32_t number) {
-        uint8_t buffer[4];
-        w2b32le(number, buffer);
-        return sha3(buffer, 4);
+    uint256_t hash(const uint256_t &number) {
+        uint8_t buffer[32];
+        uint256_t::to(number, buffer);
+        return sha3(buffer, 32);
     }
 };
 
-void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
+void raw(const uint8_t *buffer, uint64_t size, uint160_t sender)
 {
     Release release = ISTANBUL;
     _Block block;
@@ -3252,7 +3251,7 @@ void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
     struct txn txn = decode_txn(buffer, size);
     if (!txn.is_signed) throw INVALID_TRANSACTION;
 
-    uint32_t offset = 8 + 2 * block.chainid();
+    uint256_t offset = 8 + 2 * block.chainid();
     if (txn.v != 27 && txn.v != 28 && txn.v != 27 + offset && txn.v != 28 + offset) throw INVALID_TRANSACTION;
 
     uint256_t h;
@@ -3264,7 +3263,7 @@ void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
         txn.v = block.chainid();
         txn.r = 0;
         txn.s = 0;
-        uint32_t unsigned_size = encode_txn(txn);
+        uint64_t unsigned_size = encode_txn(txn);
         uint8_t unsigned_buffer[unsigned_size];
         encode_txn(txn, unsigned_buffer, unsigned_size);
         h = sha3(unsigned_buffer, unsigned_size);
@@ -3275,8 +3274,8 @@ void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
     }
 
     uint256_t intrinsic_gas = _gas(release, txn.has_to ? GasTxMessageCall : GasTxContractCreation);
-    uint32_t zero_count = 0;
-    for (uint32_t i = 0; i < txn.data_size; i++) if (txn.data[i] == 0) zero_count++;
+    uint64_t zero_count = 0;
+    for (uint64_t i = 0; i < txn.data_size; i++) if (txn.data[i] == 0) zero_count++;
     intrinsic_gas += zero_count * _gas(release, GasTxDataZero);
     intrinsic_gas += (txn.data_size - zero_count) * _gas(release, GasTxDataNonZero);
     if (txn.gaslimit < intrinsic_gas) throw INVALID_TRANSACTION;
@@ -3293,14 +3292,14 @@ void raw(const uint8_t *buffer, uint32_t size, uint160_t sender)
     storage.sub_balance(from, txn.gaslimit * txn.gasprice);
 
     // NO TRANSACTION FAILURE FROM HERE
-    uint32_t commit_id = storage.commit();
+    uint64_t commit_id = storage.commit();
 
     storage.sub_balance(from, txn.value);
     storage.add_balance(to, txn.value);
 
     bool success = false;
-    uint32_t return_size = 0;
-    uint32_t return_capacity = 0;
+    uint64_t return_size = 0;
+    uint64_t return_capacity = 0;
     uint8_t *return_data = nullptr;
 
     // message call
@@ -3353,9 +3352,9 @@ static inline int hex(char c)
     return -1;
 }
 
-static inline bool parse_hex(const char *hexstr, uint8_t *buffer, uint32_t size)
+static inline bool parse_hex(const char *hexstr, uint8_t *buffer, uint64_t size)
 {
-    for (uint32_t i = 0; i < size; i++) {
+    for (uint64_t i = 0; i < size; i++) {
         int hi = hex(hexstr[2*i]);
         int lo = hex(hexstr[2*i+1]);
         if (hi < 0 || lo < 0) return false;
@@ -3414,7 +3413,7 @@ int main(int argc, const char *argv[])
     if (argc < 2) { std::cerr << "usage: " << progname << " <hex>" << std::endl; return 1; }
     const char *hexstr = argv[1];
     int len = std::strlen(hexstr);
-    uint32_t size = len / 2;
+    uint64_t size = len / 2;
     uint8_t buffer[size];
     if (len % 2 > 0 || !parse_hex(hexstr, buffer, size)) { std::cerr << progname << ": invalid input" << std::endl; return 1; }
     try {
