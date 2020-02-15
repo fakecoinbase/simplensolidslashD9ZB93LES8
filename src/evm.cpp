@@ -1323,6 +1323,7 @@ enum GasType : uint8_t {
     GasRipemd160Word,
     GasDataCopy,
     GasDataCopyWord,
+    GasBigModExpDiv,
     GasBn256Add,
     GasBn256ScalarMul,
     GasBlake2f,
@@ -1384,6 +1385,7 @@ enum GasCost : uint64_t {
     _GasRipemd160Word = 120,
     _GasDataCopy = 15,
     _GasDataCopyWord = 3,
+    _GasBigModExpDiv = 20,
     _GasBn256Add = 500,
     _GasBn256ScalarMul = 40000,
     _GasBlake2f = 0,
@@ -1718,6 +1720,7 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasRipemd160Word,
         _GasDataCopy,
         _GasDataCopyWord,
+        _GasBigModExpDiv,
         _GasBn256Add,
         _GasBn256ScalarMul,
         _GasBlake2f,
@@ -1778,6 +1781,7 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasRipemd160Word,
         _GasDataCopy,
         _GasDataCopyWord,
+        _GasBigModExpDiv,
         _GasBn256Add,
         _GasBn256ScalarMul,
         _GasBlake2f,
@@ -1838,6 +1842,7 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasRipemd160Word,
         _GasDataCopy,
         _GasDataCopyWord,
+        _GasBigModExpDiv,
         _GasBn256Add,
         _GasBn256ScalarMul,
         _GasBlake2f,
@@ -1898,6 +1903,7 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasRipemd160Word,
         _GasDataCopy,
         _GasDataCopyWord,
+        _GasBigModExpDiv,
         _GasBn256Add,
         _GasBn256ScalarMul,
         _GasBlake2f,
@@ -1958,6 +1964,7 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasRipemd160Word,
         _GasDataCopy,
         _GasDataCopyWord,
+        _GasBigModExpDiv,
         _GasBn256Add_Istanbul,
         _GasBn256ScalarMul_Istanbul,
         _GasBlake2f,
@@ -2089,6 +2096,11 @@ static inline uint64_t _gas_datacopy(Release release, uint64_t size)
     // check for overflow
     uint64_t words = (size + 31) / 32;
     return _gas(release, GasDataCopy) + words * _gas(release, GasDataCopyWord);
+}
+
+static inline uint64_t _gas_bigmodexp(Release release)
+{
+    throw UNIMPLEMENTED;
 }
 
 static inline uint64_t _gas_bn256add(Release release)
@@ -2396,6 +2408,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                     return true;
                 }
                 case BIGMODEXP: {
+                    _consume_gas(gas, _gas_bigmodexp(release));
                     uint64_t size1 = 3 * 32;
                     uint8_t buffer1[size1];
                     uint64_t minsize1 = _min(size1, call_size);
