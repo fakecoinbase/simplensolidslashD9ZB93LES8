@@ -95,7 +95,9 @@ def codeInitExec(origin, gasprice, address, caller, value, gas, code, data):
     uint256_t address = uint256_t::from(\"""" + intToU256(address) + """\");
     uint256_t caller = uint256_t::from(\"""" + intToU256(caller) + """\");
     uint256_t value = uint256_t::from(\"""" + intToU256(value) + """\");
-    uint256_t gas = uint256_t::from(\"""" + intToU256(gas) + """\");
+    uint256_t _gas = uint256_t::from(\"""" + intToU256(gas) + """\");
+
+    uint64_t gas = _gas.cast64(); // fix
 
     uint8_t *code = (uint8_t*)\"""" + code + """\";
     uint64_t code_size = """ + str(len(code) // 4) + """;
@@ -236,8 +238,8 @@ def codeDoneGas(fgas):
     return """
     uint256_t fgas = uint256_t::from(\"""" + intToU256(fgas) + """\");
     if (gas != fgas) {
-        // std::cerr << "post: invalid gas " << fgas << " " << gas << std::endl;
-        // return 1;
+        std::cerr << "post: invalid gas " << fgas << " " << gas << std::endl;
+        return 1;
     }
 """
 
