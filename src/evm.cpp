@@ -2601,7 +2601,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             _memory_check(v2, v4);
             uint64_t address = v1.cast64();
             uint64_t offset1 = v2.cast64();
-            uint64_t offset2 = v2 > code_size ? code_size : v2.cast64();
+            uint64_t offset2 = v3 > code_size ? code_size : v3.cast64();
             uint64_t size = v4.cast64();
             const uint8_t *code = storage.code(address);
             const uint64_t code_size = storage.code_size(address);
