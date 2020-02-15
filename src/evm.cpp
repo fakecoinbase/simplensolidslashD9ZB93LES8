@@ -1323,6 +1323,10 @@ enum GasType : uint8_t {
     GasRipemd160Word,
     GasDataCopy,
     GasDataCopyWord,
+    GasBn256Add,
+    GasBn256ScalarMul,
+    GasBlake2f,
+    GasBlake2fRound,
     GasTxMessageCall,
     GasTxContractCreation,
     GasTxDataZero,
@@ -1380,6 +1384,10 @@ enum GasCost : uint64_t {
     _GasRipemd160Word = 120,
     _GasDataCopy = 15,
     _GasDataCopyWord = 3,
+    _GasBn256Add = 500,
+    _GasBn256ScalarMul = 40000,
+    _GasBlake2f = 0,
+    _GasBlake2fRound = 1,
     _GasTxMessageCall = 21000,
     _GasTxContractCreation = 21000,
     _GasTxDataZero = 4,
@@ -1406,6 +1414,8 @@ enum GasCost : uint64_t {
     _GasSstoreInitRefund_Istanbul = 19200,
     _GasSstoreCleanRefund_Istanbul = 4200,
     _GasSstoreClearRefund_Istanbul = 15000,
+    _GasBn256Add_Istanbul = 150,
+    _GasBn256ScalarMul_Istanbul = 6000,
     _GasTxDataNonZero_Istanbul = 16,
 };
 
@@ -1708,6 +1718,10 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasRipemd160Word,
         _GasDataCopy,
         _GasDataCopyWord,
+        _GasBn256Add,
+        _GasBn256ScalarMul,
+        _GasBlake2f,
+        _GasBlake2fRound,
         _GasTxMessageCall,
         _GasTxContractCreation,
         _GasTxDataZero,
@@ -1764,6 +1778,10 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasRipemd160Word,
         _GasDataCopy,
         _GasDataCopyWord,
+        _GasBn256Add,
+        _GasBn256ScalarMul,
+        _GasBlake2f,
+        _GasBlake2fRound,
         _GasTxMessageCall,
         _GasTxContractCreation_Homestead,
         _GasTxDataZero,
@@ -1820,6 +1838,10 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasRipemd160Word,
         _GasDataCopy,
         _GasDataCopyWord,
+        _GasBn256Add,
+        _GasBn256ScalarMul,
+        _GasBlake2f,
+        _GasBlake2fRound,
         _GasTxMessageCall,
         _GasTxContractCreation_Homestead,
         _GasTxDataZero,
@@ -1876,6 +1898,10 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasRipemd160Word,
         _GasDataCopy,
         _GasDataCopyWord,
+        _GasBn256Add,
+        _GasBn256ScalarMul,
+        _GasBlake2f,
+        _GasBlake2fRound,
         _GasTxMessageCall,
         _GasTxContractCreation_Homestead,
         _GasTxDataZero,
@@ -1932,6 +1958,10 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasRipemd160Word,
         _GasDataCopy,
         _GasDataCopyWord,
+        _GasBn256Add_Istanbul,
+        _GasBn256ScalarMul_Istanbul,
+        _GasBlake2f,
+        _GasBlake2fRound,
         _GasTxMessageCall,
         _GasTxContractCreation_Homestead,
         _GasTxDataZero,
@@ -2037,28 +2067,43 @@ static inline uint64_t opcode_gas(Release release, uint8_t opc)
 
 static inline uint64_t _gas_ecrecover(Release release)
 {
-	return _gas(release, GasEcRecover);
+    return _gas(release, GasEcRecover);
 }
 
 static inline uint64_t _gas_sha256(Release release, uint64_t size)
 {
     // check for overflow
     uint64_t words = (size + 31) / 32;
-	return _gas(release, GasSha256) + words * _gas(release, GasSha256Word);
+    return _gas(release, GasSha256) + words * _gas(release, GasSha256Word);
 }
 
 static inline uint64_t _gas_ripemd160(Release release, uint64_t size)
 {
     // check for overflow
     uint64_t words = (size + 31) / 32;
-	return _gas(release, GasRipemd160) + words * _gas(release, GasRipemd160Word);
+    return _gas(release, GasRipemd160) + words * _gas(release, GasRipemd160Word);
 }
 
 static inline uint64_t _gas_datacopy(Release release, uint64_t size)
 {
     // check for overflow
     uint64_t words = (size + 31) / 32;
-	return _gas(release, GasDataCopy) + words * _gas(release, GasDataCopyWord);
+    return _gas(release, GasDataCopy) + words * _gas(release, GasDataCopyWord);
+}
+
+static inline uint64_t _gas_bn256add(Release release)
+{
+    return _gas(release, GasBn256Add);
+}
+
+static inline uint64_t _gas_bn256scalarmul(Release release)
+{
+    return _gas(release, GasBn256ScalarMul);
+}
+
+static inline uint64_t _gas_blake2f(Release release, uint64_t rounds)
+{
+    return _gas(release, GasBlake2f) + rounds * _gas(release, GasBlake2fRound);
 }
 
 class Stack {
@@ -2380,6 +2425,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                     return true;
                 }
                 case BN256ADD: {
+                    _consume_gas(gas, _gas_bn256add(release));
                     if (call_size != 2 * 2 * 32) throw INVALID_SIZE;
                     uint64_t call_offset = 0;
                     uint256_t x1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
@@ -2403,6 +2449,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                     return true;
                 }
                 case BN256SCALARMUL: {
+                    _consume_gas(gas, _gas_bn256scalarmul(release));
                     if (call_size != 2 * 32 + 32) throw INVALID_SIZE;
                     uint64_t call_offset = 0;
                     uint256_t x1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
@@ -2425,6 +2472,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                     if (call_data[call_size-1] > 1) throw INVALID_ENCODING;
                     uint64_t call_offset = 0;
                     uint32_t rounds = b2w32be(&call_data[call_offset]); call_offset += 4;
+                    _consume_gas(gas, _gas_blake2f(release, rounds));
                     uint64_t h0 = b2w64le(&call_data[call_offset]); call_offset += 8;
                     uint64_t h1 = b2w64le(&call_data[call_offset]); call_offset += 8;
                     uint64_t h2 = b2w64le(&call_data[call_offset]); call_offset += 8;
