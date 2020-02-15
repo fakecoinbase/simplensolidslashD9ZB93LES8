@@ -846,8 +846,8 @@ private:
 public:
     static inline const pointN_t inf() { pointN_t p(0, 0); p.is_inf = true; return p; }
     inline bool belongs() {
-	    if (is_inf) return false;
-	    return y * y - (x * x * x + a() * x + b()) == 0;
+        if (is_inf) return false;
+        return y * y - (x * x * x + a() * x + b()) == 0;
     }
     inline uint512_t as512() const {
         uint8_t buffer[64];
