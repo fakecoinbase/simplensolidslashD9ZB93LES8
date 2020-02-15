@@ -1308,6 +1308,8 @@ enum GasType : uint8_t {
     GasCallValueTransfer,
     GasCreate2,
     GasSelfDestruct,
+    GasSelfDestructNewAccount,
+    GasSelfdestructRefund,
     GasMemory,
     GasMemoryDiv,
     GasCopy,
@@ -1356,6 +1358,8 @@ enum GasCost : uint64_t {
     _GasCallValueTransfer = 9000,
     _GasCreate2 = 32000,
     _GasSelfDestruct = 5000,
+    _GasSelfDestructNewAccount = 25000,
+    _GasSelfdestructRefund = 24000,
     _GasMemory = 3,
     _GasMemoryDiv = 512,
     _GasCopy = 3,
@@ -1671,6 +1675,8 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasCallValueTransfer,
         _GasCreate2,
         _GasSelfDestruct,
+        _GasSelfDestructNewAccount,
+        _GasSelfdestructRefund,
         _GasMemory,
         _GasMemoryDiv,
         _GasCopy,
@@ -1718,6 +1724,8 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasCallValueTransfer,
         _GasCreate2,
         _GasSelfDestruct,
+        _GasSelfDestructNewAccount,
+        _GasSelfdestructRefund,
         _GasMemory,
         _GasMemoryDiv,
         _GasCopy,
@@ -1765,6 +1773,8 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasCallValueTransfer,
         _GasCreate2,
         _GasSelfDestruct,
+        _GasSelfDestructNewAccount,
+        _GasSelfdestructRefund,
         _GasMemory,
         _GasMemoryDiv,
         _GasCopy,
@@ -1812,6 +1822,8 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasCallValueTransfer,
         _GasCreate2,
         _GasSelfDestruct,
+        _GasSelfDestructNewAccount,
+        _GasSelfdestructRefund,
         _GasMemory,
         _GasMemoryDiv,
         _GasCopy,
@@ -1859,6 +1871,8 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasCallValueTransfer,
         _GasCreate2,
         _GasSelfDestruct,
+        _GasSelfDestructNewAccount,
+        _GasSelfdestructRefund,
         _GasMemory,
         _GasMemoryDiv,
         _GasCopy,
@@ -1936,31 +1950,16 @@ static inline uint64_t _gas_callcap(Release release, uint64_t gas, uint64_t rese
     return reserved_gas;
 }
 
-static inline uint64_t _gas_selfdestruct(Release release, bool exists)
+static inline uint64_t _gas_selfdestruct(Release release, bool funds, bool empty, bool exists)
 {
-    // review
-    uint64_t gas = 0;
-/*
-	if evm.chainRules.IsEIP150 {
-		gas = params.SelfdestructGasEIP150
-		var address = common.BigToAddress(stack.Back(0))
-
-		if evm.chainRules.IsEIP158 {
-			// if empty and transfers value
-			if evm.StateDB.Empty(address) && evm.StateDB.GetBalance(contract.Address()).Sign() != 0 {
-				gas += params.CreateBySelfdestructGas
-			}
-		} else if !evm.StateDB.Exist(address) {
-			gas += params.CreateBySelfdestructGas
-		}
-	}
-*/
-/*
-    // should no be here
-	if !evm.StateDB.HasSuicided(contract.Address()) {
-		evm.StateDB.AddRefund(params.SelfdestructRefundGas)
-	}*/
-	return gas;
+    if (release >= TANGERINE_WHISTLE) {
+        uint64_t used_gas = _gas(release, GasSelfDestruct);
+        bool is_legacy = release < SPURIOUS_DRAGON;
+        bool is_new = (is_legacy && !exists) || (!is_legacy && empty && funds);
+        if (is_new) used_gas += _gas(release, GasSelfDestructNewAccount);
+        return used_gas;
+    }
+    return 0;
 }
 
 static inline uint64_t _gas_sstore(Release release)
@@ -2089,7 +2088,6 @@ static inline uint64_t opcode_gas(Release release, uint8_t opc)
 {
     uint64_t gas = _gas(release, constgas[opc]);
     switch (opc) {
-    case SELFDESTRUCT: //_gas_selfdestruct
     case SSTORE: //_gas_sstore
     default: break;
     }
@@ -3060,9 +3058,10 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             return false;
         }
         case SELFDESTRUCT: {
-            uint256_t v1 = stack.pop();
+            uint256_t to = stack.pop();
             uint256_t amount = storage.balance(owner_address);
-            storage.add_balance(v1, amount);
+            _consume_gas(gas, _gas_selfdestruct(release, amount > 0, false/*empty*/, true/*exists*/));
+            storage.add_balance(to, amount);
             storage.set_balance(owner_address, 0);
             // mark owner_address for deletion
             return_size = 0;
