@@ -2111,20 +2111,12 @@ private:
     uint64_t limit = 0;
     uint64_t page_count = 0;
     uint8_t **pages;
-public:
-    ~Memory() {
-        for (uint64_t i = 0; i < page_count; i++) delete pages[i];
-        delete pages;
+    inline void mark(uint64_t end) {
+        if (end > limit) limit = ((end + 31) / 32) * 32;
     }
-    inline uint64_t size() const { return limit; }
-    inline uint8_t operator[](uint64_t i) const {
-        uint64_t page_index = i / P;
-        uint64_t byte_index = i % P;
-        if (page_index >= page_count) return 0;
-        if (pages[page_index] == nullptr) return 0;
-        return pages[page_index][byte_index];
-    }
-    inline uint8_t& operator[](uint64_t i) {
+    inline void expand(uint64_t end) {
+        if (end == 0) return;
+        uint64_t i = end - 1;
         uint64_t page_index = i / P;
         uint64_t byte_index = i % P;
         if (page_index >= page_count) {
@@ -2140,10 +2132,29 @@ public:
             pages[page_index] = new uint8_t[P]();
             if (pages[page_index] == nullptr) throw MEMORY_EXAUSTED;
         }
-        if (i > limit) limit = (((i + 1) + 31) / 32) * 32;
+        if (end > limit) limit = ((end + 31) / 32) * 32;
+    }
+    inline uint8_t get(uint64_t i) const {
+        uint64_t page_index = i / P;
+        uint64_t byte_index = i % P;
+        if (page_index >= page_count) return 0;
+        if (pages[page_index] == nullptr) return 0;
         return pages[page_index][byte_index];
     }
-    inline uint256_t load(const uint256_t &offset) const {
+    inline void set(uint64_t i, uint8_t v) {
+        uint64_t page_index = i / P;
+        uint64_t byte_index = i % P;
+        if (page_index >= page_count) throw OUTOFBOUND_INDEX;
+        if (pages[page_index] == nullptr) throw OUTOFBOUND_INDEX;
+        pages[page_index][byte_index] = v;
+    }
+public:
+    ~Memory() {
+        for (uint64_t i = 0; i < page_count; i++) delete pages[i];
+        delete pages;
+    }
+    inline uint64_t size() const { return limit; }
+    inline uint256_t load(const uint256_t &offset) {
         uint8_t buffer[32];
         dump(offset, 32, buffer);
         return uint256_t::from(buffer);
@@ -2153,26 +2164,23 @@ public:
         uint256_t::to(v, buffer);
         burn(offset, 32, buffer);
     }
-    inline void dump(const uint256_t &offset, const uint256_t &size, uint8_t *buffer) const {
+    inline void dump(const uint256_t &offset, const uint256_t &size, uint8_t *buffer) {
         uint64_t _offset = offset.cast64();
         uint64_t _size = size.cast64();
-        for (uint64_t i = 0; i < _size; i++) {
-            buffer[i] = (*this)[_offset+i];
-        }
+        mark(_offset + _size);
+        for (uint64_t i = 0; i < _size; i++) buffer[i] = get(_offset+i);
     }
     inline void burn(const uint256_t &offset, const uint256_t &size, const uint8_t *buffer) {
         uint64_t _offset = offset.cast64();
         uint64_t _size = size.cast64();
-        for (uint64_t i = 0; i < _size; i++) {
-            (*this)[_offset+i] = buffer[i];
-        }
+        expand(_offset + _size);
+        for (uint64_t i = 0; i < _size; i++) set(_offset+i, buffer[i]);
     }
     inline void clear(const uint256_t &offset, const uint256_t &size) {
         uint64_t _offset = offset.cast64();
         uint64_t _size = size.cast64();
-        for (uint64_t i = 0; i < _size; i++) {
-            (*this)[_offset+i] = 0;
-        }
+        expand(_offset + _size);
+        for (uint64_t i = 0; i < _size; i++) set(_offset+i, 0);
     }
 };
 
