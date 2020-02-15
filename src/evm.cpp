@@ -1316,6 +1316,13 @@ enum GasType : uint8_t {
     GasLog,
     GasLogTopic,
     GasLogData,
+    GasEcRecover,
+    GasSha256,
+    GasSha256Word,
+    GasRipemd160,
+    GasRipemd160Word,
+    GasDataCopy,
+    GasDataCopyWord,
     GasTxMessageCall,
     GasTxContractCreation,
     GasTxDataZero,
@@ -1366,6 +1373,13 @@ enum GasCost : uint64_t {
     _GasLog = 375,
     _GasLogTopic = 375,
     _GasLogData = 8,
+    _GasEcRecover = 3000,
+    _GasSha256 = 60,
+    _GasSha256Word = 12,
+    _GasRipemd160 = 600,
+    _GasRipemd160Word = 120,
+    _GasDataCopy = 15,
+    _GasDataCopyWord = 3,
     _GasTxMessageCall = 21000,
     _GasTxContractCreation = 21000,
     _GasTxDataZero = 4,
@@ -1687,6 +1701,13 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasLog,
         _GasLogTopic,
         _GasLogData,
+        _GasEcRecover,
+        _GasSha256,
+        _GasSha256Word,
+        _GasRipemd160,
+        _GasRipemd160Word,
+        _GasDataCopy,
+        _GasDataCopyWord,
         _GasTxMessageCall,
         _GasTxContractCreation,
         _GasTxDataZero,
@@ -1736,6 +1757,13 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasLog,
         _GasLogTopic,
         _GasLogData,
+        _GasEcRecover,
+        _GasSha256,
+        _GasSha256Word,
+        _GasRipemd160,
+        _GasRipemd160Word,
+        _GasDataCopy,
+        _GasDataCopyWord,
         _GasTxMessageCall,
         _GasTxContractCreation_Homestead,
         _GasTxDataZero,
@@ -1785,6 +1813,13 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasLog,
         _GasLogTopic,
         _GasLogData,
+        _GasEcRecover,
+        _GasSha256,
+        _GasSha256Word,
+        _GasRipemd160,
+        _GasRipemd160Word,
+        _GasDataCopy,
+        _GasDataCopyWord,
         _GasTxMessageCall,
         _GasTxContractCreation_Homestead,
         _GasTxDataZero,
@@ -1834,6 +1869,13 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasLog,
         _GasLogTopic,
         _GasLogData,
+        _GasEcRecover,
+        _GasSha256,
+        _GasSha256Word,
+        _GasRipemd160,
+        _GasRipemd160Word,
+        _GasDataCopy,
+        _GasDataCopyWord,
         _GasTxMessageCall,
         _GasTxContractCreation_Homestead,
         _GasTxDataZero,
@@ -1883,6 +1925,13 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasLog,
         _GasLogTopic,
         _GasLogData,
+        _GasEcRecover,
+        _GasSha256,
+        _GasSha256Word,
+        _GasRipemd160,
+        _GasRipemd160Word,
+        _GasDataCopy,
+        _GasDataCopyWord,
         _GasTxMessageCall,
         _GasTxContractCreation_Homestead,
         _GasTxDataZero,
@@ -1984,6 +2033,32 @@ static inline uint64_t _gas_sstore(Release release, uint64_t gas,
 static inline uint64_t opcode_gas(Release release, uint8_t opc)
 {
     return _gas(release, constgas[opc]);
+}
+
+static inline uint64_t _gas_ecrecover(Release release)
+{
+	return _gas(release, GasEcRecover);
+}
+
+static inline uint64_t _gas_sha256(Release release, uint64_t size)
+{
+    // check for overflow
+    uint64_t words = (size + 31) / 32;
+	return _gas(release, GasSha256) + words * _gas(release, GasSha256Word);
+}
+
+static inline uint64_t _gas_ripemd160(Release release, uint64_t size)
+{
+    // check for overflow
+    uint64_t words = (size + 31) / 32;
+	return _gas(release, GasRipemd160) + words * _gas(release, GasRipemd160Word);
+}
+
+static inline uint64_t _gas_datacopy(Release release, uint64_t size)
+{
+    // check for overflow
+    uint64_t words = (size + 31) / 32;
+	return _gas(release, GasDataCopy) + words * _gas(release, GasDataCopyWord);
 }
 
 class Stack {
@@ -2235,6 +2310,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             if ((pre[release] & (_1 << opc)) == 0) {
                 switch (opc) {
                 case ECRECOVER: {
+                    _consume_gas(gas, _gas_ecrecover(release));
                     uint64_t size = 32 + 32 + 32 + 32;
                     uint8_t buffer[size];
                     uint64_t minsize = _min(size, call_size);
@@ -2252,6 +2328,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                     return true;
                 }
                 case SHA256: {
+                    _consume_gas(gas, _gas_sha256(release, call_size));
                     uint256_t hash = sha256(call_data, call_size);
                     return_size = 32;
                     _ensure_capacity(return_data, return_size, return_capacity);
@@ -2259,6 +2336,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                     return true;
                 }
                 case RIPEMD160: {
+                    _consume_gas(gas, _gas_ripemd160(release, call_size));
                     uint256_t hash = (uint256_t)ripemd160(call_data, call_size);
                     return_size = 32;
                     _ensure_capacity(return_data, return_size, return_capacity);
@@ -2266,6 +2344,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                     return true;
                 }
                 case DATACOPY: {
+                    _consume_gas(gas, _gas_datacopy(release, call_size));
                     return_size = call_size;
                     _ensure_capacity(return_data, return_size, return_capacity);
                     for (uint64_t i = 0; i < return_size; i++) return_data[i] = call_data[i];
