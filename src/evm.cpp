@@ -1914,26 +1914,21 @@ static inline uint64_t _gas_sha3(Release release, uint32_t size) // aligned
 
 static inline uint64_t _gas_call(Release release, bool funds, bool empty, bool exists)
 {
-/*
-    tgas = 0;
-    if (funds) tgas += params.CallValueTransferGas;
-    if (EIP158) {
-        if (funds && empty) tgas += params.CallNewAccountGas;
-    } else {
-        if (!exists) tgas += params.CallNewAccountGas;
-    }
-    return tgas1;
-*/
-    return 0;
+    uint32_t used_gas = 0;
+    bool is_legacy = release < SPURIOUS_DRAGON;
+    bool is_new = (is_legacy && !exists) || (!is_legacy && empty && funds);
+    if (is_new) used_gas += _gas(release, GasCallNewAccount);
+    if (funds) used_gas += _gas(release, GasCallValueTransfer);
+    return used_gas;
 }
 
-static inline uint64_t _gas_callcap(Release release, uint64_t gas, uint64_t param_gas)
+static inline uint64_t _gas_callcap(Release release, uint64_t gas, uint64_t reserved_gas)
 {
-/*
-	rgas = gas - gas/64;
-	return EIP150 && rgas < pgas ? rgas : pgas;
-*/
-    return 0;
+    if (release >= TANGERINE_WHISTLE) {
+        uint64_t capped_gas = gas - (gas / 64);
+        if (capped_gas < reserved_gas) return capped_gas;
+    }
+    return reserved_gas;
 }
 
 static inline uint64_t _gas_selfdestruct(Release release, bool exists)
