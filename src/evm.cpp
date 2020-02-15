@@ -1877,25 +1877,26 @@ static inline uint64_t _gas(Release release, GasType type)
     return is_gas_table[is_gas_index[release]][type];
 }
 
-static inline uint64_t _gas_memory(Release release, uint64_t size1, uint64_t size2) // aligned
+static inline uint64_t _gas_memory(Release release, uint64_t size1, uint64_t size2)
 {
-    uint64_t words1 = size1 / 32;
-    uint64_t words2 = size2 / 32;
+    // check for overflow
+    uint64_t words1 = (size1 + 31) / 32;
+    uint64_t words2 = (size2 + 31) / 32;
+    if (words2 <= words1) return 0;
     // check for overflow
     return (words2 - words1) * _gas(release, GasMemory)
         + (words2 * words2) / _gas(release, GasMemoryDiv) - (words1 * words1) / _gas(release, GasMemoryDiv);
 }
 
-// aditional to memory
-static inline uint64_t _gas_copy(Release release, uint64_t size) // aligned
+static inline uint64_t _gas_copy(Release release, uint64_t size)
 {
-    uint64_t words = size / 32;
+    // check for overflow
+    uint64_t words = (size + 31) / 32;
     // check for overflow
     return words * _gas(release, GasCopy);
 }
 
-// additional to memory
-static inline uint64_t _gas_log(Release release, uint64_t n, uint64_t size) // unaligned
+static inline uint64_t _gas_log(Release release, uint64_t n, uint64_t size)
 {
     // check for overflow
     return _gas(release, GasLog) + n * _gas(release, GasLogTopic) + size * _gas(release, GasLogData);
@@ -2146,36 +2147,13 @@ static inline uint64_t opcode_gas(Release release, uint8_t opc)
 {
     uint64_t gas = _gas(release, constgas[opc]);
     switch (opc) {
-    case MLOAD: //_gas_memory
-    case MSTORE: //_gas_memory
-    case MSTORE8: //_gas_memory
-    case CREATE: //_gas_memory
-    case RETURN: //_gas_memory
-    case REVERT: //_gas_memory
-
-    case CALLDATACOPY: //_gas_memory+_gas_copy
-    case CODECOPY: //_gas_memory+_gas_copy
-    case EXTCODECOPY: //_gas_memory+_gas_copy
-    case RETURNDATACOPY: //_gas_memory+_gas_copy
-
-    case LOG0: //_gas_memory+_gas_log
-    case LOG1: //_gas_memory+_gas_log
-    case LOG2: //_gas_memory+_gas_log
-    case LOG3: //_gas_memory+_gas_log
-    case LOG4: //_gas_memory+_gas_log
-
-    case SHA3: //_gas_memory+_gas_sha3
-    case CREATE2: //_gas_memory+_gas_sha3
-    case CALL: //_gas_memory+_gas_call
-    case CALLCODE: //_gas_memory+_gas_callcode
-    case DELEGATECALL: //_gas_memory+_gas_delegatecall
-    case STATICCALL: //_gas_memory+_gas_staticcall
+    case CALL: //_gas_call
+    case CALLCODE: //_gas_callcode
+    case DELEGATECALL: //_gas_delegatecall
+    case STATICCALL: //_gas_staticcall
     case SELFDESTRUCT: //_gas_selfdestruct
-
     case EXP: //_gas_Exp
-
     case SSTORE: //_gas_sstore
-
     default: break;
     }
     return gas;
@@ -2248,12 +2226,12 @@ public:
         _delete(pages);
     }
     inline uint64_t size() const { return limit; }
-    inline uint256_t load(const uint256_t &offset) {
+    inline uint256_t load(uint64_t offset) {
         uint8_t buffer[32];
         dump(offset, 32, buffer);
         return uint256_t::from(buffer);
     }
-    inline void store(const uint256_t &offset, const uint256_t& v) {
+    inline void store(uint64_t offset, const uint256_t& v) {
         uint8_t buffer[32];
         uint256_t::to(v, buffer);
         burn(offset, 32, buffer);
@@ -2590,9 +2568,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         if (std::getenv("EVM_DEBUG")) std::cout << opcodes[opc] << std::endl;
         if ((is[release] & (_1 << opc)) == 0) throw INVALID_OPCODE;
         if (read_only && (is_writes & (_1 << opc)) > 0) throw ILLEGAL_UPDATE;
-
         _consume_gas(gas, opcode_gas(release, opc));
-
         switch (opc) {
         case STOP: { return_size = 0; return true; }
         case ADD: { uint256_t v1 = stack.pop(), v2 = stack.pop(); stack.push(v1 + v2); break; }
@@ -2644,6 +2620,8 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             _memory_check(v1, v2);
             uint64_t offset = v1.cast64(), size = v2.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), offset + size));
+            _consume_gas(gas, _gas_sha3(release, size));
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             stack.push(sha3(buffer, size));
@@ -2670,26 +2648,28 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case CALLDATACOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
             _memory_check(v1, v3);
-            uint64_t offset1 = v1.cast64();
-            uint64_t offset2 = v2 > call_size ? call_size : v2.cast64();
-            uint64_t size = v3.cast64();
-            uint64_t _size = size;
-            if (offset2 + size > call_size) size = call_size - offset2;
-            memory.burn(offset1, size, &call_data[offset2]);
-            memory.clear(offset1 + size, _size - size);
+            uint64_t offset1 = v1.cast64(), offset2 = v2.cast64(), size = v3.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), offset1 + size));
+            _consume_gas(gas, _gas_copy(release, size));
+            if (v2 > call_size) offset2 = call_size;
+            uint64_t burnsize = size;
+            if (offset2 + burnsize > call_size) burnsize = call_size - offset2;
+            memory.burn(offset1, burnsize, &call_data[offset2]);
+            memory.clear(offset1 + burnsize, size - burnsize);
             break;
         }
         case CODESIZE: { stack.push(code_size); break; }
         case CODECOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
             _memory_check(v1, v3);
-            uint64_t offset1 = v1.cast64();
-            uint64_t offset2 = v2 > code_size ? code_size : v2.cast64();
-            uint64_t size = v3.cast64();
-            uint64_t _size = size;
-            if (offset2 + size > code_size) size = code_size - offset2;
-            memory.burn(offset1, size, &code[offset2]);
-            memory.clear(offset1 + size, _size - size);
+            uint64_t offset1 = v1.cast64(), offset2 = v2.cast64(), size = v3.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), offset1 + size));
+            _consume_gas(gas, _gas_copy(release, size));
+            if (v2 > code_size) offset2 = code_size;
+            uint64_t burnsize = size;
+            if (offset2 + burnsize > code_size) burnsize = code_size - offset2;
+            memory.burn(offset1, burnsize, &code[offset2]);
+            memory.clear(offset1 + burnsize, size - burnsize);
             break;
         }
         case GASPRICE: { stack.push(gas_price); break; }
@@ -2697,27 +2677,30 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case EXTCODECOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             _memory_check(v2, v4);
-            uint64_t address = v1.cast64();
-            uint64_t offset1 = v2.cast64();
-            uint64_t offset2 = v3 > code_size ? code_size : v3.cast64();
-            uint64_t size = v4.cast64();
-            const uint8_t *code = storage.code(address);
-            const uint64_t code_size = storage.code_size(address);
-            uint64_t _size = size;
-            if (offset2 + size > code_size) size = code_size - offset2;
-            memory.burn(offset1, size, &code[offset2]);
-            memory.clear(offset1 + size, _size - size);
+            uint64_t offset1 = v2.cast64(), offset2 = v3.cast64(), size = v4.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), offset1 + size));
+            _consume_gas(gas, _gas_copy(release, size));
+            const uint8_t *extcode = storage.code(v1);
+            const uint64_t extcode_size = storage.code_size(v1);
+            if (v3 > extcode_size) offset2 = extcode_size;
+            uint64_t burnsize = size;
+            if (offset2 + burnsize > extcode_size) burnsize = extcode_size - offset2;
+            memory.burn(offset1, burnsize, &extcode[offset2]);
+            memory.clear(offset1 + burnsize, size - burnsize);
             break;
         }
         case RETURNDATASIZE: { stack.push(return_size); break; }
         case RETURNDATACOPY: {
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
             _memory_check(v1, v3);
-            uint64_t offset1 = v1.cast64();
-            uint64_t offset2 = v2.cast64();
-            uint64_t size = v3.cast64();
-            if (offset2 + size > return_size) throw OUTOFBOUND_INDEX;
-            memory.burn(offset1, size, &return_data[offset2]);
+            uint64_t offset1 = v1.cast64(), offset2 = v2.cast64(), size = v3.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), offset1 + size));
+            _consume_gas(gas, _gas_copy(release, size));
+            if (v2 > return_size) offset2 = return_size;
+            uint64_t burnsize = size;
+            if (offset2 + burnsize > return_size) burnsize = return_size - offset2;
+            memory.burn(offset1, burnsize, &return_data[offset2]);
+            memory.clear(offset1 + burnsize, size - burnsize);
             break;
         }
         case EXTCODEHASH: { uint256_t v1 = stack.pop(); stack.push(storage.code_hash(v1)); break; }
@@ -2730,14 +2713,30 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case CHAINID: { stack.push(block.chainid()); break; }
         case SELFBALANCE: { stack.push(storage.balance(owner_address)); break; }
         case POP: { stack.pop(); break; }
-        case MLOAD: { uint256_t v1 = stack.pop(); _memory_check(v1, 32); stack.push(memory.load(v1)); break; }
-        case MSTORE: { uint256_t v1 = stack.pop(), v2 = stack.pop(); _memory_check(v1, 32); memory.store(v1, v2); break; }
+        case MLOAD: {
+            uint256_t v1 = stack.pop();
+            _memory_check(v1, 32);
+            uint64_t offset = v1.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), offset + 32));
+            stack.push(memory.load(offset));
+            break;
+        }
+        case MSTORE: {
+            uint256_t v1 = stack.pop(), v2 = stack.pop();
+            _memory_check(v1, 32);
+            uint64_t offset = v1.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), offset + 32));
+            memory.store(offset, v2);
+            break;
+        }
         case MSTORE8: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             _memory_check(v1, 1);
+            uint64_t offset = v1.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), offset + 1));
             uint8_t buffer[1];
             buffer[0] = v2[31];
-            memory.burn(v1, 1, buffer);
+            memory.burn(offset, 1, buffer);
             break;
         }
         case SLOAD: { uint256_t v1 = stack.pop(); stack.push(storage.load(owner_address, v1)); break; }
@@ -2837,6 +2836,8 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             _memory_check(v1, v2);
             uint64_t offset = v1.cast64(), size = v2.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), offset + size));
+            _consume_gas(gas, _gas_log(release, 0, size));
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             log.log0(owner_address, buffer, size);
@@ -2846,6 +2847,8 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
             _memory_check(v1, v2);
             uint64_t offset = v1.cast64(), size = v2.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), offset + size));
+            _consume_gas(gas, _gas_log(release, 1, size));
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             log.log1(owner_address, v3, buffer, size);
@@ -2855,6 +2858,8 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             _memory_check(v1, v2);
             uint64_t offset = v1.cast64(), size = v2.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), offset + size));
+            _consume_gas(gas, _gas_log(release, 2, size));
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             log.log2(owner_address, v3, v4, buffer, size);
@@ -2864,6 +2869,8 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop(), v5 = stack.pop();
             _memory_check(v1, v2);
             uint64_t offset = v1.cast64(), size = v2.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), offset + size));
+            _consume_gas(gas, _gas_log(release, 3, size));
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             log.log3(owner_address, v3, v4, v5, buffer, size);
@@ -2873,6 +2880,8 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop(), v5 = stack.pop(), v6 = stack.pop();
             _memory_check(v1, v2);
             uint64_t offset = v1.cast64(), size = v2.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), offset + size));
+            _consume_gas(gas, _gas_log(release, 4, size));
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
             log.log4(owner_address, v3, v4, v5, v6, buffer, size);
@@ -2883,6 +2892,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             _memory_check(v1, v2);
             uint64_t init_offset = v1.cast64(), init_size = v2.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), init_offset + init_size));
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t init[init_size];
             memory.dump(init_offset, init_size, init);
@@ -2912,13 +2922,12 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             break;
         }
         case CALL: {
-            uint256_t _gas = stack.pop();
-            uint256_t code_address = stack.pop();
-            uint256_t value = stack.pop();
+            uint256_t _gas = stack.pop(), code_address = stack.pop(), value = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             _memory_check(v1, v2);
             _memory_check(v3, v4);
             uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), ret_offset + ret_size));
             if (read_only && value != 0) throw ILLEGAL_UPDATE;
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t args_data[args_size];
@@ -2950,13 +2959,12 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             break;
         }
         case CALLCODE: {
-            uint256_t _gas = stack.pop();
-            uint256_t code_address = stack.pop();
-            uint256_t value = stack.pop();
+            uint256_t _gas = stack.pop(), code_address = stack.pop(), value = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             _memory_check(v1, v2);
             _memory_check(v3, v4);
             uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), ret_offset + ret_size));
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
@@ -2987,18 +2995,19 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             _memory_check(v1, v2);
             uint64_t offset = v1.cast64(), size = v2.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), offset + size));
             return_size = size;
             _ensure_capacity(return_data, return_size, return_capacity);
             memory.dump(offset, return_size, return_data);
             return true;
         }
         case DELEGATECALL: {
-            uint256_t _gas = stack.pop();
-            uint256_t code_address = stack.pop();
+            uint256_t _gas = stack.pop(), code_address = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             _memory_check(v1, v2);
             _memory_check(v3, v4);
             uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), ret_offset + ret_size));
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
             const uint64_t code_size = storage.code_size(code_address);
@@ -3025,11 +3034,11 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             break;
         }
         case CREATE2: {
-            uint256_t value = stack.pop();
-            uint256_t v1 = stack.pop(), v2 = stack.pop();
-            uint256_t salt = stack.pop();
+            uint256_t value = stack.pop(), v1 = stack.pop(), v2 = stack.pop(), salt = stack.pop();
             _memory_check(v1, v2);
             uint64_t init_offset = v1.cast64(), init_size = v2.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), init_offset + init_size));
+            _consume_gas(gas, _gas_sha3(release, init_size));
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t init[init_size];
             memory.dump(init_offset, init_size, init);
@@ -3058,12 +3067,12 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             stack.push(success);
         }
         case STATICCALL: {
-            uint256_t _gas = stack.pop();
-            uint256_t code_address = stack.pop();
+            uint256_t _gas = stack.pop(), code_address = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             _memory_check(v1, v2);
             _memory_check(v3, v4);
             uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), ret_offset + ret_size));
             storage.add_balance(code_address, 0);
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
@@ -3094,6 +3103,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             _memory_check(v1, v2);
             uint64_t offset = v1.cast64(), size = v2.cast64();
+            _consume_gas(gas, _gas_memory(release, memory.size(), offset + size));
             return_size = size;
             _ensure_capacity(return_data, return_size, return_capacity);
             memory.dump(offset, return_size, return_data);
