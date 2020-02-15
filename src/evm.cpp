@@ -1905,79 +1905,35 @@ static inline uint64_t _gas_log(Release release, uint64_t n, uint64_t size)
 // additional to memory
 static inline uint64_t _gas_sha3(Release release, uint32_t size) // aligned
 {
+    // check for overflow
     uint64_t words = size / 32;
     // check for overflow
     return words * _gas(release, GasSha3Word);
 }
 
-static inline uint64_t _gas_base_call(Release release, uint64_t gas, uint64_t base_gas, uint64_t param_gas)
+
+static inline uint64_t _gas_call(Release release, bool funds, bool empty, bool exists)
 {
-    // review
 /*
-if isEip150 {
-    gas = gas - base_gas
-    ret_gas := gas - gas/64
-    // If the bit length exceeds 64 bit we know that the newly calculated "gas" for EIP150
-    // is smaller than the requested amount. Therefor we return the new gas instead
-    // of returning an error.
-    if !param_gas.IsUint64() || ret_gas < para_gas.Uint64() {
-        return gas, nil
+    tgas = 0;
+    if (funds) tgas += params.CallValueTransferGas;
+    if (EIP158) {
+        if (funds && empty) tgas += params.CallNewAccountGas;
+    } else {
+        if (!exists) tgas += params.CallNewAccountGas;
     }
-}
-if !param_gas.IsUint64() {
-    return 0, errGasUintOverflow
-}
+    return tgas1;
 */
-
-    // check for overflow
-    return param_gas;
+    return 0;
 }
 
-// additional to memory
-static inline uint64_t _gas_call(Release release, uint64_t gas, uint64_t param_gas, bool funds, bool creates)
+static inline uint64_t _gas_callcap(Release release, uint64_t gas, uint64_t param_gas)
 {
-    // review
-    uint64_t base_gas = 0;
 /*
-    if evm.chainRules.IsEIP158 {
-        if transfersValue && evm.StateDB.Empty(address) {
-            gas += params.CallNewAccountGas
-        }
-    } else if !evm.StateDB.Exist(address) {
-        gas += params.CallNewAccountGas
-    }
+	rgas = gas - gas/64;
+	return EIP150 && rgas < pgas ? rgas : pgas;
 */
-    // check for overflow
-    if (funds) gas += _gas(release, GasCallValueTransfer);
-    return _gas_base_call(release, gas, base_gas, param_gas);
-}
-
-// additional to memory
-static inline uint64_t _gas_callcode(Release release, uint64_t gas, uint64_t param_gas, bool funds)
-{
-    // review
-    uint64_t base_gas = 0;
-    // check for overflow
-    if (funds) gas += _gas(release, GasCallValueTransfer);
-    return _gas_base_call(release, gas, base_gas, param_gas);
-}
-
-// additional to memory
-static inline uint64_t _gas_delegatecall(Release release, uint64_t gas, uint64_t param_gas)
-{
-    // review
-    uint64_t base_gas = 0; // memory gas
-    // check for overflow
-    return _gas_base_call(release, gas, base_gas, param_gas);
-}
-
-// additional to memory
-static inline uint64_t _gas_staticcall(Release release, uint64_t gas, uint64_t param_gas)
-{
-    // review
-    uint64_t base_gas = 0; // memory gas
-    // check for overflow
-    return _gas_base_call(release, gas, base_gas, param_gas);
+    return 0;
 }
 
 static inline uint64_t _gas_selfdestruct(Release release, bool exists)
@@ -2147,10 +2103,6 @@ static inline uint64_t opcode_gas(Release release, uint8_t opc)
 {
     uint64_t gas = _gas(release, constgas[opc]);
     switch (opc) {
-    case CALL: //_gas_call
-    case CALLCODE: //_gas_callcode
-    case DELEGATECALL: //_gas_delegatecall
-    case STATICCALL: //_gas_staticcall
     case SELFDESTRUCT: //_gas_selfdestruct
     case EXP: //_gas_Exp
     case SSTORE: //_gas_sstore
@@ -2914,12 +2866,16 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             break;
         }
         case CALL: {
-            uint256_t _gas = stack.pop(), code_address = stack.pop(), value = stack.pop();
+            uint256_t v0 = stack.pop(), code_address = stack.pop(), value = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             _memory_check(v1, v2);
             _memory_check(v3, v4);
             uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
             _consume_gas(gas, _gas_memory(release, memory.size(), ret_offset + ret_size));
+            _consume_gas(gas, _gas_call(release, value > 0, /*empty*/false, /*exists*/true));
+            uint64_t reserved_gas = v0 > gas ? gas : v0.cast64();
+            uint64_t call_gas = _gas_callcap(release, gas, reserved_gas);
+            _consume_gas(gas, call_gas);
             if (read_only && value != 0) throw ILLEGAL_UPDATE;
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t args_data[args_size];
@@ -2936,12 +2892,13 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                                 origin_address, gas_price,
                                 code_address, code, code_size,
                                 owner_address, value, args_data, args_size,
-                                return_data, return_size, return_capacity, gas,
+                                return_data, return_size, return_capacity, call_gas,
                                 false, depth+1);
             } catch (Error e) {
                 success = false;
                 return_size = 0;
             }
+            // refund gas
             if (!success) storage.rollback(commit_id);
             uint64_t burnsize = ret_size;
             if (burnsize > return_size) burnsize = return_size;
@@ -2950,12 +2907,16 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             break;
         }
         case CALLCODE: {
-            uint256_t _gas = stack.pop(), code_address = stack.pop(), value = stack.pop();
+            uint256_t v0 = stack.pop(), code_address = stack.pop(), value = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             _memory_check(v1, v2);
             _memory_check(v3, v4);
             uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
             _consume_gas(gas, _gas_memory(release, memory.size(), ret_offset + ret_size));
+            _consume_gas(gas, _gas_call(release, value > 0, false, true));
+            uint64_t reserved_gas = v0 > gas ? gas : v0.cast64();
+            uint64_t call_gas = _gas_callcap(release, gas, reserved_gas);
+            _consume_gas(gas, call_gas);
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
@@ -2968,12 +2929,13 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                                 origin_address, gas_price,
                                 owner_address, code, code_size,
                                 caller_address, value, args_data, args_size,
-                                return_data, return_size, return_capacity, gas,
+                                return_data, return_size, return_capacity, call_gas,
                                 false, depth+1);
             } catch (Error e) {
                 success = false;
                 return_size = 0;
             }
+            // refund gas
             if (!success) storage.rollback(commit_id);
             uint64_t burnsize = ret_size;
             if (burnsize > return_size) burnsize = return_size;
@@ -2992,12 +2954,16 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             return true;
         }
         case DELEGATECALL: {
-            uint256_t _gas = stack.pop(), code_address = stack.pop();
+            uint256_t v0 = stack.pop(), code_address = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             _memory_check(v1, v2);
             _memory_check(v3, v4);
             uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
             _consume_gas(gas, _gas_memory(release, memory.size(), ret_offset + ret_size));
+            _consume_gas(gas, _gas_call(release, false, false, true));
+            uint64_t reserved_gas = v0 > gas ? gas : v0.cast64();
+            uint64_t call_gas = _gas_callcap(release, gas, reserved_gas);
+            _consume_gas(gas, call_gas);
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
             const uint64_t code_size = storage.code_size(code_address);
@@ -3009,12 +2975,13 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                                 origin_address, gas_price,
                                 owner_address, code, code_size,
                                 caller_address, call_value, args_data, args_size,
-                                return_data, return_size, return_capacity, gas,
+                                return_data, return_size, return_capacity, call_gas,
                                 false, depth+1);
             } catch (Error e) {
                 success = false;
                 return_size = 0;
             }
+            // refund gas
             if (!success) storage.rollback(commit_id);
             uint64_t burnsize = ret_size;
             if (burnsize > return_size) burnsize = return_size;
@@ -3056,12 +3023,16 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             stack.push(success);
         }
         case STATICCALL: {
-            uint256_t _gas = stack.pop(), code_address = stack.pop();
+            uint256_t v0 = stack.pop(), code_address = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             _memory_check(v1, v2);
             _memory_check(v3, v4);
             uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
             _consume_gas(gas, _gas_memory(release, memory.size(), ret_offset + ret_size));
+            _consume_gas(gas, _gas_call(release, false, false, true));
+            uint64_t reserved_gas = v0 > gas ? gas : v0.cast64();
+            uint64_t call_gas = _gas_callcap(release, gas, reserved_gas);
+            _consume_gas(gas, call_gas);
             storage.add_balance(code_address, 0);
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
@@ -3074,12 +3045,13 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                                 origin_address, gas_price,
                                 code_address, code, code_size,
                                 owner_address, 0, args_data, args_size,
-                                return_data, return_size, return_capacity, gas,
+                                return_data, return_size, return_capacity, call_gas,
                                 true, depth+1);
             } catch (Error e) {
                 success = false;
                 return_size = 0;
             }
+            // refund gass
             if (!success) storage.rollback(commit_id);
             uint64_t burnsize = ret_size;
             if (burnsize > return_size) burnsize = return_size;
