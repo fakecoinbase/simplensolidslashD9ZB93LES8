@@ -2234,25 +2234,19 @@ public:
     inline void store(uint64_t offset, const uint256_t& v) {
         uint8_t buffer[32];
         uint256_t::to(v, buffer);
-        burn(offset, 32, buffer);
+        burn(offset, 32, buffer, 32);
     }
-    inline void dump(const uint256_t &offset, const uint256_t &size, uint8_t *buffer) {
-        uint64_t _offset = offset.cast64();
-        uint64_t _size = size.cast64();
-        mark(_offset + _size);
-        for (uint64_t i = 0; i < _size; i++) buffer[i] = get(_offset+i);
+    inline void dump(uint64_t offset, uint64_t size, uint8_t *buffer) {
+        if (offset + size < offset) throw OUTOFBOUND_INDEX;
+        mark(offset + size);
+        for (uint64_t i = 0; i < size; i++) buffer[i] = get(offset+i);
     }
-    inline void burn(const uint256_t &offset, const uint256_t &size, const uint8_t *buffer) {
-        uint64_t _offset = offset.cast64();
-        uint64_t _size = size.cast64();
-        expand(_offset + _size);
-        for (uint64_t i = 0; i < _size; i++) set(_offset+i, buffer[i]);
-    }
-    inline void clear(const uint256_t &offset, const uint256_t &size) {
-        uint64_t _offset = offset.cast64();
-        uint64_t _size = size.cast64();
-        expand(_offset + _size);
-        for (uint64_t i = 0; i < _size; i++) set(_offset+i, 0);
+    inline void burn(uint64_t offset, uint64_t size, const uint8_t *buffer, uint64_t burnsize) {
+        if (offset + size < offset) throw OUTOFBOUND_INDEX;
+        expand(offset + size);
+        if (burnsize > size) burnsize = size;
+        for (uint64_t i = 0; i < burnsize; i++) set(offset+i, buffer[i]);
+        for (uint64_t i = burnsize; i < size; i++) set(offset+i, 0);
     }
 };
 
@@ -2654,8 +2648,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             if (v2 > call_size) offset2 = call_size;
             uint64_t burnsize = size;
             if (offset2 + burnsize > call_size) burnsize = call_size - offset2;
-            memory.burn(offset1, burnsize, &call_data[offset2]);
-            memory.clear(offset1 + burnsize, size - burnsize);
+            memory.burn(offset1, size, &call_data[offset2], burnsize);
             break;
         }
         case CODESIZE: { stack.push(code_size); break; }
@@ -2668,8 +2661,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             if (v2 > code_size) offset2 = code_size;
             uint64_t burnsize = size;
             if (offset2 + burnsize > code_size) burnsize = code_size - offset2;
-            memory.burn(offset1, burnsize, &code[offset2]);
-            memory.clear(offset1 + burnsize, size - burnsize);
+            memory.burn(offset1, size, &code[offset2], burnsize);
             break;
         }
         case GASPRICE: { stack.push(gas_price); break; }
@@ -2685,8 +2677,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             if (v3 > extcode_size) offset2 = extcode_size;
             uint64_t burnsize = size;
             if (offset2 + burnsize > extcode_size) burnsize = extcode_size - offset2;
-            memory.burn(offset1, burnsize, &extcode[offset2]);
-            memory.clear(offset1 + burnsize, size - burnsize);
+            memory.burn(offset1, size, &extcode[offset2], burnsize);
             break;
         }
         case RETURNDATASIZE: { stack.push(return_size); break; }
@@ -2699,8 +2690,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             if (v2 > return_size) offset2 = return_size;
             uint64_t burnsize = size;
             if (offset2 + burnsize > return_size) burnsize = return_size - offset2;
-            memory.burn(offset1, burnsize, &return_data[offset2]);
-            memory.clear(offset1 + burnsize, size - burnsize);
+            memory.burn(offset1, size, &return_data[offset2], burnsize);
             break;
         }
         case EXTCODEHASH: { uint256_t v1 = stack.pop(); stack.push(storage.code_hash(v1)); break; }
@@ -2736,7 +2726,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             _consume_gas(gas, _gas_memory(release, memory.size(), offset + 1));
             uint8_t buffer[1];
             buffer[0] = v2[31];
-            memory.burn(offset, 1, buffer);
+            memory.burn(offset, 1, buffer, 1);
             break;
         }
         case SLOAD: { uint256_t v1 = stack.pop(); stack.push(storage.load(owner_address, v1)); break; }
@@ -2951,10 +2941,9 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                 return_size = 0;
             }
             if (!success) storage.rollback(commit_id);
-            uint64_t size = ret_size;
-            if (size > return_size) size = return_size;
-            memory.burn(ret_offset, size, return_data);
-            memory.clear(ret_offset + size, ret_size - size);
+            uint64_t burnsize = ret_size;
+            if (burnsize > return_size) burnsize = return_size;
+            memory.burn(ret_offset, ret_size, return_data, burnsize);
             stack.push(success);
             break;
         }
@@ -2984,10 +2973,9 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                 return_size = 0;
             }
             if (!success) storage.rollback(commit_id);
-            uint64_t size = ret_size;
-            if (size > return_size) size = return_size;
-            memory.burn(ret_offset, size, return_data);
-            memory.clear(ret_offset + size, ret_size - size);
+            uint64_t burnsize = ret_size;
+            if (burnsize > return_size) burnsize = return_size;
+            memory.burn(ret_offset, ret_size, return_data, burnsize);
             stack.push(success);
             break;
         }
@@ -3026,10 +3014,9 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                 return_size = 0;
             }
             if (!success) storage.rollback(commit_id);
-            uint64_t size = ret_size;
-            if (size > return_size) size = return_size;
-            memory.burn(ret_offset, size, return_data);
-            memory.clear(ret_offset + size, ret_size - size);
+            uint64_t burnsize = ret_size;
+            if (burnsize > return_size) burnsize = return_size;
+            memory.burn(ret_offset, ret_size, return_data, burnsize);
             stack.push(success);
             break;
         }
@@ -3092,10 +3079,9 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                 return_size = 0;
             }
             if (!success) storage.rollback(commit_id);
-            uint64_t size = ret_size;
-            if (size > return_size) size = return_size;
-            memory.burn(ret_offset, size, return_data);
-            memory.clear(ret_offset + size, ret_size - size);
+            uint64_t burnsize = ret_size;
+            if (burnsize > return_size) burnsize = return_size;
+            memory.burn(ret_offset, ret_size, return_data, burnsize);
             stack.push(success);
             break;
         }
