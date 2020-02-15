@@ -30,6 +30,21 @@ enum Error {
     UNIMPLEMENTED,
 };
 
+template<typename T>
+static inline T *_new(uint64_t size)
+{
+    if (size == 0) return nullptr;
+    T* p = new(std::nothrow) T[size];
+    if (p == nullptr) throw MEMORY_EXAUSTED;
+    return p;
+}
+
+template<typename T>
+static inline void _delete(T *p)
+{
+    if (p != nullptr) delete p;
+}
+
 static const char *errors[UNIMPLEMENTED+1] = {
     nullptr,
     "CODE_CONFLICT",
@@ -951,15 +966,6 @@ static uint256_t ecrecover(const uint256_t &h, const uint256_t &v, const uint256
 
 /* decoder */
 
-template<typename T>
-static inline T *_new(uint64_t size)
-{
-    if (size == 0) return nullptr;
-    T* p = new(std::nothrow) T[size];
-    if (p == nullptr) throw MEMORY_EXAUSTED;
-    return p;
-}
-
 struct txn {
     uint256_t nonce;
     uint256_t gasprice;
@@ -1061,11 +1067,11 @@ static void free_rlp(struct rlp &rlp)
 {
     if (rlp.is_list) {
         for (uint64_t i = 0; i < rlp.size; i++) free_rlp(rlp.list[i]);
-        delete rlp.list;
+        _delete(rlp.list);
         rlp.size = 0;
         rlp.list = nullptr;
     } else {
-        delete rlp.data;
+        _delete(rlp.data);
         rlp.size = 0;
         rlp.data = nullptr;
     }
@@ -1111,12 +1117,12 @@ static void parse_rlp(const uint8_t *&b, uint64_t &s, struct rlp &rlp)
             try {
                 struct rlp *new_list = _new<struct rlp>(size + 1);
                 for (uint64_t i = 0; i < size; i++) new_list[i] = list[i];
-                delete list;
+                _delete(list);
                 list = new_list;
                 parse_rlp(_b, _s, list[size]);
             } catch (Error e) {
                 for (uint64_t i = 0; i < size; i++) free_rlp(list[i]);
-                delete list;
+                _delete(list);
                 throw e;
             }
             size++;
@@ -1220,7 +1226,7 @@ static struct txn decode_txn(const uint8_t *buffer, uint64_t size)
             txn.s = parse_nlzint(rlp.list[8].data, rlp.list[8].size);
         }
     } catch (Error e) {
-        delete txn.data;
+        _delete(txn.data);
         free_rlp(rlp);
         throw e;
     }
@@ -2113,7 +2119,7 @@ private:
     static constexpr int S = P / sizeof(uint8_t*);
     uint64_t limit = 0;
     uint64_t page_count = 0;
-    uint8_t **pages;
+    uint8_t **pages = nullptr;
     inline void mark(uint64_t end) {
         if (end > limit) limit = ((end + 31) / 32) * 32;
     }
@@ -2126,12 +2132,13 @@ private:
             uint8_t **new_pages = _new<uint8_t*>(new_page_count);
             for (uint64_t i = 0; i < page_count; i++) new_pages[i] = pages[i];
             for (uint64_t i = page_count; i < new_page_count; i++) new_pages[i] = nullptr;
-            page_count = new_page_count;
+            _delete(pages);
             pages = new_pages;
+            page_count = new_page_count;
         }
         if (pages[page_index] == nullptr) {
             pages[page_index] = _new<uint8_t>(P);
-            for (uint64_t i = 0; i < P; i++) pages[i] = 0;
+            for (uint64_t i = 0; i < P; i++) pages[page_index][i] = 0;
         }
         if (end > limit) limit = ((end + 31) / 32) * 32;
     }
@@ -2151,8 +2158,8 @@ private:
     }
 public:
     ~Memory() {
-        for (uint64_t i = 0; i < page_count; i++) delete pages[i];
-        delete pages;
+        for (uint64_t i = 0; i < page_count; i++) _delete(pages[i]);
+        _delete(pages);
     }
     inline uint64_t size() const { return limit; }
     inline uint256_t load(const uint256_t &offset) {
@@ -2313,7 +2320,7 @@ static inline void _ensure_capacity(uint8_t *&data, uint64_t &size, uint64_t &ca
 {
     if (size > capacity) {
         uint8_t *buffer = _new<uint8_t>(size);
-        delete data;
+        _delete(data);
         data = buffer;
         capacity = size;
     }
@@ -3052,7 +3059,7 @@ private:
         account_list[index].balance = balance;
     }
     void reset() {
-        for (int i = 0; i < account_size; i++) delete account_list[i].code;
+        for (int i = 0; i < account_size; i++) _delete(account_list[i].code);
         account_size = 0;
         keyvalue_size = 0;
     }
@@ -3337,7 +3344,7 @@ void raw(const uint8_t *buffer, uint64_t size, uint160_t sender)
         if (success) storage.register_code(to, return_data, return_size);
     }
 
-    delete return_data;
+    _delete(return_data);
     if (!success) storage.rollback(commit_id);
 
     // TODO refund gas if failure with refund
