@@ -1536,7 +1536,7 @@ enum Release {
     SPURIOUS_DRAGON,
     BYZANTIUM,
     CONSTANTINOPLE,
-    // PETERSBURG
+    PETERSBURG,
     ISTANBUL,
     // MUIR_GLACIER
 };
@@ -1579,7 +1579,8 @@ const uint256_t is_constantinople = is_byzantium
     | _1 << SAR
     | _1 << EXTCODEHASH
     | _1 << CREATE2;
-const uint256_t is_istanbul = is_constantinople
+const uint256_t is_petersburg = is_constantinople;
+const uint256_t is_istanbul = is_petersburg
     | _1 << CHAINID
     | _1 << SELFBALANCE;
 
@@ -1590,6 +1591,7 @@ static const uint256_t is[ISTANBUL+1] = {
     is_spurious_dragon,
     is_byzantium,
     is_constantinople,
+    is_petersburg,
     is_istanbul,
 };
 
@@ -1607,7 +1609,8 @@ static uint256_t pre_byzantium = pre_spurious_dragon
     | 1 << BN256SCALARMUL
     | 1 << BN256PAIRING;
 static uint256_t pre_constantinople = pre_byzantium;
-static uint256_t pre_istanbul = pre_constantinople
+static uint256_t pre_petersburg = pre_constantinople;
+static uint256_t pre_istanbul = pre_petersburg
     | 1 << BLAKE2F;
 
 static const uint256_t pre[ISTANBUL+1] = {
@@ -1617,6 +1620,7 @@ static const uint256_t pre[ISTANBUL+1] = {
     pre_spurious_dragon,
     pre_byzantium,
     pre_constantinople,
+    pre_petersburg,
     pre_istanbul,
 };
 
@@ -1786,7 +1790,7 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasTxDataZero,
         _GasTxDataNonZero,
     },
-    {   // spurious dragon | byzantium | constantinople
+    {   // spurious dragon | byzantium | constantinople | petersburg
         _GasNone,
         _GasQuickStep,
         _GasFastestStep,
@@ -1885,7 +1889,7 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasTxDataNonZero_Istanbul,
     },
 };
-static uint8_t is_gas_index[ISTANBUL+1] = { 0, 1, 2, 3, 3, 3, 4 };
+static uint8_t is_gas_index[ISTANBUL+1] = { 0, 1, 2, 3, 3, 3, 3, 4 };
 
 static inline uint64_t _gas(Release release, GasType type)
 {
@@ -1962,136 +1966,24 @@ static inline uint64_t _gas_selfdestruct(Release release, bool funds, bool empty
     return 0;
 }
 
-static inline uint64_t _gas_sstore(Release release)
+static inline uint64_t _gas_sstore(Release release, uint64_t gas,
+    bool set, bool clear, bool noop, bool dirty, bool init)
 {
-/*
-    // set
-    GasSstoreLegacySet = 20000
-    // SstoreSetGas = 20000
-
-    // clear
-    GasSstoreLegacyClear = 5000
-    // SstoreClearGas = 5000
-
-    // same type
-    GasSstoreLegacyReset = 5000
-    // SstoreResetGas = 5000
-
-    // refund
-    GasSstoreLegacyRefund = 15000
-    // SstoreRefundGas = 15000
-
-    // min gas
-    GasSstoreSentry = 0
-    GasSstoreSentry_Istanbul = 2300
-    // 0
-    // SstoreSentryGasEIP2200 = 2300
-
-    // same
-    GasSstoreNoop = 200
-    GasSstoreNoop_Istanbul = 800
-    // NetSstoreNoopGas = 200
-    // SstoreNoopGasEIP2200 = 800
-
-    // from clean zero
-    GasSstoreInit = 20000
-    // NetSstoreInitGas = 20000
-    // SstoreInitGasEIP2200 = 20000
-
-    // from clean non-zero
-    GasSstoreClean = 5000
-    // NetSstoreCleanGas = 5000
-    // SstoreCleanGasEIP2200 = 5000
-
-    // dirty change
-    GasSstoreDirty = 200
-    GasSstoreDirty_Istanbul = 800
-    // NetSstoreDirtyGas = 200
-    // SstoreDirtyGasEIP2200 = 800
-
-    // init refund
-    GasSstoreInitRefund = 19800
-    GasSstoreInitRefund_Istanbul = 19200
-    // NetSstoreResetClearRefund = 19800
-    // SstoreInitRefundEIP2200 = 19200
-
-    // reset refund
-    GasSstoreCleanRefund = 4800
-    GasSstoreCleanRefund_Istanbul = 4200
-    // NetSstoreResetRefund = 4800
-    // SstoreCleanRefundEIP2200 = 4200
-
-    // clear refund
-    GasSstoreClearRefund = 15000
-    // NetSstoreClearRefund = 15000
-    // SstoreClearRefundEIP2200 15000
-
-//Constantinople -> Istanbul SSTORE gasSStoreEIP2200
-func gasSStoreEIP2200(evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
-    if (params.SstoreSentryGasEIP2200 > 0) {
-	    if contract.Gas <= params.SstoreSentryGasEIP2200 {
-		    return 0, errors.New("not enough gas for reentrancy sentry")
-	    }
+    if (gas <= _gas(release, GasSstoreSentry)) return gas + 1;
+    if (release < CONSTANTINOPLE || (PETERSBURG <= release && release < ISTANBUL)) {
+        if (set) return _gas(release, GasSstoreLegacySet);
+        if (clear) return _gas(release, GasSstoreLegacyClear);
+        return _gas(release, GasSstoreLegacyReset);
     }
-	var (
-		y, x    = stack.Back(1), stack.Back(0)
-		current = evm.StateDB.GetState(contract.Address(), common.BigToHash(x))
-	)
-    if (!EIP2200) {
-	    if evm.chainRules.IsPetersburg || !evm.chainRules.IsConstantinople {
-		    switch {
-		    case current == (common.Hash{}) && y.Sign() != 0: // 0 => non 0
-			    return params.SstoreSetGas, nil
-		    case current != (common.Hash{}) && y.Sign() == 0: // non 0 => 0
-			    evm.StateDB.AddRefund(params.SstoreRefundGas)
-			    return params.SstoreClearGas, nil
-		    default: // non 0 => non 0 (or 0 => 0)
-			    return params.SstoreResetGas, nil
-		    }
-	    }
-    }
-	value := common.BigToHash(y)
-	if current == value { // noop (1)
-		return params.NetSstoreNoopGas, nil
-	}
-	original := evm.StateDB.GetCommittedState(contract.Address(), common.BigToHash(x))
-	if original == current {
-		if original == (common.Hash{}) { // create slot (2.1.1)
-			return params.NetSstoreInitGas, nil
-		}
-		if value == (common.Hash{}) { // delete slot (2.1.2b)
-			evm.StateDB.AddRefund(params.NetSstoreClearRefund)
-		}
-		return params.NetSstoreCleanGas, nil // write existing slot (2.1.2)
-	}
-	if original != (common.Hash{}) {
-		if current == (common.Hash{}) { // recreate slot (2.2.1.1)
-			evm.StateDB.SubRefund(params.NetSstoreClearRefund)
-		} else if value == (common.Hash{}) { // delete slot (2.2.1.2)
-			evm.StateDB.AddRefund(params.NetSstoreClearRefund)
-		}
-	}
-	if original == value {
-		if original == (common.Hash{}) { // reset to original inexistent slot (2.2.2.1)
-			evm.StateDB.AddRefund(params.NetSstoreResetClearRefund)
-		} else { // reset to original existing slot (2.2.2.2)
-			evm.StateDB.AddRefund(params.NetSstoreResetRefund)
-		}
-	}
-	return params.NetSstoreDirtyGas, nil
-}
-*/
-    return 0;
+    if (noop) return _gas(release, GasSstoreNoop);
+    if (dirty)  return _gas(release, GasSstoreDirty);
+    if (init) return _gas(release, GasSstoreInit);
+    return _gas(release, GasSstoreClean);
 }
 
 static inline uint64_t opcode_gas(Release release, uint8_t opc)
 {
-    uint64_t gas = _gas(release, constgas[opc]);
-    switch (opc) {
-    case SSTORE: //_gas_sstore
-    default: break;
-    }
-    return gas;
+    return _gas(release, constgas[opc]);
 }
 
 class Stack {
@@ -2673,8 +2565,13 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         }
         case SLOAD: { uint256_t v1 = stack.pop(); stack.push(storage.load(owner_address, v1)); break; }
         case SSTORE: {
-            uint256_t v1 = stack.pop(), v2 = stack.pop();
-            storage.store(owner_address, v1, v2);
+            uint256_t address = stack.pop(), value = stack.pop();
+            uint256_t current = storage.load(owner_address, address);
+            uint256_t original = current; // fix this
+            _consume_gas(gas, _gas_sstore(release, gas,
+                current == 0 && value > 0, current > 0 && value == 0,
+                current == value, current != original, original == 0));
+            storage.store(owner_address, address, value);
             break;
         }
         case JUMP: {
