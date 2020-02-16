@@ -99,7 +99,7 @@ public:
     inline uintX_t& operator=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] = v.data[i]; return *this; }
     inline uint64_t cast64() const { return ((uint64_t)data[1] << 32) | data[0]; }
     inline const uintX_t sigflip() const { uintX_t v = *this; v.data[W-1] ^= 0x80000000; return v; }
-    inline uint64_t bytes() const { for (uint64_t i = 0; i < B; i++) if (this[i] != 0) return 32 - i; return 0; }
+    inline uint64_t bytes() const { for (uint64_t i = 0; i < B; i++) if (this[i] != 0) return B - i; return 0; }
     inline const uintX_t operator~() const { uintX_t v; for (int i = 0; i < W; i++) v.data[i] = ~data[i]; return v; }
     inline const uintX_t operator-() const { uintX_t v = ~(*this); return ++v; }
     inline uintX_t& operator++() { for (int i = 0; i < W; i++) if (++data[i] != 0) break; return *this; }
