@@ -3108,7 +3108,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         }
         case JUMP: {
             uint256_t v1 = stack.pop();
-            if (v1 >= code_size) throw new ILLEGAL_TARGET;
+            if (v1 >= code_size) throw ILLEGAL_TARGET;
             pc = v1.cast64();
             _jumpdest_check(code, code_size, pc, pc_valid, pc_limit);
             pc--;
@@ -3117,7 +3117,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case JUMPI: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             if (v2 != 0) {
-                if (v1 >= code_size) throw new ILLEGAL_TARGET;
+                if (v1 >= code_size) throw ILLEGAL_TARGET;
                 pc = v1.cast64();
                 _jumpdest_check(code, code_size, pc, pc_valid, pc_limit);
                 pc--;
