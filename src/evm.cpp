@@ -1311,6 +1311,7 @@ enum GasType : uint8_t {
     GasCall,
     GasCallNewAccount,
     GasCallValueTransfer,
+    GasCallValueTransferStipend,
     GasCreate2,
     GasSelfDestruct,
     GasSelfDestructNewAccount,
@@ -1373,6 +1374,7 @@ enum GasCost : uint64_t {
     _GasCall = 40,
     _GasCallNewAccount = 25000,
     _GasCallValueTransfer = 9000,
+    _GasCallValueTransferStipend = 2300,
     _GasCreate2 = 32000,
     _GasSelfDestruct = 5000,
     _GasSelfDestructNewAccount = 25000,
@@ -1968,6 +1970,7 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasCall,
         _GasCallNewAccount,
         _GasCallValueTransfer,
+        _GasCallValueTransferStipend,
         _GasCreate2,
         _GasSelfDestruct,
         _GasSelfDestructNewAccount,
@@ -2029,6 +2032,7 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasCall,
         _GasCallNewAccount,
         _GasCallValueTransfer,
+        _GasCallValueTransferStipend,
         _GasCreate2,
         _GasSelfDestruct,
         _GasSelfDestructNewAccount,
@@ -2090,6 +2094,7 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasCall_TangerineWhistle,
         _GasCallNewAccount,
         _GasCallValueTransfer,
+        _GasCallValueTransferStipend,
         _GasCreate2,
         _GasSelfDestruct,
         _GasSelfDestructNewAccount,
@@ -2151,6 +2156,7 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasCall_TangerineWhistle,
         _GasCallNewAccount,
         _GasCallValueTransfer,
+        _GasCallValueTransferStipend,
         _GasCreate2,
         _GasSelfDestruct,
         _GasSelfDestructNewAccount,
@@ -2212,6 +2218,7 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasCall_TangerineWhistle,
         _GasCallNewAccount,
         _GasCallValueTransfer,
+        _GasCallValueTransferStipend,
         _GasCreate2,
         _GasSelfDestruct,
         _GasSelfDestructNewAccount,
@@ -2294,6 +2301,13 @@ static inline uint64_t _gas_call(Release release, bool funds, bool empty, bool e
     if (is_new) used_gas += _gas(release, GasCallNewAccount);
     if (funds) used_gas += _gas(release, GasCallValueTransfer);
     return used_gas;
+}
+
+static inline uint64_t _stipend_call(Release release, bool funds)
+{
+    uint32_t stipend_gas = 0;
+    if (funds) stipend_gas += _gas(release, GasCallValueTransferStipend);
+    return stipend_gas;
 }
 
 static inline uint64_t _gas_callcap(Release release, uint64_t gas, uint64_t reserved_gas)
@@ -3177,6 +3191,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint64_t reserved_gas = v0 > gas ? gas : v0.cast64();
             uint64_t call_gas = _gas_callcap(release, gas, reserved_gas);
             _consume_gas(gas, call_gas);
+            _refund_gas(call_gas, _stipend_call(release, value > 0));
             if (read_only && value != 0) throw ILLEGAL_UPDATE;
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t args_data[args_size];
@@ -3219,6 +3234,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint64_t reserved_gas = v0 > gas ? gas : v0.cast64();
             uint64_t call_gas = _gas_callcap(release, gas, reserved_gas);
             _consume_gas(gas, call_gas);
+            _refund_gas(call_gas, _stipend_call(release, value > 0));
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
