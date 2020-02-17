@@ -1493,6 +1493,266 @@ static const char *opcodes[256] = {
     "?", "?", "STATICCALL", "?", "?", "REVERT", "?", "SELFDESTRUCT",
 };
 
+static const uint16_t SL = 1024;
+static const uint16_t stackbounds[256][2] = {
+    { 0, SL - (0 - 0) }, // STOP
+    { 2, SL - (1 - 2) }, // ADD
+    { 2, SL - (1 - 2) }, // MUL
+    { 2, SL - (1 - 2) }, // SUB
+    { 2, SL - (1 - 2) }, // DIV
+    { 2, SL - (1 - 2) }, // SDIV
+    { 2, SL - (1 - 2) }, // MOD
+    { 2, SL - (1 - 2) }, // SMOD
+    { 3, SL - (1 - 3) }, // ADDMOD
+    { 3, SL - (1 - 3) }, // MULMOD
+    { 2, SL - (1 - 2) }, // EXP
+    { 2, SL - (1 - 2) }, // SIGNEXTEND
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 2, SL - (1 - 2) }, // LT
+    { 2, SL - (1 - 2) }, // GT
+    { 2, SL - (1 - 2) }, // SLT
+    { 2, SL - (1 - 2) }, // SGT
+    { 2, SL - (1 - 2) }, // EQ
+    { 1, SL - (1 - 1) }, // ISZERO
+    { 2, SL - (1 - 2) }, // AND
+    { 2, SL - (1 - 2) }, // OR
+    { 2, SL - (1 - 2) }, // XOR
+    { 1, SL - (1 - 1) }, // NOT
+    { 2, SL - (1 - 2) }, // BYTE
+    { 2, SL - (1 - 2) }, // SHL
+    { 2, SL - (1 - 2) }, // SHR
+    { 2, SL - (1 - 2) }, // SAR
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 2, SL - (1 - 2) }, // SHA3
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (1 - 0) }, // ADDRESS
+    { 1, SL - (1 - 1) }, // BALANCE
+    { 0, SL - (1 - 0) }, // ORIGIN
+    { 0, SL - (1 - 0) }, // CALLER
+    { 0, SL - (1 - 0) }, // CALLVALUE
+    { 1, SL - (1 - 1) }, // CALLDATALOAD
+    { 0, SL - (1 - 0) }, // CALLDATASIZE
+    { 3, SL - (0 - 3) }, // CALLDATACOPY
+    { 0, SL - (1 - 0) }, // CODESIZE
+    { 3, SL - (0 - 3) }, // CODECOPY
+    { 0, SL - (1 - 0) }, // GASPRICE
+    { 1, SL - (1 - 1) }, // EXTCODESIZE
+    { 4, SL - (0 - 4) }, // EXTCODECOPY
+    { 0, SL - (1 - 0) }, // RETURNDATASIZE
+    { 3, SL - (0 - 3) }, // RETURNDATACOPY
+    { 1, SL - (1 - 1) }, // EXTCODEHASH
+    { 1, SL - (1 - 1) }, // BLOCKHASH
+    { 0, SL - (1 - 0) }, // COINBASE
+    { 0, SL - (1 - 0) }, // TIMESTAMP
+    { 0, SL - (1 - 0) }, // NUMBER
+    { 0, SL - (1 - 0) }, // DIFFICULTY
+    { 0, SL - (1 - 0) }, // GASLIMIT
+    { 0, SL - (1 - 0) }, // CHAINID
+    { 0, SL - (1 - 0) }, // SELFBALANCE
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 1, SL - (0 - 1) }, // POP
+    { 1, SL - (1 - 1) }, // MLOAD
+    { 2, SL - (0 - 2) }, // MSTORE
+    { 2, SL - (0 - 2) }, // MSTORE8
+    { 1, SL - (1 - 1) }, // SLOAD
+    { 2, SL - (0 - 2) }, // SSTORE
+    { 1, SL - (0 - 1) }, // JUMP
+    { 2, SL - (0 - 2) }, // JUMPI
+    { 0, SL - (1 - 0) }, // PC
+    { 0, SL - (1 - 0) }, // MSIZE
+    { 0, SL - (1 - 0) }, // GAS
+    { 0, SL - (0 - 0) }, // JUMPDEST
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (1 - 0) }, // PUSH1
+    { 0, SL - (1 - 0) }, // PUSH2
+    { 0, SL - (1 - 0) }, // PUSH3
+    { 0, SL - (1 - 0) }, // PUSH4
+    { 0, SL - (1 - 0) }, // PUSH5
+    { 0, SL - (1 - 0) }, // PUSH6
+    { 0, SL - (1 - 0) }, // PUSH7
+    { 0, SL - (1 - 0) }, // PUSH8
+    { 0, SL - (1 - 0) }, // PUSH9
+    { 0, SL - (1 - 0) }, // PUSH10
+    { 0, SL - (1 - 0) }, // PUSH11
+    { 0, SL - (1 - 0) }, // PUSH12
+    { 0, SL - (1 - 0) }, // PUSH13
+    { 0, SL - (1 - 0) }, // PUSH14
+    { 0, SL - (1 - 0) }, // PUSH15
+    { 0, SL - (1 - 0) }, // PUSH16
+    { 0, SL - (1 - 0) }, // PUSH17
+    { 0, SL - (1 - 0) }, // PUSH18
+    { 0, SL - (1 - 0) }, // PUSH19
+    { 0, SL - (1 - 0) }, // PUSH20
+    { 0, SL - (1 - 0) }, // PUSH21
+    { 0, SL - (1 - 0) }, // PUSH22
+    { 0, SL - (1 - 0) }, // PUSH23
+    { 0, SL - (1 - 0) }, // PUSH24
+    { 0, SL - (1 - 0) }, // PUSH25
+    { 0, SL - (1 - 0) }, // PUSH26
+    { 0, SL - (1 - 0) }, // PUSH27
+    { 0, SL - (1 - 0) }, // PUSH28
+    { 0, SL - (1 - 0) }, // PUSH29
+    { 0, SL - (1 - 0) }, // PUSH30
+    { 0, SL - (1 - 0) }, // PUSH31
+    { 0, SL - (1 - 0) }, // PUSH32
+    { 1, SL - (2 - 1) }, // DUP1
+    { 2, SL - (3 - 2) }, // DUP2
+    { 3, SL - (4 - 3) }, // DUP3
+    { 4, SL - (5 - 4) }, // DUP4
+    { 5, SL - (6 - 5) }, // DUP5
+    { 6, SL - (7 - 6) }, // DUP6
+    { 7, SL - (8 - 7) }, // DUP7
+    { 8, SL - (9 - 8) }, // DUP8
+    { 9, SL - (10- 9) }, // DUP9
+    { 10,SL - (11-10) }, // DUP10
+    { 11,SL - (12-11) }, // DUP11
+    { 12,SL - (13-12) }, // DUP12
+    { 13,SL - (14-13) }, // DUP13
+    { 14,SL - (15-14) }, // DUP14
+    { 15,SL - (16-15) }, // DUP15
+    { 16,SL - (17-16) }, // DUP16
+    { 2, SL - (2 - 2) }, // SWAP1
+    { 3, SL - (3 - 3) }, // SWAP2
+    { 4, SL - (4 - 4) }, // SWAP3
+    { 5, SL - (5 - 5) }, // SWAP4
+    { 6, SL - (6 - 6) }, // SWAP5
+    { 7, SL - (7 - 7) }, // SWAP6
+    { 8, SL - (8 - 8) }, // SWAP7
+    { 9, SL - (9 - 9) }, // SWAP8
+    { 10,SL - (10-10) }, // SWAP9
+    { 11,SL - (11-11) }, // SWAP10
+    { 12,SL - (12-12) }, // SWAP11
+    { 13,SL - (13-13) }, // SWAP12
+    { 14,SL - (14-14) }, // SWAP13
+    { 15,SL - (15-15) }, // SWAP14
+    { 16,SL - (16-16) }, // SWAP15
+    { 17,SL - (17-17) }, // SWAP16
+    { 2, SL - (0 - 2) }, // LOG0
+    { 3, SL - (0 - 3) }, // LOG1
+    { 4, SL - (0 - 4) }, // LOG2
+    { 5, SL - (0 - 5) }, // LOG3
+    { 6, SL - (0 - 6) }, // LOG4
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 3, SL - (1 - 3) }, // CREATE
+    { 7, SL - (1 - 7) }, // CALL
+    { 7, SL - (1 - 7) }, // CALLCODE
+    { 2, SL - (0 - 2) }, // RETURN
+    { 6, SL - (1 - 6) }, // DELEGATECALL
+    { 4, SL - (1 - 4) }, // CREATE2
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 6, SL - (1 - 6) }, // STATICCALL
+    { 0, SL - (0 - 0) },
+    { 0, SL - (0 - 0) },
+    { 2, SL - (0 - 2) }, // REVERT
+    { 0, SL - (0 - 0) },
+    { 1, SL - (0 - 1) }, // SELFDESTRUCT
+};
+
 static const GasType constgas[256] = {
     /*STOP*/GasNone, /*ADD*/GasFastestStep, /*MUL*/GasFastStep, /*SUB*/GasFastestStep, /*DIV*/GasFastStep, /*SDIV*/GasFastStep, /*MOD*/GasFastStep, /*SMOD*/GasFastStep,
     /*ADDMOD*/GasMidStep, /*MULMOD*/GasMidStep, /*EXP*/GasExp, /*SIGNEXTEND*/GasFastStep, GasNone, GasNone, GasNone, GasNone,
@@ -2120,19 +2380,20 @@ static inline uint64_t _gas_blake2f(Release release, uint64_t rounds)
 
 class Stack {
 private:
-    static constexpr int L = 1024;
+    static constexpr int L = SL;
+    uint16_t _top = 0;
     uint256_t data[L];
-    int top = 0;
 public:
-    inline const uint256_t pop() { if (top == 0) throw STACK_UNDERFLOW;  return data[--top]; }
-    inline void push(const uint256_t& v) { if (top == L) throw STACK_OVERFLOW; data[top++] = v; }
-    inline const uint256_t &operator[](int i) const {
-        if (i < 1 || i > top) throw OUTOFBOUND_INDEX;
-        return data[top - i];
+    inline uint64_t top() const { return _top; }
+    inline const uint256_t pop() { if (_top == 0) throw STACK_UNDERFLOW;  return data[--_top]; }
+    inline void push(const uint256_t& v) { if (_top == L) throw STACK_OVERFLOW; data[_top++] = v; }
+    inline const uint256_t &operator[](uint16_t i) const {
+        if (i < 1 || i > _top) throw OUTOFBOUND_INDEX;
+        return data[_top - i];
     }
-    inline uint256_t& operator[](int i) {
-        if (i < 1 || i > top) throw OUTOFBOUND_INDEX;
-        return data[top - i];
+    inline uint256_t& operator[](uint64_t i) {
+        if (i < 1 || i > _top) throw OUTOFBOUND_INDEX;
+        return data[_top - i];
     }
 };
 
@@ -2336,7 +2597,14 @@ static inline void _consume_gas(uint64_t &gas, uint64_t cost)
     gas -= cost;
 }
 
-static inline void _memory_check(const uint256_t &offset, const uint256_t&size) {
+static inline void _stack_check(uint8_t opc, uint64_t stacktop)
+{
+    if (stacktop < stackbounds[opc][0]) throw STACK_UNDERFLOW;
+    if (stacktop > stackbounds[opc][1]) throw STACK_OVERFLOW;
+}
+
+static inline void _memory_check(const uint256_t &offset, const uint256_t&size)
+{
     if ((size >> 64) > 0) throw OUTOFBOUND_INDEX;
     if ((offset >> 64) > 0) throw OUTOFBOUND_INDEX;
     if (((offset + size) >> 64) > 0) throw OUTOFBOUND_INDEX;
@@ -2530,6 +2798,9 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         uint8_t opc = pc < code_size ? code[pc] : STOP;
         if (std::getenv("EVM_DEBUG")) std::cout << opcodes[opc] << std::endl;
         if ((is[release] & (_1 << opc)) == 0) throw INVALID_OPCODE;
+
+        _stack_check(opc, stack.top());
+
         if (read_only && (is_writes & (_1 << opc)) > 0) throw ILLEGAL_UPDATE;
         _consume_gas(gas, opcode_gas(release, opc));
         switch (opc) {
