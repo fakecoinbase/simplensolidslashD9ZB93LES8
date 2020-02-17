@@ -958,7 +958,7 @@ static uint256_t ecrecover(const uint256_t &h, const uint256_t &v, const uint256
 {
     if (v < 27 || v > 28) throw INVALID_SIGNATURE;
     if (r == 0 || mod_t(r).as256() != r) throw INVALID_SIGNATURE;
-    if (s == 0 || 2*s < s || mod_t(2*s - 2).as256() != 2*s - 2) throw INVALID_SIGNATURE;
+    if (s == 0 || mod_t(s).as256() != s) throw INVALID_SIGNATURE;
     point_t q = point_t::find(r, v == 28);
     mud_t z = 1 / (mud_t)r;
     mud_t u = -(mud_t)h;
@@ -3700,6 +3700,9 @@ static inline void _verify_txn(Release release, struct txn &txn)
             uint256_t chainid = (txn.v - 35) / 2;
             if (chainid != CHAIN_ID) throw INVALID_TRANSACTION;
         }
+    }
+    if (release >= HOMESTEAD) {
+        if (txn.s == 0 || 2*txn.s < txn.s || mod_t(2*txn.s - 1).as256() != 2*txn.s - 1) throw INVALID_TRANSACTION;
     }
 }
 
