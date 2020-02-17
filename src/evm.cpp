@@ -2596,6 +2596,12 @@ static inline void _consume_gas(uint64_t &gas, uint64_t cost)
     gas -= cost;
 }
 
+static inline void _refund_gas(uint64_t &gas, uint64_t stipend)
+{
+    _assert(gas + stipend >= gas);
+    gas += stipend;
+}
+
 static inline void _stack_check(uint8_t opc, uint64_t stacktop)
 {
     if (stacktop < stackbounds[opc][0]) throw STACK_UNDERFLOW;
@@ -3189,6 +3195,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                                 owner_address, value, args_data, args_size,
                                 return_data, return_size, return_capacity, call_gas,
                                 false, depth+1);
+                _refund_gas(gas, call_gas);
             } catch (Error e) {
                 success = false;
                 return_size = 0;
@@ -3226,6 +3233,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                                 owner_address, value, args_data, args_size,
                                 return_data, return_size, return_capacity, call_gas,
                                 false, depth+1);
+                _refund_gas(gas, call_gas);
             } catch (Error e) {
                 success = false;
                 return_size = 0;
@@ -3272,6 +3280,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                                 caller_address, call_value, args_data, args_size,
                                 return_data, return_size, return_capacity, call_gas,
                                 false, depth+1);
+                _refund_gas(gas, call_gas);
             } catch (Error e) {
                 success = false;
                 return_size = 0;
@@ -3342,6 +3351,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                                 owner_address, 0, args_data, args_size,
                                 return_data, return_size, return_capacity, call_gas,
                                 true, depth+1);
+                _refund_gas(gas, call_gas);
             } catch (Error e) {
                 success = false;
                 return_size = 0;
