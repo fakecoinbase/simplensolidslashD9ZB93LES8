@@ -1499,264 +1499,264 @@ static const char *opcodes[256] = {
     "?", "?", "STATICCALL", "?", "?", "REVERT", "?", "SELFDESTRUCT",
 };
 
-static const uint16_t SL = 1024;
+static const uint16_t STACK_SIZE = 1024;
 static const uint16_t stackbounds[256][2] = {
-    { 0, SL - (0 - 0) }, // STOP
-    { 2, SL - (1 - 2) }, // ADD
-    { 2, SL - (1 - 2) }, // MUL
-    { 2, SL - (1 - 2) }, // SUB
-    { 2, SL - (1 - 2) }, // DIV
-    { 2, SL - (1 - 2) }, // SDIV
-    { 2, SL - (1 - 2) }, // MOD
-    { 2, SL - (1 - 2) }, // SMOD
-    { 3, SL - (1 - 3) }, // ADDMOD
-    { 3, SL - (1 - 3) }, // MULMOD
-    { 2, SL - (1 - 2) }, // EXP
-    { 2, SL - (1 - 2) }, // SIGNEXTEND
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 2, SL - (1 - 2) }, // LT
-    { 2, SL - (1 - 2) }, // GT
-    { 2, SL - (1 - 2) }, // SLT
-    { 2, SL - (1 - 2) }, // SGT
-    { 2, SL - (1 - 2) }, // EQ
-    { 1, SL - (1 - 1) }, // ISZERO
-    { 2, SL - (1 - 2) }, // AND
-    { 2, SL - (1 - 2) }, // OR
-    { 2, SL - (1 - 2) }, // XOR
-    { 1, SL - (1 - 1) }, // NOT
-    { 2, SL - (1 - 2) }, // BYTE
-    { 2, SL - (1 - 2) }, // SHL
-    { 2, SL - (1 - 2) }, // SHR
-    { 2, SL - (1 - 2) }, // SAR
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 2, SL - (1 - 2) }, // SHA3
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (1 - 0) }, // ADDRESS
-    { 1, SL - (1 - 1) }, // BALANCE
-    { 0, SL - (1 - 0) }, // ORIGIN
-    { 0, SL - (1 - 0) }, // CALLER
-    { 0, SL - (1 - 0) }, // CALLVALUE
-    { 1, SL - (1 - 1) }, // CALLDATALOAD
-    { 0, SL - (1 - 0) }, // CALLDATASIZE
-    { 3, SL - (0 - 3) }, // CALLDATACOPY
-    { 0, SL - (1 - 0) }, // CODESIZE
-    { 3, SL - (0 - 3) }, // CODECOPY
-    { 0, SL - (1 - 0) }, // GASPRICE
-    { 1, SL - (1 - 1) }, // EXTCODESIZE
-    { 4, SL - (0 - 4) }, // EXTCODECOPY
-    { 0, SL - (1 - 0) }, // RETURNDATASIZE
-    { 3, SL - (0 - 3) }, // RETURNDATACOPY
-    { 1, SL - (1 - 1) }, // EXTCODEHASH
-    { 1, SL - (1 - 1) }, // BLOCKHASH
-    { 0, SL - (1 - 0) }, // COINBASE
-    { 0, SL - (1 - 0) }, // TIMESTAMP
-    { 0, SL - (1 - 0) }, // NUMBER
-    { 0, SL - (1 - 0) }, // DIFFICULTY
-    { 0, SL - (1 - 0) }, // GASLIMIT
-    { 0, SL - (1 - 0) }, // CHAINID
-    { 0, SL - (1 - 0) }, // SELFBALANCE
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 1, SL - (0 - 1) }, // POP
-    { 1, SL - (1 - 1) }, // MLOAD
-    { 2, SL - (0 - 2) }, // MSTORE
-    { 2, SL - (0 - 2) }, // MSTORE8
-    { 1, SL - (1 - 1) }, // SLOAD
-    { 2, SL - (0 - 2) }, // SSTORE
-    { 1, SL - (0 - 1) }, // JUMP
-    { 2, SL - (0 - 2) }, // JUMPI
-    { 0, SL - (1 - 0) }, // PC
-    { 0, SL - (1 - 0) }, // MSIZE
-    { 0, SL - (1 - 0) }, // GAS
-    { 0, SL - (0 - 0) }, // JUMPDEST
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (1 - 0) }, // PUSH1
-    { 0, SL - (1 - 0) }, // PUSH2
-    { 0, SL - (1 - 0) }, // PUSH3
-    { 0, SL - (1 - 0) }, // PUSH4
-    { 0, SL - (1 - 0) }, // PUSH5
-    { 0, SL - (1 - 0) }, // PUSH6
-    { 0, SL - (1 - 0) }, // PUSH7
-    { 0, SL - (1 - 0) }, // PUSH8
-    { 0, SL - (1 - 0) }, // PUSH9
-    { 0, SL - (1 - 0) }, // PUSH10
-    { 0, SL - (1 - 0) }, // PUSH11
-    { 0, SL - (1 - 0) }, // PUSH12
-    { 0, SL - (1 - 0) }, // PUSH13
-    { 0, SL - (1 - 0) }, // PUSH14
-    { 0, SL - (1 - 0) }, // PUSH15
-    { 0, SL - (1 - 0) }, // PUSH16
-    { 0, SL - (1 - 0) }, // PUSH17
-    { 0, SL - (1 - 0) }, // PUSH18
-    { 0, SL - (1 - 0) }, // PUSH19
-    { 0, SL - (1 - 0) }, // PUSH20
-    { 0, SL - (1 - 0) }, // PUSH21
-    { 0, SL - (1 - 0) }, // PUSH22
-    { 0, SL - (1 - 0) }, // PUSH23
-    { 0, SL - (1 - 0) }, // PUSH24
-    { 0, SL - (1 - 0) }, // PUSH25
-    { 0, SL - (1 - 0) }, // PUSH26
-    { 0, SL - (1 - 0) }, // PUSH27
-    { 0, SL - (1 - 0) }, // PUSH28
-    { 0, SL - (1 - 0) }, // PUSH29
-    { 0, SL - (1 - 0) }, // PUSH30
-    { 0, SL - (1 - 0) }, // PUSH31
-    { 0, SL - (1 - 0) }, // PUSH32
-    { 1, SL - (2 - 1) }, // DUP1
-    { 2, SL - (3 - 2) }, // DUP2
-    { 3, SL - (4 - 3) }, // DUP3
-    { 4, SL - (5 - 4) }, // DUP4
-    { 5, SL - (6 - 5) }, // DUP5
-    { 6, SL - (7 - 6) }, // DUP6
-    { 7, SL - (8 - 7) }, // DUP7
-    { 8, SL - (9 - 8) }, // DUP8
-    { 9, SL - (10- 9) }, // DUP9
-    { 10,SL - (11-10) }, // DUP10
-    { 11,SL - (12-11) }, // DUP11
-    { 12,SL - (13-12) }, // DUP12
-    { 13,SL - (14-13) }, // DUP13
-    { 14,SL - (15-14) }, // DUP14
-    { 15,SL - (16-15) }, // DUP15
-    { 16,SL - (17-16) }, // DUP16
-    { 2, SL - (2 - 2) }, // SWAP1
-    { 3, SL - (3 - 3) }, // SWAP2
-    { 4, SL - (4 - 4) }, // SWAP3
-    { 5, SL - (5 - 5) }, // SWAP4
-    { 6, SL - (6 - 6) }, // SWAP5
-    { 7, SL - (7 - 7) }, // SWAP6
-    { 8, SL - (8 - 8) }, // SWAP7
-    { 9, SL - (9 - 9) }, // SWAP8
-    { 10,SL - (10-10) }, // SWAP9
-    { 11,SL - (11-11) }, // SWAP10
-    { 12,SL - (12-12) }, // SWAP11
-    { 13,SL - (13-13) }, // SWAP12
-    { 14,SL - (14-14) }, // SWAP13
-    { 15,SL - (15-15) }, // SWAP14
-    { 16,SL - (16-16) }, // SWAP15
-    { 17,SL - (17-17) }, // SWAP16
-    { 2, SL - (0 - 2) }, // LOG0
-    { 3, SL - (0 - 3) }, // LOG1
-    { 4, SL - (0 - 4) }, // LOG2
-    { 5, SL - (0 - 5) }, // LOG3
-    { 6, SL - (0 - 6) }, // LOG4
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 3, SL - (1 - 3) }, // CREATE
-    { 7, SL - (1 - 7) }, // CALL
-    { 7, SL - (1 - 7) }, // CALLCODE
-    { 2, SL - (0 - 2) }, // RETURN
-    { 6, SL - (1 - 6) }, // DELEGATECALL
-    { 4, SL - (1 - 4) }, // CREATE2
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 6, SL - (1 - 6) }, // STATICCALL
-    { 0, SL - (0 - 0) },
-    { 0, SL - (0 - 0) },
-    { 2, SL - (0 - 2) }, // REVERT
-    { 0, SL - (0 - 0) },
-    { 1, SL - (0 - 1) }, // SELFDESTRUCT
+    { 0, STACK_SIZE - (0 - 0) }, // STOP
+    { 2, STACK_SIZE - (1 - 2) }, // ADD
+    { 2, STACK_SIZE - (1 - 2) }, // MUL
+    { 2, STACK_SIZE - (1 - 2) }, // SUB
+    { 2, STACK_SIZE - (1 - 2) }, // DIV
+    { 2, STACK_SIZE - (1 - 2) }, // SDIV
+    { 2, STACK_SIZE - (1 - 2) }, // MOD
+    { 2, STACK_SIZE - (1 - 2) }, // SMOD
+    { 3, STACK_SIZE - (1 - 3) }, // ADDMOD
+    { 3, STACK_SIZE - (1 - 3) }, // MULMOD
+    { 2, STACK_SIZE - (1 - 2) }, // EXP
+    { 2, STACK_SIZE - (1 - 2) }, // SIGNEXTEND
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 2, STACK_SIZE - (1 - 2) }, // LT
+    { 2, STACK_SIZE - (1 - 2) }, // GT
+    { 2, STACK_SIZE - (1 - 2) }, // SLT
+    { 2, STACK_SIZE - (1 - 2) }, // SGT
+    { 2, STACK_SIZE - (1 - 2) }, // EQ
+    { 1, STACK_SIZE - (1 - 1) }, // ISZERO
+    { 2, STACK_SIZE - (1 - 2) }, // AND
+    { 2, STACK_SIZE - (1 - 2) }, // OR
+    { 2, STACK_SIZE - (1 - 2) }, // XOR
+    { 1, STACK_SIZE - (1 - 1) }, // NOT
+    { 2, STACK_SIZE - (1 - 2) }, // BYTE
+    { 2, STACK_SIZE - (1 - 2) }, // SHL
+    { 2, STACK_SIZE - (1 - 2) }, // SHR
+    { 2, STACK_SIZE - (1 - 2) }, // SAR
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 2, STACK_SIZE - (1 - 2) }, // SHA3
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (1 - 0) }, // ADDRESS
+    { 1, STACK_SIZE - (1 - 1) }, // BALANCE
+    { 0, STACK_SIZE - (1 - 0) }, // ORIGIN
+    { 0, STACK_SIZE - (1 - 0) }, // CALLER
+    { 0, STACK_SIZE - (1 - 0) }, // CALLVALUE
+    { 1, STACK_SIZE - (1 - 1) }, // CALLDATALOAD
+    { 0, STACK_SIZE - (1 - 0) }, // CALLDATASIZE
+    { 3, STACK_SIZE - (0 - 3) }, // CALLDATACOPY
+    { 0, STACK_SIZE - (1 - 0) }, // CODESIZE
+    { 3, STACK_SIZE - (0 - 3) }, // CODECOPY
+    { 0, STACK_SIZE - (1 - 0) }, // GASPRICE
+    { 1, STACK_SIZE - (1 - 1) }, // EXTCODESIZE
+    { 4, STACK_SIZE - (0 - 4) }, // EXTCODECOPY
+    { 0, STACK_SIZE - (1 - 0) }, // RETURNDATASIZE
+    { 3, STACK_SIZE - (0 - 3) }, // RETURNDATACOPY
+    { 1, STACK_SIZE - (1 - 1) }, // EXTCODEHASH
+    { 1, STACK_SIZE - (1 - 1) }, // BLOCKHASH
+    { 0, STACK_SIZE - (1 - 0) }, // COINBASE
+    { 0, STACK_SIZE - (1 - 0) }, // TIMESTAMP
+    { 0, STACK_SIZE - (1 - 0) }, // NUMBER
+    { 0, STACK_SIZE - (1 - 0) }, // DIFFICULTY
+    { 0, STACK_SIZE - (1 - 0) }, // GASLIMIT
+    { 0, STACK_SIZE - (1 - 0) }, // CHAINID
+    { 0, STACK_SIZE - (1 - 0) }, // SELFBALANCE
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 1, STACK_SIZE - (0 - 1) }, // POP
+    { 1, STACK_SIZE - (1 - 1) }, // MLOAD
+    { 2, STACK_SIZE - (0 - 2) }, // MSTORE
+    { 2, STACK_SIZE - (0 - 2) }, // MSTORE8
+    { 1, STACK_SIZE - (1 - 1) }, // SLOAD
+    { 2, STACK_SIZE - (0 - 2) }, // SSTORE
+    { 1, STACK_SIZE - (0 - 1) }, // JUMP
+    { 2, STACK_SIZE - (0 - 2) }, // JUMPI
+    { 0, STACK_SIZE - (1 - 0) }, // PC
+    { 0, STACK_SIZE - (1 - 0) }, // MSIZE
+    { 0, STACK_SIZE - (1 - 0) }, // GAS
+    { 0, STACK_SIZE - (0 - 0) }, // JUMPDEST
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH1
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH2
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH3
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH4
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH5
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH6
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH7
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH8
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH9
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH10
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH11
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH12
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH13
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH14
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH15
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH16
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH17
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH18
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH19
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH20
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH21
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH22
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH23
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH24
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH25
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH26
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH27
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH28
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH29
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH30
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH31
+    { 0, STACK_SIZE - (1 - 0) }, // PUSH32
+    { 1, STACK_SIZE - (2 - 1) }, // DUP1
+    { 2, STACK_SIZE - (3 - 2) }, // DUP2
+    { 3, STACK_SIZE - (4 - 3) }, // DUP3
+    { 4, STACK_SIZE - (5 - 4) }, // DUP4
+    { 5, STACK_SIZE - (6 - 5) }, // DUP5
+    { 6, STACK_SIZE - (7 - 6) }, // DUP6
+    { 7, STACK_SIZE - (8 - 7) }, // DUP7
+    { 8, STACK_SIZE - (9 - 8) }, // DUP8
+    { 9, STACK_SIZE - (10- 9) }, // DUP9
+    { 10,STACK_SIZE - (11-10) }, // DUP10
+    { 11,STACK_SIZE - (12-11) }, // DUP11
+    { 12,STACK_SIZE - (13-12) }, // DUP12
+    { 13,STACK_SIZE - (14-13) }, // DUP13
+    { 14,STACK_SIZE - (15-14) }, // DUP14
+    { 15,STACK_SIZE - (16-15) }, // DUP15
+    { 16,STACK_SIZE - (17-16) }, // DUP16
+    { 2, STACK_SIZE - (2 - 2) }, // SWAP1
+    { 3, STACK_SIZE - (3 - 3) }, // SWAP2
+    { 4, STACK_SIZE - (4 - 4) }, // SWAP3
+    { 5, STACK_SIZE - (5 - 5) }, // SWAP4
+    { 6, STACK_SIZE - (6 - 6) }, // SWAP5
+    { 7, STACK_SIZE - (7 - 7) }, // SWAP6
+    { 8, STACK_SIZE - (8 - 8) }, // SWAP7
+    { 9, STACK_SIZE - (9 - 9) }, // SWAP8
+    { 10,STACK_SIZE - (10-10) }, // SWAP9
+    { 11,STACK_SIZE - (11-11) }, // SWAP10
+    { 12,STACK_SIZE - (12-12) }, // SWAP11
+    { 13,STACK_SIZE - (13-13) }, // SWAP12
+    { 14,STACK_SIZE - (14-14) }, // SWAP13
+    { 15,STACK_SIZE - (15-15) }, // SWAP14
+    { 16,STACK_SIZE - (16-16) }, // SWAP15
+    { 17,STACK_SIZE - (17-17) }, // SWAP16
+    { 2, STACK_SIZE - (0 - 2) }, // LOG0
+    { 3, STACK_SIZE - (0 - 3) }, // LOG1
+    { 4, STACK_SIZE - (0 - 4) }, // LOG2
+    { 5, STACK_SIZE - (0 - 5) }, // LOG3
+    { 6, STACK_SIZE - (0 - 6) }, // LOG4
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 3, STACK_SIZE - (1 - 3) }, // CREATE
+    { 7, STACK_SIZE - (1 - 7) }, // CALL
+    { 7, STACK_SIZE - (1 - 7) }, // CALLCODE
+    { 2, STACK_SIZE - (0 - 2) }, // RETURN
+    { 6, STACK_SIZE - (1 - 6) }, // DELEGATECALL
+    { 4, STACK_SIZE - (1 - 4) }, // CREATE2
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 6, STACK_SIZE - (1 - 6) }, // STATICCALL
+    { 0, STACK_SIZE - (0 - 0) },
+    { 0, STACK_SIZE - (0 - 0) },
+    { 2, STACK_SIZE - (0 - 2) }, // REVERT
+    { 0, STACK_SIZE - (0 - 0) },
+    { 1, STACK_SIZE - (0 - 1) }, // SELFDESTRUCT
 };
 
 static const GasType constgas[256] = {
@@ -2386,7 +2386,7 @@ static inline uint64_t _gas_blake2f(Release release, uint64_t rounds)
 
 class Stack {
 private:
-    static constexpr int L = SL;
+    static constexpr int L = STACK_SIZE;
     uint16_t _top = 0;
     uint256_t data[L];
 public:
