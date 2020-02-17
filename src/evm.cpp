@@ -8,7 +8,8 @@
 /* error */
 
 enum Error {
-    CODE_CONFLICT = 1, // VM
+    ASSERT_VIOLATION = 1,
+    CODE_CONFLICT, // VM
     DIVIDES_ZERO,
     GAS_EXAUSTED, // VM
     MEMORY_EXAUSTED,
@@ -29,6 +30,11 @@ enum Error {
     UNKNOWN_FILE,
     UNIMPLEMENTED,
 };
+
+static inline void _assert(bool cond)
+{
+    if (!cond) throw ASSERT_VIOLATION;
+}
 
 template<typename T>
 static inline T *_new(uint64_t size)
@@ -2385,16 +2391,9 @@ private:
     uint256_t data[L];
 public:
     inline uint64_t top() const { return _top; }
-    inline const uint256_t pop() { if (_top == 0) throw STACK_UNDERFLOW;  return data[--_top]; }
-    inline void push(const uint256_t& v) { if (_top == L) throw STACK_OVERFLOW; data[_top++] = v; }
-    inline const uint256_t &operator[](uint16_t i) const {
-        if (i < 1 || i > _top) throw OUTOFBOUND_INDEX;
-        return data[_top - i];
-    }
-    inline uint256_t& operator[](uint64_t i) {
-        if (i < 1 || i > _top) throw OUTOFBOUND_INDEX;
-        return data[_top - i];
-    }
+    inline const uint256_t pop() { _assert(_top > 0); return data[--_top]; }
+    inline void push(const uint256_t& v) {  _assert(_top < L); data[_top++] = v; }
+    inline uint256_t& operator[](uint64_t i) { _assert(i < _top); return data[_top - i]; }
 };
 
 class Memory {
