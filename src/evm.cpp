@@ -1844,6 +1844,7 @@ enum Release : uint8_t {
     // MUIR_GLACIER
 };
 
+const uint8_t CHAIN_ID = 1;
 const uint32_t releaseforkblock[ISTANBUL+1] = {
     0000000, // 2015-07-30 FRONTIER
     1150000, // 2016-03-15 HOMESTEAD
@@ -2624,7 +2625,6 @@ public:
 
 class Block {
 public:
-    virtual const uint256_t& chainid() = 0;
     virtual const uint256_t& forknumber() = 0;
     virtual const uint256_t& timestamp() = 0;
     virtual const uint256_t& number() = 0;
@@ -3015,7 +3015,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case NUMBER: { stack.push(block.number()); break; }
         case DIFFICULTY: { stack.push(block.difficulty()); break; }
         case GASLIMIT: { stack.push(block.gaslimit()); break; }
-        case CHAINID: { stack.push(block.chainid()); break; }
+        case CHAINID: { stack.push(CHAIN_ID); break; }
         case SELFBALANCE: { stack.push(storage.balance(owner_address)); break; }
         case POP: { stack.pop(); break; }
         case MLOAD: {
@@ -3678,7 +3678,6 @@ public:
     _Block() {}
     _Block(uint256_t timestamp, uint256_t number, const uint256_t& coinbase, const uint256_t &gaslimit, const uint256_t &difficulty)
         : _timestamp(timestamp), _number(number), _coinbase(coinbase), _gaslimit(gaslimit), _difficulty(difficulty) {}
-    const uint256_t& chainid() { return _1; } // configurable
     const uint256_t& forknumber() { return _number; }
     const uint256_t& timestamp() { return _timestamp; }
     const uint256_t& number() { return _number; }
@@ -3692,6 +3691,41 @@ public:
     }
 };
 
+static inline void _verify_txn(Release release, struct txn &txn)
+{
+    if (!txn.is_signed) throw INVALID_TRANSACTION;
+    if (release >= SPURIOUS_DRAGON) {
+        if (txn.v != 27 && txn.v != 28) {
+            if (txn.v < 35) throw INVALID_TRANSACTION; // assumes CHAIN_ID >= 0
+            uint256_t chainid = (txn.v - 35) / 2;
+            if (chainid != CHAIN_ID) throw INVALID_TRANSACTION;
+        }
+    }
+}
+
+static inline uint256_t _txn_hash(struct txn &txn)
+{
+    _assert(txn.is_signed);
+    _assert(txn.v == 27 || txn.v == 28 || txn.v == 35 + 2 * CHAIN_ID || txn.v == 36 + 2 * CHAIN_ID);
+    uint256_t v = txn.v;
+    uint256_t r = txn.r;
+    uint256_t s = txn.s;
+    txn.is_signed = v > 28;
+    txn.v = CHAIN_ID;
+    txn.r = 0;
+    txn.s = 0;
+    uint64_t unsigned_size = encode_txn(txn);
+    uint8_t unsigned_buffer[unsigned_size];
+    encode_txn(txn, unsigned_buffer, unsigned_size);
+    uint256_t h = sha3(unsigned_buffer, unsigned_size);
+    txn.is_signed = true;
+    txn.v = v > 28 ? v - (8 + 2 * CHAIN_ID) : v;
+    txn.r = r;
+    txn.s = s;
+    _assert(txn.v == 27 || txn.v == 28);
+    return h;
+}
+
 void raw(const uint8_t *buffer, uint64_t size, uint160_t sender)
 {
     _Block block;
@@ -3703,29 +3737,8 @@ void raw(const uint8_t *buffer, uint64_t size, uint160_t sender)
     Release release = get_release(block.forknumber().cast64());
 
     struct txn txn = decode_txn(buffer, size);
-    if (!txn.is_signed) throw INVALID_TRANSACTION;
-
-    uint256_t offset = 8 + 2 * block.chainid();
-    if (txn.v != 27 && txn.v != 28 && txn.v != 27 + offset && txn.v != 28 + offset) throw INVALID_TRANSACTION;
-
-    uint256_t h;
-    {
-        uint256_t v = txn.v;
-        uint256_t r = txn.r;
-        uint256_t s = txn.s;
-        txn.is_signed = v > 28;
-        txn.v = block.chainid();
-        txn.r = 0;
-        txn.s = 0;
-        uint64_t unsigned_size = encode_txn(txn);
-        uint8_t unsigned_buffer[unsigned_size];
-        encode_txn(txn, unsigned_buffer, unsigned_size);
-        h = sha3(unsigned_buffer, unsigned_size);
-        txn.is_signed = true;
-        txn.v = v > 28 ? v - offset : v;
-        txn.r = r;
-        txn.s = s;
-    }
+    _verify_txn(release, txn);
+    uint256_t h = _txn_hash(txn);
 
     // check for overflow
     uint64_t intrinsic_gas = _gas(release, txn.has_to ? GasTxMessageCall : GasTxContractCreation);
