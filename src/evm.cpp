@@ -3784,6 +3784,7 @@ void raw(const uint8_t *buffer, uint64_t size, uint160_t sender)
                             false, 0);
         } catch (Error e) {
             success = false;
+            gas = 0;
         }
     }
 
@@ -3803,6 +3804,7 @@ void raw(const uint8_t *buffer, uint64_t size, uint160_t sender)
             }
         } catch (Error e) {
             success = false;
+            gas = 0;
         }
     }
 
