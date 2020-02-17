@@ -102,7 +102,7 @@ public:
         for (int i = s; i < W; i++) data[i] = 0;
     }
     inline uintX_t& operator=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] = v.data[i]; return *this; }
-    inline uint64_t cast64() const { return ((uint64_t)data[1] << 32) | data[0]; }
+    inline uint64_t cast64() const { _assert(W > 1); for (int i = 2; i < W; i++) _assert(data[i] == 0); return ((uint64_t)data[1] << 32) | data[0]; }
     inline const uintX_t sigflip() const { uintX_t v = *this; v.data[W-1] ^= 0x80000000; return v; }
     inline uint64_t bytes() const { for (uint64_t i = 0; i < B; i++) if (this[i] != 0) return B - i; return 0; }
     inline const uintX_t operator~() const { uintX_t v; for (int i = 0; i < W; i++) v.data[i] = ~data[i]; return v; }
@@ -3007,10 +3007,9 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case CALLVALUE: { stack.push(call_value); break; }
         case CALLDATALOAD: {
             uint256_t v1 = stack.pop();
-            uint64_t offset = v1.cast64();
+            uint64_t offset = v1 > call_size ? call_size : v1.cast64();
             uint8_t buffer[32];
             uint64_t size = 32;
-            if (offset > call_size) offset = call_size;
             if (offset + size > call_size) size = call_size - offset;
             for (uint64_t i = 0; i < size; i++) buffer[i] = call_data[offset + i];
             for (uint64_t i = size; i < 32; i++) buffer[i] = 0;
