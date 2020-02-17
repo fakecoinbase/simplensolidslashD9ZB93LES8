@@ -1308,6 +1308,7 @@ enum GasType : uint8_t {
     GasSstoreClearRefund,
     GasJumpdest,
     GasCreate,
+    GasCreateData,
     GasCall,
     GasCallNewAccount,
     GasCallValueTransfer,
@@ -1371,6 +1372,7 @@ enum GasCost : uint64_t {
     _GasSstoreClearRefund = 15000,
     _GasJumpdest = 1,
     _GasCreate = 32000,
+    _GasCreateData = 200,
     _GasCall = 40,
     _GasCallNewAccount = 25000,
     _GasCallValueTransfer = 9000,
@@ -1967,6 +1969,7 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasSstoreClearRefund,
         _GasJumpdest,
         _GasCreate,
+        _GasCreateData,
         _GasCall,
         _GasCallNewAccount,
         _GasCallValueTransfer,
@@ -2029,6 +2032,7 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasSstoreClearRefund,
         _GasJumpdest,
         _GasCreate,
+        _GasCreateData,
         _GasCall,
         _GasCallNewAccount,
         _GasCallValueTransfer,
@@ -2091,6 +2095,7 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasSstoreClearRefund,
         _GasJumpdest,
         _GasCreate,
+        _GasCreateData,
         _GasCall_TangerineWhistle,
         _GasCallNewAccount,
         _GasCallValueTransfer,
@@ -2153,6 +2158,7 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasSstoreClearRefund,
         _GasJumpdest,
         _GasCreate,
+        _GasCreateData,
         _GasCall_TangerineWhistle,
         _GasCallNewAccount,
         _GasCallValueTransfer,
@@ -2215,6 +2221,7 @@ static const uint64_t is_gas_table[5][GasTxDataNonZero+1] = {
         _GasSstoreClearRefund_Istanbul,
         _GasJumpdest,
         _GasCreate,
+        _GasCreateData,
         _GasCall_TangerineWhistle,
         _GasCallNewAccount,
         _GasCallValueTransfer,
@@ -2279,8 +2286,7 @@ static inline uint64_t _gas_log(Release release, uint64_t n, uint64_t size)
     return _gas(release, GasLog) + n * _gas(release, GasLogTopic) + size * _gas(release, GasLogData);
 }
 
-// additional to memory
-static inline uint64_t _gas_sha3(Release release, uint32_t size) // aligned
+static inline uint64_t _gas_sha3(Release release, uint64_t size)
 {
     // check for overflow
     uint64_t words = size / 32;
@@ -2317,6 +2323,12 @@ static inline uint64_t _gas_callcap(Release release, uint64_t gas, uint64_t rese
         if (capped_gas < reserved_gas) return capped_gas;
     }
     return reserved_gas;
+}
+
+static inline uint64_t _gas_create(Release release, uint64_t size)
+{
+    // check for overflow
+    return size * _gas(release, GasCreateData);
 }
 
 static inline uint64_t _gas_selfdestruct(Release release, bool funds, bool empty, bool exists)
@@ -3144,6 +3156,8 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             _memory_check(v1, v2);
             uint64_t init_offset = v1.cast64(), init_size = v2.cast64();
             _consume_gas(gas, _gas_memory(release, memory.size(), init_offset + init_size));
+            uint64_t create_gas = _gas_callcap(release, gas, gas);
+            _consume_gas(gas, create_gas);
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t init[init_size];
             memory.dump(init_offset, init_size, init);
@@ -3161,8 +3175,11 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                                 origin_address, gas_price,
                                 code_address, init, init_size,
                                 owner_address, value, nullptr, 0,
-                                return_data, return_size, return_capacity, gas,
+                                return_data, return_size, return_capacity, create_gas,
                                 false, depth+1);
+                // check if code size exceeds limit and throw
+                if (success) _consume_gas(create_gas, _gas_create(release, return_size));
+                _refund_gas(gas, create_gas);
             } catch (Error e) {
                 success = false;
                 return_size = 0;
@@ -3298,6 +3315,8 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint64_t init_offset = v1.cast64(), init_size = v2.cast64();
             _consume_gas(gas, _gas_memory(release, memory.size(), init_offset + init_size));
             _consume_gas(gas, _gas_sha3(release, init_size));
+            uint64_t create_gas = _gas_callcap(release, gas, gas);
+            _consume_gas(gas, create_gas);
             if (storage.balance(owner_address) < value) throw INSUFFICIENT_BALANCE;
             uint8_t init[init_size];
             memory.dump(init_offset, init_size, init);
@@ -3315,8 +3334,11 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                                 origin_address, gas_price,
                                 code_address, init, init_size,
                                 owner_address, value, nullptr, 0,
-                                return_data, return_size, return_capacity, gas,
+                                return_data, return_size, return_capacity, create_gas,
                                 false, depth+1);
+                // check if code size exceeds limit and throw
+                if (success) _consume_gas(create_gas, _gas_create(release, return_size));
+                _refund_gas(gas, create_gas);
             } catch (Error e) {
                 success = false;
                 return_size = 0;
