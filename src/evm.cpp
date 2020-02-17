@@ -1502,6 +1502,8 @@ static const char *opcodes[256] = {
     "?", "?", "STATICCALL", "?", "?", "REVERT", "?", "SELFDESTRUCT",
 };
 
+static const uint16_t CODE_SIZE = 24576;
+
 static const uint16_t STACK_SIZE = 1024;
 static const uint16_t stackbounds[256][2] = {
     { 0, STACK_SIZE - (0 - 0) }, // STOP
@@ -2634,11 +2636,18 @@ static inline void _stack_check(uint8_t opc, uint64_t stacktop)
     if (stacktop > stackbounds[opc][1]) throw STACK_OVERFLOW;
 }
 
-static inline void _memory_check(const uint256_t &offset, const uint256_t&size)
+static inline void _memory_check(const uint256_t &offset, const uint256_t &size)
 {
     if ((size >> 64) > 0) throw OUTOFBOUND_INDEX;
     if ((offset >> 64) > 0) throw OUTOFBOUND_INDEX;
     if (((offset + size) >> 64) > 0) throw OUTOFBOUND_INDEX;
+}
+
+static inline void _code_size_check(Release release, const uint64_t size)
+{
+    if (release >= SPURIOUS_DRAGON) {
+        if (size > CODE_SIZE) throw INVALID_SIZE;
+    }
 }
 
 static inline void _ensure_capacity(uint8_t *&data, uint64_t &size, uint64_t &capacity)
@@ -3177,16 +3186,19 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                                 owner_address, value, nullptr, 0,
                                 return_data, return_size, return_capacity, create_gas,
                                 false, depth+1);
-                // check if code size exceeds limit and throw
-                if (success) _consume_gas(create_gas, _gas_create(release, return_size));
+                if (success) {
+                    _code_size_check(release, return_size);
+                    _consume_gas(create_gas, _gas_create(release, return_size));
+                    storage.register_code(code_address, return_data, return_size);
+                    return_size = 0;
+                }
                 _refund_gas(gas, create_gas);
             } catch (Error e) {
                 success = false;
                 return_size = 0;
             }
-            if (success) storage.register_code(code_address, return_data, return_size);
             if (!success) storage.rollback(commit_id);
-            stack.push(success);
+            stack.push(success); // check release out of gas rule
             break;
         }
         case CALL: {
@@ -3336,16 +3348,20 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                                 owner_address, value, nullptr, 0,
                                 return_data, return_size, return_capacity, create_gas,
                                 false, depth+1);
-                // check if code size exceeds limit and throw
-                if (success) _consume_gas(create_gas, _gas_create(release, return_size));
+                if (success) {
+                    _code_size_check(release, return_size);
+                    _consume_gas(create_gas, _gas_create(release, return_size));
+                    storage.register_code(code_address, return_data, return_size);
+                    return_size = 0;
+                }
                 _refund_gas(gas, create_gas);
             } catch (Error e) {
                 success = false;
                 return_size = 0;
             }
-            if (success) storage.register_code(code_address, return_data, return_size);
             if (!success) storage.rollback(commit_id);
-            stack.push(success);
+            stack.push(success); // check release out of gas rule
+            break;
         }
         case STATICCALL: {
             uint256_t v0 = stack.pop(), code_address = stack.pop();
