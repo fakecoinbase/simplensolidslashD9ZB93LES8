@@ -3758,8 +3758,8 @@ void raw(const uint8_t *buffer, uint64_t size, uint160_t sender)
                             false, 0);
             if (success) {
                 _code_size_check(release, return_size);
-                _consume_gas(create_gas, _gas_create(release, return_size));
-                storage.register_code(code_address, return_data, return_size);
+                _consume_gas(gas, _gas_create(release, return_size));
+                storage.register_code(to, return_data, return_size);
             }
         } catch (Error e) {
             success = false;
