@@ -2398,7 +2398,7 @@ public:
 
 class Memory {
 private:
-    static constexpr int P = 4096;
+    static constexpr int P = 16 * 1024;
     static constexpr int S = P / sizeof(uint8_t*);
     uint64_t limit = 0;
     uint64_t page_count = 0;
@@ -2437,8 +2437,8 @@ private:
     inline void set(uint64_t i, uint8_t v) {
         uint64_t page_index = i / P;
         uint64_t byte_index = i % P;
-        if (page_index >= page_count) throw OUTOFBOUND_INDEX;
-        if (pages[page_index] == nullptr) throw OUTOFBOUND_INDEX;
+        _assert(page_index < page_count);
+        _assert(pages[page_index] != nullptr);
         pages[page_index][byte_index] = v;
     }
 public:
@@ -2458,12 +2458,12 @@ public:
         burn(offset, 32, buffer, 32);
     }
     inline void dump(uint64_t offset, uint64_t size, uint8_t *buffer) {
-        if (offset + size < offset) throw OUTOFBOUND_INDEX;
+        _assert(offset + size >= offset);
         mark(offset + size);
         for (uint64_t i = 0; i < size; i++) buffer[i] = get(offset+i);
     }
     inline void burn(uint64_t offset, uint64_t size, const uint8_t *buffer, uint64_t burnsize) {
-        if (offset + size < offset) throw OUTOFBOUND_INDEX;
+        _assert(offset + size >= offset);
         expand(offset + size);
         if (burnsize > size) burnsize = size;
         for (uint64_t i = 0; i < burnsize; i++) set(offset+i, buffer[i]);
@@ -2588,7 +2588,7 @@ static inline uint160_t gen_address(const uint256_t &from, const uint256_t &salt
     return (uint160_t)sha3(buffer, size);
 }
 
-static inline uint64_t _min(uint64_t v1, uint64_t v2) { return v1 < v2 ? v1 : v2;}
+static inline uint64_t _min(uint64_t v1, uint64_t v2) { return v1 < v2 ? v1 : v2; }
 
 static inline void _consume_gas(uint64_t &gas, uint64_t cost)
 {
