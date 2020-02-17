@@ -2399,13 +2399,15 @@ public:
 class Memory {
 private:
     static constexpr int P = 16 * 1024;
-    static constexpr int S = P / sizeof(uint8_t*);
-    uint64_t limit = 0;
+    static constexpr int S = P / sizeof(uint8_t*); // index vector increment
+    uint64_t limit = 0; // 256 bit aligned, except when overflow
     uint64_t page_count = 0;
     uint8_t **pages = nullptr;
     inline void mark(uint64_t end) {
-        // check overflow
-        if (end > limit) limit = ((end + 31) / 32) * 32;
+        if (end > limit) {
+            limit = ((end + 31) / 32) * 32;
+            if (limit == 0) limit--; // special case, overflow
+        }
     }
     inline void expand(uint64_t end) {
         if (end == 0) return;
@@ -2424,8 +2426,7 @@ private:
             pages[page_index] = _new<uint8_t>(P);
             for (uint64_t i = 0; i < P; i++) pages[page_index][i] = 0;
         }
-        // check overflow
-        if (end > limit) limit = ((end + 31) / 32) * 32;
+        mark(end);
     }
     inline uint8_t get(uint64_t i) const {
         uint64_t page_index = i / P;
