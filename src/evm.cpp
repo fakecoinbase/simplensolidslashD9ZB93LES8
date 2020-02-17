@@ -1830,7 +1830,7 @@ static const char *prenames[BLAKE2F+1] = {
     "BLAKE2F",
 };
 
-enum Release {
+enum Release : uint8_t {
     FRONTIER = 0,
     // FRONTIER_THAWING
     HOMESTEAD,
@@ -1843,6 +1843,27 @@ enum Release {
     ISTANBUL,
     // MUIR_GLACIER
 };
+
+const uint32_t releaseforkblock[ISTANBUL+1] = {
+    0000000, // 2015-07-30 FRONTIER
+    1150000, // 2016-03-15 HOMESTEAD
+    2463000, // 2016-10-18 TANGERINE_WHISTLE
+    2675000, // 2016-11-23 SPURIOUS_DRAGON
+    4370000, // 2017-10-16 BYZANTIUM
+    7280000, // 2019-02-28 CONSTANTINOPLE
+    7280000, // 2019-02-28 PETERSBURG
+    9069000, // 2019-12-08 ISTANBUL
+};
+
+static inline Release get_release(uint64_t number)
+{
+    for (uint64_t i = ISTANBUL+1; i > 0; i--) {
+        Release release = (Release)(i - 1);
+        if (number >= releaseforkblock[release]) return release;
+    }
+    _assert(false);
+    return FRONTIER;
+}
 
 const uint256_t _1 = (uint256_t)1;
 const uint256_t is_frontier = 0
@@ -2604,6 +2625,7 @@ public:
 class Block {
 public:
     virtual const uint256_t& chainid() = 0;
+    virtual const uint256_t& forknumber() = 0;
     virtual const uint256_t& timestamp() = 0;
     virtual const uint256_t& number() = 0;
     virtual const uint256_t& coinbase() = 0;
@@ -3657,6 +3679,7 @@ public:
     _Block(uint256_t timestamp, uint256_t number, const uint256_t& coinbase, const uint256_t &gaslimit, const uint256_t &difficulty)
         : _timestamp(timestamp), _number(number), _coinbase(coinbase), _gaslimit(gaslimit), _difficulty(difficulty) {}
     const uint256_t& chainid() { return _1; } // configurable
+    const uint256_t& forknumber() { return _number; }
     const uint256_t& timestamp() { return _timestamp; }
     const uint256_t& number() { return _number; }
     const uint256_t& coinbase() { return _coinbase; }
@@ -3671,12 +3694,13 @@ public:
 
 void raw(const uint8_t *buffer, uint64_t size, uint160_t sender)
 {
-    Release release = ISTANBUL;
     _Block block;
     _Storage storage;
     _Log log;
 
     for (uint8_t i = ECRECOVER; i <= BLAKE2F; i++) storage.register_code(i, (uint8_t*)(intptr_t)i, 0);
+
+    Release release = get_release(block.forknumber().cast64());
 
     struct txn txn = decode_txn(buffer, size);
     if (!txn.is_signed) throw INVALID_TRANSACTION;
