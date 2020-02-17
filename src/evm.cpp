@@ -3809,9 +3809,11 @@ void raw(const uint8_t *buffer, uint64_t size, uint160_t sender)
     _delete(return_data);
     if (!success) storage.rollback(commit_id);
 
-    // TODO refund gas if failure with refund
-
+    uint64_t refund_gas = 0; // TODO from storage
+    uint64_t used_gas = txn.gaslimit.cast64() - gas;
+    _refund_gas(gas, _min(refund_gas, used_gas / 2));
     storage.add_balance(from, gas * txn.gasprice);
+
     // after execution delete self destruct accounts
     // after execution delete touched accounts that were zeroed
     storage.commit();
