@@ -10,7 +10,6 @@
 enum Error {
     ASSERT_VIOLATION = 1,
     CODE_CONFLICT, // VM
-    DIVIDES_ZERO,
     GAS_EXAUSTED, // VM
     MEMORY_EXAUSTED,
     ILLEGAL_TARGET, // VM
@@ -55,7 +54,6 @@ static const char *errors[UNIMPLEMENTED+1] = {
     nullptr,
     "ASSERT_VIOLATION",
     "CODE_CONFLICT",
-    "DIVIDES_ZERO",
     "GAS_EXAUSTED",
     "MEMORY_EXAUSTED",
     "ILLEGAL_TARGET",
@@ -97,7 +95,7 @@ private:
     }
 public:
     inline uintX_t() {}
-    inline uintX_t(uint64_t v) { data[0] = v; data[1] = v >> 32; for (int i = 2; i < W; i++) data[i] = 0; }
+    inline uintX_t(uint64_t v) { _assert(W > 1); data[0] = v; data[1] = v >> 32; for (int i = 2; i < W; i++) data[i] = 0; }
     template<int Y> inline uintX_t(const uintX_t<Y> &v) {
         int s = v.W < W ? v.W : W;
         for (int i = 0; i < s; i++) data[i] = v.data[i];
@@ -146,7 +144,7 @@ public:
     inline uintX_t& operator|=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] |= v.data[i]; return *this; }
     inline uintX_t& operator^=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] ^= v.data[i]; return *this; }
     inline uintX_t& operator<<=(int n) {
-        if (n < 0 || n >= X) throw OUTOFBOUND_INDEX;
+        _assert(0 <= n && n < X);
         if (n == 0) return *this;
         int index = n / 32;
         int shift = n % 32;
@@ -159,7 +157,7 @@ public:
         return *this;
     }
     inline uintX_t& operator>>=(int n) {
-        if (n < 0 || n >= X) throw OUTOFBOUND_INDEX;
+        _assert(0 <= n && n < X);
         if (n == 0) return *this;
         int index = n / 32;
         int shift = n % 32;
@@ -172,7 +170,7 @@ public:
         return *this;
     }
     inline const uintX_t sigext(int n) const {
-        if (n < 0 || n >= B) throw OUTOFBOUND_INDEX;
+        _assert(0 <= n && n < B);
         int shift = 8 * n;
         uintX_t t = *this << shift;
         return sar(t, shift);
@@ -194,7 +192,7 @@ public:
     friend inline bool operator<=(const uintX_t& v1, const uintX_t& v2) { return v1.cmp(v2) <= 0; }
     friend inline bool operator>=(const uintX_t& v1, const uintX_t& v2) { return v1.cmp(v2) >= 0; }
     inline uint8_t operator[](int n) const {
-        if (n < 0 || n >= B) throw OUTOFBOUND_INDEX;
+        _assert(0 <= n && n < B);
         n = B - 1 - n;
         int i = n / 4;
         int j = n % 4;
@@ -202,7 +200,7 @@ public:
         return (uint8_t)(data[i] >> shift);
     }
     inline uint8_t& operator[](int n) {
-        if (n < 0 || n >= B) throw OUTOFBOUND_INDEX;
+        _assert(0 <= n && n < B);
         n = B - 1 - n;
         int i = n / 4;
         int j = n % 4;
@@ -210,7 +208,7 @@ public:
         return ((uint8_t*)&data[i])[j];
     }
     static inline const uintX_t sar(const uintX_t &v, int n) {
-        if (n < 0 || n >= X) throw OUTOFBOUND_INDEX;
+        _assert(0 <= n && n < X);
         if (n == 0) return v;
         uintX_t t = v;
         bool is_neg = (t[0] & 0x80) > 0;
@@ -220,7 +218,7 @@ public:
         return t;
     }
     static inline void divmod(const uintX_t &num, const uintX_t &div, uintX_t &quo, uintX_t &rem) {
-        if (div == 0) throw DIVIDES_ZERO;
+        _assert(div > 0);
         quo = 0;
         rem = num;
         int shift = 0;
@@ -283,7 +281,7 @@ public:
     static inline const uintX_t from(const char *buffer, int size) { return from((const uint8_t*)buffer, size); }
     static inline const uintX_t from(const uint8_t *buffer) { return from(buffer, B); }
     static inline const uintX_t from(const uint8_t *buffer, int size) {
-        if (size < 0 || size > B) throw INVALID_SIZE;
+        _assert(0 <= size && size <= B);
         uintX_t v = 0;
         for (int j = 0; j < size; j++) {
             int i = j + B - size;
@@ -293,7 +291,7 @@ public:
     }
     static inline void to(const uintX_t &v, uint8_t *buffer) { to(v, buffer, B); }
     static inline void to(const uintX_t &v, uint8_t *buffer, int size) {
-        if (size < 0 || size > B) throw INVALID_SIZE;
+        _assert(0 <= size && size <= B);
         for (int j = 0; j < size; j++) {
             int i = j + B - size;
             buffer[j] = v[i];
