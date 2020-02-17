@@ -2525,12 +2525,12 @@ public:
     }
     inline void dump(uint64_t offset, uint64_t size, uint8_t *buffer) {
         _assert(offset + size >= offset);
-        mark(offset + size);
+        if (size > 0) mark(offset + size);
         for (uint64_t i = 0; i < size; i++) buffer[i] = get(offset+i);
     }
     inline void burn(uint64_t offset, uint64_t size, const uint8_t *buffer, uint64_t burnsize) {
         _assert(offset + size >= offset);
-        expand(offset + size);
+        if (size > 0) expand(offset + size);
         if (burnsize > size) burnsize = size;
         for (uint64_t i = 0; i < burnsize; i++) set(offset+i, buffer[i]);
         for (uint64_t i = burnsize; i < size; i++) set(offset+i, 0);
