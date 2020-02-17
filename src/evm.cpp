@@ -53,6 +53,7 @@ static inline void _delete(T *p)
 
 static const char *errors[UNIMPLEMENTED+1] = {
     nullptr,
+    "ASSERT_VIOLATION",
     "CODE_CONFLICT",
     "DIVIDES_ZERO",
     "GAS_EXAUSTED",
