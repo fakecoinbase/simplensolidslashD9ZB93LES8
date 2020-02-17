@@ -3223,7 +3223,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
                 success = vm_run(release, block, storage, log,
                                 origin_address, gas_price,
                                 owner_address, code, code_size,
-                                caller_address, value, args_data, args_size,
+                                owner_address, value, args_data, args_size,
                                 return_data, return_size, return_capacity, call_gas,
                                 false, depth+1);
             } catch (Error e) {
