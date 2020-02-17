@@ -2681,11 +2681,62 @@ static inline void _memory_check(const uint256_t &offset, const uint256_t &size)
     if (((offset + size) >> 64) > 0) throw OUTOFBOUND_INDEX;
 }
 
-static inline void _code_size_check(Release release, const uint64_t size)
+static inline void _code_size_check(Release release, const uint64_t code_size)
 {
     if (release >= SPURIOUS_DRAGON) {
-        if (size > CODE_SIZE) throw INVALID_SIZE;
+        if (code_size > CODE_SIZE) throw INVALID_SIZE;
     }
+}
+
+static inline void _jumpdest_check(const uint8_t *code, uint64_t code_size, uint64_t pc, uint8_t *pc_valid, uint64_t &pc_limit)
+{
+    uint8_t opc = pc < code_size ? code[pc] : STOP;
+    if (opc != JUMPDEST) throw ILLEGAL_TARGET;
+    _assert(pc < code_size);
+    for (; pc_limit < pc; pc_limit++) {
+        uint64_t byte_index = pc_limit / 8;
+        uint64_t bit_index = pc_limit % 8;
+        if (bit_index == 0) pc_valid = 0;
+        switch (code[pc_limit]) {
+        case JUMPDEST: { pc_valid[byte_index] |= (1 << bit_index); break; }
+        case PUSH1: { const int n = 1; pc_limit += n; break; }
+        case PUSH2: { const int n = 2; pc_limit += n; break; }
+        case PUSH3: { const int n = 3; pc_limit += n; break; }
+        case PUSH4: { const int n = 4; pc_limit += n; break; }
+        case PUSH5: { const int n = 5; pc_limit += n; break; }
+        case PUSH6: { const int n = 6; pc_limit += n; break; }
+        case PUSH7: { const int n = 7; pc_limit += n; break; }
+        case PUSH8: { const int n = 8; pc_limit += n; break; }
+        case PUSH9: { const int n = 9; pc_limit += n; break; }
+        case PUSH10: { const int n = 10; pc_limit += n; break; }
+        case PUSH11: { const int n = 11; pc_limit += n; break; }
+        case PUSH12: { const int n = 12; pc_limit += n; break; }
+        case PUSH13: { const int n = 13; pc_limit += n; break; }
+        case PUSH14: { const int n = 14; pc_limit += n; break; }
+        case PUSH15: { const int n = 15; pc_limit += n; break; }
+        case PUSH16: { const int n = 16; pc_limit += n; break; }
+        case PUSH17: { const int n = 17; pc_limit += n; break; }
+        case PUSH18: { const int n = 18; pc_limit += n; break; }
+        case PUSH19: { const int n = 19; pc_limit += n; break; }
+        case PUSH20: { const int n = 20; pc_limit += n; break; }
+        case PUSH21: { const int n = 21; pc_limit += n; break; }
+        case PUSH22: { const int n = 22; pc_limit += n; break; }
+        case PUSH23: { const int n = 23; pc_limit += n; break; }
+        case PUSH24: { const int n = 24; pc_limit += n; break; }
+        case PUSH25: { const int n = 25; pc_limit += n; break; }
+        case PUSH26: { const int n = 26; pc_limit += n; break; }
+        case PUSH27: { const int n = 27; pc_limit += n; break; }
+        case PUSH28: { const int n = 28; pc_limit += n; break; }
+        case PUSH29: { const int n = 29; pc_limit += n; break; }
+        case PUSH30: { const int n = 30; pc_limit += n; break; }
+        case PUSH31: { const int n = 31; pc_limit += n; break; }
+        case PUSH32: { const int n = 32; pc_limit += n; break; }
+        default: break;
+        }
+    }
+    uint64_t byte_index = pc / 8;
+    uint64_t bit_index = pc % 8;
+    if ((pc_valid[byte_index] & (1 << bit_index)) == 0) throw ILLEGAL_TARGET;
 }
 
 static inline void _ensure_capacity(uint8_t *&data, uint64_t &size, uint64_t &capacity)
@@ -2872,13 +2923,13 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
     return_size = 0;
     Stack stack;
     Memory memory;
+    uint64_t pc_limit = 0;
+    uint8_t pc_valid[(code_size + 7) / 8];
     for (uint64_t pc = 0; ; pc++) {
         uint8_t opc = pc < code_size ? code[pc] : STOP;
         if (std::getenv("EVM_DEBUG")) std::cout << opcodes[opc] << std::endl;
         if ((is[release] & (_1 << opc)) == 0) throw INVALID_OPCODE;
-
         _stack_check(opc, stack.top());
-
         if (read_only && (is_writes & (_1 << opc)) > 0) throw ILLEGAL_UPDATE;
         _consume_gas(gas, opcode_gas(release, opc));
         switch (opc) {
@@ -3058,8 +3109,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case JUMP: {
             uint256_t v1 = stack.pop();
             pc = v1.cast64();
-            uint8_t opc = pc < code_size ? code[pc] : STOP;
-            if (opc != JUMPDEST) throw ILLEGAL_TARGET;
+            _jumpdest_check(code, code_size, pc, pc_valid, pc_limit);
             pc--;
             break;
         }
@@ -3067,8 +3117,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             if (v2 != 0) {
                 pc = v1.cast64();
-                uint8_t opc = pc < code_size ? code[pc] : STOP;
-                if (opc != JUMPDEST) throw ILLEGAL_TARGET;
+                _jumpdest_check(code, code_size, pc, pc_valid, pc_limit);
                 pc--;
                 break;
             }
