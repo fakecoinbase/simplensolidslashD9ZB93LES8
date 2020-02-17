@@ -2458,7 +2458,7 @@ public:
     inline uint64_t top() const { return _top; }
     inline const uint256_t pop() { _assert(_top > 0); return data[--_top]; }
     inline void push(const uint256_t& v) {  _assert(_top < L); data[_top++] = v; }
-    inline uint256_t& operator[](uint64_t i) { _assert(i < _top); return data[_top - i]; }
+    inline uint256_t& operator[](uint64_t i) { _assert(i <= _top); return data[_top - i]; }
 };
 
 class Memory {
@@ -2690,13 +2690,13 @@ static inline void _code_size_check(Release release, const uint64_t code_size)
 
 static inline void _jumpdest_check(const uint8_t *code, uint64_t code_size, uint64_t pc, uint8_t *pc_valid, uint64_t &pc_limit)
 {
-    uint8_t opc = pc < code_size ? code[pc] : STOP;
-    if (opc != JUMPDEST) throw ILLEGAL_TARGET;
     _assert(pc < code_size);
-    for (; pc_limit < pc; pc_limit++) {
+    uint8_t opc = code[pc];
+    if (opc != JUMPDEST) throw ILLEGAL_TARGET;
+    for (; pc_limit <= pc; pc_limit++) {
         uint64_t byte_index = pc_limit / 8;
         uint64_t bit_index = pc_limit % 8;
-        if (bit_index == 0) pc_valid = 0;
+        if (bit_index == 0) pc_valid[byte_index] = 0;
         switch (code[pc_limit]) {
         case JUMPDEST: { pc_valid[byte_index] |= (1 << bit_index); break; }
         case PUSH1: { const int n = 1; pc_limit += n; break; }
@@ -3108,6 +3108,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         }
         case JUMP: {
             uint256_t v1 = stack.pop();
+            if (v1 >= code_size) throw new ILLEGAL_TARGET;
             pc = v1.cast64();
             _jumpdest_check(code, code_size, pc, pc_valid, pc_limit);
             pc--;
@@ -3116,6 +3117,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
         case JUMPI: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             if (v2 != 0) {
+                if (v1 >= code_size) throw new ILLEGAL_TARGET;
                 pc = v1.cast64();
                 _jumpdest_check(code, code_size, pc, pc_valid, pc_limit);
                 pc--;
