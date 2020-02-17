@@ -2444,6 +2444,11 @@ static inline uint64_t _gas_bn256scalarmul(Release release)
     return _gas(release, GasBn256ScalarMul);
 }
 
+static inline uint64_t _gas_bn256pairing(Release release)
+{
+    throw UNIMPLEMENTED;
+}
+
 static inline uint64_t _gas_blake2f(Release release, uint64_t rounds)
 {
     return _gas(release, GasBlake2f) + rounds * _gas(release, GasBlake2fRound);
