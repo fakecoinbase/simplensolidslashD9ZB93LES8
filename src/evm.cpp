@@ -3641,7 +3641,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
         case SELFDESTRUCT: {
             uint160_t to = (uint160_t)stack.pop();
             uint256_t amount = storage.balance(owner_address);
-            _consume_gas(gas, _gas_selfdestruct(release, amount > 0, false/*empty*/, true/*exists*/));
+            _consume_gas(gas, _gas_selfdestruct(release, amount > 0, storage.empty(owner_address), storage.exist(owner_address)));
             storage.add_balance(to, amount);
             storage.set_balance(owner_address, 0);
             storage.destruct(owner_address);
