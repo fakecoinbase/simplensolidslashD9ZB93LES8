@@ -2648,6 +2648,8 @@ protected:
     virtual const struct account *find_account(const uint160_t &address) = 0;
     virtual void update(const uint160_t &account, const uint64_t &nonce, const uint256_t &balance) = 0;
 public:
+    inline void create_account(const uint160_t &v) {}
+    inline bool exist(const uint160_t &v) { return false; }
     inline bool empty(const uint160_t &v) {
         const struct account *account = find_account(v);
         return account->nonce == 0 && account->balance == 0 && account->code_hash == empty_code_hash;
@@ -3392,7 +3394,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             _memory_check(v3, v4);
             uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
             _consume_gas(gas, _gas_memory(release, memory.size(), ret_offset + ret_size));
-            _consume_gas(gas, _gas_call(release, value > 0, /*empty*/false, /*exists*/true));
+            _consume_gas(gas, _gas_call(release, value > 0, storage.empty(code_address), storage.exist(code_address)));
             uint64_t reserved_gas = v0 > gas ? gas : v0.cast64();
             uint64_t call_gas = _gas_callcap(release, gas, reserved_gas);
             _consume_gas(gas, call_gas);
@@ -3404,7 +3406,10 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             const uint64_t code_size = storage.code_size(code_address);
             const uint8_t *code = storage.code(code_address);
             uint64_t commit_id = storage.commit();
-            // create account or return
+            if (!storage.exist(code_address)) {
+                // needs review
+                storage.create_account(code_address);
+            }
             storage.sub_balance(owner_address, value);
             storage.add_balance(code_address, value);
             bool success;
