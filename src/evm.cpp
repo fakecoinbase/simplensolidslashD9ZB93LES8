@@ -2548,6 +2548,7 @@ struct account {
     uint8_t *code;
     uint64_t code_size;
     uint256_t code_hash;
+    bool destructed;
 };
 
 struct log {
@@ -2649,7 +2650,10 @@ protected:
     virtual void update(const uint160_t &account, const uint64_t &nonce, const uint256_t &balance) = 0;
 public:
     inline void create_account(const uint160_t &v) {}
-    inline bool exist(const uint160_t &v) { return false; }
+    inline bool exist(const uint160_t &v) {
+        const struct account *account = find_account(v);
+        return account == nullptr;
+    }
     inline bool has_contract(const uint160_t &v) {
         const struct account *account = find_account(v);
         if (account == nullptr) return false;
@@ -3401,7 +3405,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
                 return_size = 0;
             }
             if (!success) storage.rollback(commit_id);
-            if (relase < HOMESTEAD) success = success || outofgas;
+            if (release < HOMESTEAD) success = success || outofgas;
             stack.push(success);
             break;
         }
@@ -3584,7 +3588,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
                 return_size = 0;
             }
             if (!success) storage.rollback(commit_id);
-            if (relase < HOMESTEAD) success = success || outofgas;
+            if (release < HOMESTEAD) success = success || outofgas;
             stack.push(success);
             break;
         }
