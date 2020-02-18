@@ -3399,7 +3399,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
                 return_size = 0;
             }
             if (!success) storage.rollback(commit_id);
-            stack.push(success); // check release out of gas rule
+            stack.push(success); // TODO check release out of gas rule
             break;
         }
         case CALL: {
@@ -3424,7 +3424,17 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             const uint8_t *code = storage.code(code_address);
             uint64_t commit_id = storage.commit();
             if (!storage.exist(code_address)) {
-                // needs review
+                if (release >= SPURIOUS_DRAGON) {
+                    if (value > 0) {
+                        if ((intptr_t)code > BLAKE2F) {
+                            return_size = 0;
+                            memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
+                            _refund_gas(gas, call_gas);
+                            stack.push(true);
+                            break;
+                        }
+                    }
+                }
                 storage.create_account(code_address);
             }
             storage.sub_balance(owner_address, value);
@@ -3569,7 +3579,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
                 return_size = 0;
             }
             if (!success) storage.rollback(commit_id);
-            stack.push(success); // check release out of gas rule
+            stack.push(success); // TODO check release out of gas rule
             break;
         }
         case STATICCALL: {
