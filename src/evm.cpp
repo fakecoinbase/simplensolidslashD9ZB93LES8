@@ -2383,6 +2383,11 @@ static inline uint64_t _gas_selfdestruct(Release release, bool funds, bool empty
     return 0;
 }
 
+static inline uint64_t _refund_selfdestruct(Release release)
+{
+    return _gas(release, GasSelfDestructRefund);
+}
+
 static inline uint64_t _gas_sstore(Release release, uint64_t gas,
     bool set, bool clear, bool noop, bool dirty, bool init)
 {
@@ -2396,6 +2401,10 @@ static inline uint64_t _gas_sstore(Release release, uint64_t gas,
     if (dirty)  return _gas(release, GasSstoreDirty);
     if (init) return _gas(release, GasSstoreInit);
     return _gas(release, GasSstoreClean);
+}
+
+static inline void _refund_sstore()
+{
 }
 
 static inline uint64_t opcode_gas(Release release, uint8_t opc)
@@ -2729,6 +2738,11 @@ public:
     inline void sub_refund(uint64_t cost) {
         _assert(refund_gas >= cost);
         refund_gas -= cost;
+    }
+    inline bool destructed(const uint160_t &v) {
+        const struct account *account = find_account(v);
+        if (account == nullptr) return false;
+        return account->destructed;
     }
     inline void destruct(const uint160_t &v) {
     }
@@ -3642,6 +3656,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             uint160_t to = (uint160_t)stack.pop();
             uint256_t amount = storage.balance(owner_address);
             _consume_gas(gas, _gas_selfdestruct(release, amount > 0, storage.empty(owner_address), storage.exist(owner_address)));
+            if (!storage.destructed(owner_address)) storage.add_refund(_refund_selfdestruct(release));
             storage.add_balance(to, amount);
             storage.set_balance(owner_address, 0);
             storage.destruct(owner_address);
