@@ -2711,6 +2711,17 @@ public:
         if (amount > account->balance) throw INSUFFICIENT_BALANCE;
         update(v, nonce, balance - amount);
     }
+    inline uint64_t get_refund() { return refund_gas; }
+    inline void add_refund(uint64_t cost) {
+        _assert(refund_gas + cost > refund_gas);
+        refund_gas += cost;
+    }
+    inline void sub_refund(uint64_t cost) {
+        _assert(refund_gas >= cost);
+        refund_gas -= cost;
+    }
+    inline void destruct(const uint160_t &v) {
+    }
     inline void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) { log.log0(address, data, data_size); }
     inline void log1(const uint160_t &address, const uint256_t &v1, const uint8_t *data, uint64_t data_size) { log.log1(address, v1, data, data_size); }
     inline void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) { log.log2(address, v1, v2, data, data_size); }
@@ -3607,7 +3618,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             _consume_gas(gas, _gas_selfdestruct(release, amount > 0, false/*empty*/, true/*exists*/));
             storage.add_balance(to, amount);
             storage.set_balance(owner_address, 0);
-            // mark owner_address for deletion
+            storage.destruct(owner_address);
             return_size = 0;
             return true;
         }
@@ -3955,7 +3966,7 @@ void raw(const uint8_t *buffer, uint64_t size, uint160_t sender)
     _delete(return_data);
     if (!success) storage.rollback(commit_id);
 
-    uint64_t refund_gas = 0; // TODO from storage
+    uint64_t refund_gas = storage.get_refund();
     uint64_t used_gas = txn.gaslimit.cast64() - gas;
     _refund_gas(gas, _min(refund_gas, used_gas / 2));
     storage.add_balance(from, gas * txn.gasprice);
