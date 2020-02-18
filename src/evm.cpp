@@ -2742,10 +2742,10 @@ public:
 class Block {
 public:
     virtual const uint256_t& forknumber() = 0;
-    virtual const uint256_t& timestamp() = 0;
+    virtual const uint64_t& timestamp() = 0;
     virtual const uint256_t& number() = 0;
-    virtual const uint256_t& coinbase() = 0;
-    virtual const uint256_t& gaslimit() = 0;
+    virtual const uint160_t& coinbase() = 0;
+    virtual const uint64_t& gaslimit() = 0;
     virtual const uint256_t& difficulty() = 0;
     virtual uint256_t hash(const uint256_t &number) = 0;
 };
@@ -3177,7 +3177,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
         }
         case EXTCODEHASH: { uint160_t address = (uint160_t)stack.pop(); stack.push(storage.code_hash(address)); break; }
         case BLOCKHASH: { uint256_t v1 = stack.pop(); stack.push(v1 < block.number()-256 || v1 >= block.number() ? 0 : block.hash(v1)); break; }
-        case COINBASE: { stack.push(block.coinbase()); break; }
+        case COINBASE: { stack.push((uint256_t)block.coinbase()); break; }
         case TIMESTAMP: { stack.push(block.timestamp()); break; }
         case NUMBER: { stack.push(block.number()); break; }
         case DIFFICULTY: { stack.push(block.difficulty()); break; }
@@ -3851,20 +3851,20 @@ public:
 
 class _Block : public Block {
 private:
-    uint256_t _timestamp = 0;
+    uint64_t _timestamp = 0;
     uint256_t _number = 0;
-    uint256_t _coinbase = 0;
-    uint256_t _gaslimit = 10000000;
+    uint160_t _coinbase = 0;
+    uint64_t _gaslimit = 10000000;
     uint256_t _difficulty = 0;
 public:
     _Block() {}
-    _Block(uint256_t timestamp, uint256_t number, const uint256_t& coinbase, const uint256_t &gaslimit, const uint256_t &difficulty)
+    _Block(uint64_t timestamp, uint256_t number, const uint160_t& coinbase, const uint64_t &gaslimit, const uint256_t &difficulty)
         : _timestamp(timestamp), _number(number), _coinbase(coinbase), _gaslimit(gaslimit), _difficulty(difficulty) {}
     const uint256_t& forknumber() { return _number; }
-    const uint256_t& timestamp() { return _timestamp; }
+    const uint64_t& timestamp() { return _timestamp; }
     const uint256_t& number() { return _number; }
-    const uint256_t& coinbase() { return _coinbase; }
-    const uint256_t& gaslimit() { return _gaslimit; }
+    const uint160_t& coinbase() { return _coinbase; }
+    const uint64_t& gaslimit() { return _gaslimit; }
     const uint256_t& difficulty() { return _difficulty; }
     uint256_t hash(const uint256_t &number) {
         uint8_t buffer[32];
