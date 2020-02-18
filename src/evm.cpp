@@ -2644,6 +2644,7 @@ static const uint256_t empty_code_hash = sha3(nullptr, 0);
 class Storage {
 protected:
     Log log;
+    uint64_t refund_gas = 0;
     virtual const struct account *find_account(const uint160_t &address) = 0;
     virtual void update(const uint160_t &account, const uint64_t &nonce, const uint256_t &balance) = 0;
 public:
@@ -2670,6 +2671,9 @@ public:
     inline uint256_t code_hash(const uint160_t &v) {
         const struct account *account = find_account(v);
         return account == nullptr ? 0 : account->code_hash;
+    }
+    inline const uint256_t& loadlocal(const uint160_t &account, const uint256_t &address) {
+        return load(account, address);
     }
     virtual void register_code(const uint160_t &account, const uint8_t *buffer, uint64_t size) = 0;
     virtual const uint256_t& load(const uint160_t &account, const uint256_t &address) = 0;
@@ -3184,11 +3188,11 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             memory.burn(offset, 1, buffer, 1);
             break;
         }
-        case SLOAD: { uint256_t v1 = stack.pop(); stack.push(storage.load(owner_address, v1)); break; }
+        case SLOAD: { uint256_t address = stack.pop(); stack.push(storage.loadlocal(owner_address, address)); break; }
         case SSTORE: {
             uint256_t address = stack.pop(), value = stack.pop();
-            uint256_t current = storage.load(owner_address, address);
-            uint256_t original = current; // fix this
+            uint256_t current = storage.loadlocal(owner_address, address);
+            uint256_t original = storage.load(owner_address, address);
             _consume_gas(gas, _gas_sstore(release, gas,
                 current == 0 && value > 0, current > 0 && value == 0,
                 current == value, current != original, original == 0));
