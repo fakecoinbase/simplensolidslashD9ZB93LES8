@@ -2595,52 +2595,53 @@ public:
     inline void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) {
         struct log &log = new_entry(0, data_size);
         log.address = address;
-        _assert(log.topic_count == 0);
+        log.topic_count = 0;
         for (uint64_t i = 0; i < data_size; i++) log.data[i] = data[i];
-        _assert(log.data_size == data_size);
+        log.data_size = data_size;
     }
     inline void log1(const uint160_t &address, const uint256_t &v1, const uint8_t *data, uint64_t data_size) {
         struct log &log = new_entry(1, data_size);
         log.address = address;
-        _assert(log.topic_count == 1);
+        log.topic_count = 1;
         log.topics[0] = v1;
         for (uint64_t i = 0; i < data_size; i++) log.data[i] = data[i];
-        _assert(log.data_size == data_size);
+        log.data_size = data_size;
     }
     inline void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) {
         struct log &log = new_entry(2, data_size);
         log.address = address;
-        _assert(log.topic_count == 2);
+        log.topic_count = 2;
         log.topics[0] = v1;
         log.topics[1] = v2;
         for (uint64_t i = 0; i < data_size; i++) log.data[i] = data[i];
-        _assert(log.data_size == data_size);
+        log.data_size = data_size;
     }
     inline void log3(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *data, uint64_t data_size) {
         struct log &log = new_entry(3, data_size);
         log.address = address;
-        _assert(log.topic_count == 3);
+        log.topic_count = 3;
         log.topics[0] = v1;
         log.topics[1] = v2;
         log.topics[2] = v3;
         for (uint64_t i = 0; i < data_size; i++) log.data[i] = data[i];
-        _assert(log.data_size == data_size);
+        log.data_size = data_size;
     }
     inline void log4(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *data, uint64_t data_size) {
         struct log &log = new_entry(4, data_size);
         log.address = address;
-        _assert(log.topic_count == 4);
+        log.topic_count = 4;
         log.topics[0] = v1;
         log.topics[1] = v2;
         log.topics[2] = v3;
         log.topics[3] = v4;
         for (uint64_t i = 0; i < data_size; i++) log.data[i] = data[i];
-        _assert(log.data_size == data_size);
+        log.data_size = data_size;
     }
 };
 
 class Storage {
 protected:
+    Log log;
     virtual const struct account *find_account(const uint160_t &address) = 0;
     virtual void update(const uint160_t &account, const uint256_t &nonce, const uint256_t &balance) = 0;
 public:
@@ -2698,6 +2699,11 @@ public:
         if (amount > account->balance) throw INSUFFICIENT_BALANCE;
         update(v, nonce, balance - amount);
     }
+    inline void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) { log.log0(address, data, data_size); }
+    inline void log1(const uint160_t &address, const uint256_t &v1, const uint8_t *data, uint64_t data_size) { log.log1(address, v1, data, data_size); }
+    inline void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) { log.log2(address, v1, v2, data, data_size); }
+    inline void log3(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *data, uint64_t data_size) { log.log3(address, v1, v2, v3, data, data_size); }
+    inline void log4(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *data, uint64_t data_size) { log.log4(address, v1, v2, v3, v4, data, data_size); }
 };
 
 class Block {
@@ -2826,7 +2832,7 @@ static inline void _ensure_capacity(uint8_t *&data, uint64_t &size, uint64_t &ca
     }
 }
 
-static bool vm_run(const Release release, Block &block, Storage &storage, Log &log,
+static bool vm_run(const Release release, Block &block, Storage &storage,
     const uint160_t &origin_address, const uint256_t &gas_price,
     const uint160_t &owner_address, const uint8_t *code, const uint64_t code_size,
     const uint160_t &caller_address, const uint256_t &call_value, const uint8_t *call_data, const uint64_t call_size,
@@ -3278,7 +3284,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             _consume_gas(gas, _gas_log(release, 0, size));
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            log.log0(owner_address, buffer, size);
+            storage.log0(owner_address, buffer, size);
             break;
         }
         case LOG1: {
@@ -3289,7 +3295,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             _consume_gas(gas, _gas_log(release, 1, size));
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            log.log1(owner_address, v3, buffer, size);
+            storage.log1(owner_address, v3, buffer, size);
             break;
         }
         case LOG2: {
@@ -3300,7 +3306,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             _consume_gas(gas, _gas_log(release, 2, size));
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            log.log2(owner_address, v3, v4, buffer, size);
+            storage.log2(owner_address, v3, v4, buffer, size);
             break;
         }
         case LOG3: {
@@ -3311,7 +3317,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             _consume_gas(gas, _gas_log(release, 3, size));
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            log.log3(owner_address, v3, v4, v5, buffer, size);
+            storage.log3(owner_address, v3, v4, v5, buffer, size);
             break;
         }
         case LOG4: {
@@ -3322,7 +3328,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             _consume_gas(gas, _gas_log(release, 4, size));
             uint8_t buffer[size];
             memory.dump(offset, size, buffer);
-            log.log4(owner_address, v3, v4, v5, v6, buffer, size);
+            storage.log4(owner_address, v3, v4, v5, v6, buffer, size);
             break;
         }
         case CREATE: {
@@ -3346,7 +3352,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             storage.add_balance(code_address, value);
             bool success;
             try {
-                success = vm_run(release, block, storage, log,
+                success = vm_run(release, block, storage,
                                 origin_address, gas_price,
                                 code_address, init, init_size,
                                 owner_address, value, nullptr, 0,
@@ -3393,7 +3399,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             storage.add_balance(code_address, value);
             bool success;
             try {
-                success = vm_run(release, block, storage, log,
+                success = vm_run(release, block, storage,
                                 origin_address, gas_price,
                                 code_address, code, code_size,
                                 owner_address, value, args_data, args_size,
@@ -3431,7 +3437,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint64_t commit_id = storage.commit();
             bool success;
             try {
-                success = vm_run(release, block, storage, log,
+                success = vm_run(release, block, storage,
                                 origin_address, gas_price,
                                 owner_address, code, code_size,
                                 owner_address, value, args_data, args_size,
@@ -3476,7 +3482,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint64_t commit_id = storage.commit();
             bool success;
             try {
-                success = vm_run(release, block, storage, log,
+                success = vm_run(release, block, storage,
                                 origin_address, gas_price,
                                 owner_address, code, code_size,
                                 caller_address, call_value, args_data, args_size,
@@ -3513,7 +3519,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             storage.add_balance(code_address, value);
             bool success;
             try {
-                success = vm_run(release, block, storage, log,
+                success = vm_run(release, block, storage,
                                 origin_address, gas_price,
                                 code_address, init, init_size,
                                 owner_address, value, nullptr, 0,
@@ -3554,7 +3560,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage, Log &l
             uint64_t commit_id = storage.commit();
             bool success;
             try {
-                success = vm_run(release, block, storage, log,
+                success = vm_run(release, block, storage,
                                 origin_address, gas_price,
                                 code_address, code, code_size,
                                 owner_address, 0, args_data, args_size,
@@ -3857,7 +3863,6 @@ void raw(const uint8_t *buffer, uint64_t size, uint160_t sender)
 {
     _Block block;
     _Storage storage;
-    Log log;
 
     for (uint8_t i = ECRECOVER; i <= BLAKE2F; i++) storage.register_code(i, (uint8_t*)(intptr_t)i, 0);
 
@@ -3900,7 +3905,7 @@ void raw(const uint8_t *buffer, uint64_t size, uint160_t sender)
     // message call
     if (txn.has_to) {
         try {
-            success = vm_run(release, block, storage, log,
+            success = vm_run(release, block, storage,
                             from, txn.gasprice,
                             to, storage.code(to), storage.code_size(to),
                             from, txn.value, txn.data, txn.data_size,
@@ -3915,7 +3920,7 @@ void raw(const uint8_t *buffer, uint64_t size, uint160_t sender)
     // contract creation
     if (!txn.has_to) {
         try {
-            success = vm_run(release, block, storage, log,
+            success = vm_run(release, block, storage,
                             from, txn.gasprice,
                             to, txn.data, txn.data_size,
                             from, txn.value, nullptr, 0,
