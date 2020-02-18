@@ -3379,6 +3379,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             if (release >= SPURIOUS_DRAGON) storage.set_nonce(code_address, 1);
             storage.sub_balance(owner_address, value);
             storage.add_balance(code_address, value);
+            bool outofgas = false;
             bool success;
             try {
                 success = vm_run(release, block, storage,
@@ -3395,11 +3396,13 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
                 }
                 _refund_gas(gas, create_gas);
             } catch (Error e) {
+                if (e == GAS_EXAUSTED) outofgas = true;
                 success = false;
                 return_size = 0;
             }
             if (!success) storage.rollback(commit_id);
-            stack.push(success); // TODO check release out of gas rule
+            if (relase < HOMESTEAD) success = success || outofgas;
+            stack.push(success);
             break;
         }
         case CALL: {
@@ -3559,6 +3562,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             if (release >= SPURIOUS_DRAGON) storage.set_nonce(code_address, 1);
             storage.sub_balance(owner_address, value);
             storage.add_balance(code_address, value);
+            bool outofgas = false;
             bool success;
             try {
                 success = vm_run(release, block, storage,
@@ -3575,11 +3579,13 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
                 }
                 _refund_gas(gas, create_gas);
             } catch (Error e) {
+                if (e == GAS_EXAUSTED) outofgas = true;
                 success = false;
                 return_size = 0;
             }
             if (!success) storage.rollback(commit_id);
-            stack.push(success); // TODO check release out of gas rule
+            if (relase < HOMESTEAD) success = success || outofgas;
+            stack.push(success);
             break;
         }
         case STATICCALL: {
