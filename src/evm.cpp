@@ -2650,8 +2650,14 @@ protected:
 public:
     inline void create_account(const uint160_t &v) {}
     inline bool exist(const uint160_t &v) { return false; }
+    inline bool has_contract(const uint160_t &v) {
+        const struct account *account = find_account(v);
+        if (account == nullptr) return false;
+        return account->nonce > 0 || (account->code_hash > 0 && account->code_hash != empty_code_hash);
+    }
     inline bool empty(const uint160_t &v) {
         const struct account *account = find_account(v);
+        if (account == nullptr) return true;
         return account->nonce == 0 && account->balance == 0 && account->code_hash == empty_code_hash;
     }
     inline uint64_t nonce(const uint160_t &v) {
@@ -3367,10 +3373,10 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             memory.dump(init_offset, init_size, init);
             uint160_t code_address = gen_address(owner_address, storage.nonce(owner_address));
             storage.increment_nonce(owner_address);
-            // check conflict and throw
+            if (storage.has_contract(code_address)) throw CODE_CONFLICT;
             uint64_t commit_id = storage.commit();
-            // create account
-            // optionally set nonce 1
+            storage.create_account(code_address);
+            if (release >= SPURIOUS_DRAGON) storage.set_nonce(code_address, 1);
             storage.sub_balance(owner_address, value);
             storage.add_balance(code_address, value);
             bool success;
@@ -3537,10 +3543,10 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             memory.dump(init_offset, init_size, init);
             uint160_t code_address = gen_address(owner_address, salt, sha3(init, init_size));
             storage.increment_nonce(owner_address);
-            // check conflict and throw
+            if (storage.has_contract(code_address)) throw CODE_CONFLICT;
             uint64_t commit_id = storage.commit();
-            // create account
-            // optionally set nonce 1
+            storage.create_account(code_address);
+            if (release >= SPURIOUS_DRAGON) storage.set_nonce(code_address, 1);
             storage.sub_balance(owner_address, value);
             storage.add_balance(code_address, value);
             bool success;
