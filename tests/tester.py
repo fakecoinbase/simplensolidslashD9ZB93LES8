@@ -501,11 +501,13 @@ def gsTests(filt):
 
 def main():
     filt = sys.argv[1] if len(sys.argv) == 2 else ""
-    try:  vmTests(filt)
-    except: pass
-    try: txTests(filt)
-    except: pass
-    try: gsTests(filt)
-    except: pass
+#    try:
+    vmTests(filt)
+#    except: pass
+#    try: txTests(filt)
+#    except: pass
+#    try: 
+#    gsTests(filt)
+#    except: pass
 
 if __name__ == '__main__': main()

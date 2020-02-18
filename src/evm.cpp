@@ -3900,6 +3900,134 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
     }
 }
 
+static inline void _verify_txn(Release release, struct txn &txn)
+{
+    if (!txn.is_signed) throw INVALID_TRANSACTION;
+    if (release >= SPURIOUS_DRAGON) {
+        if (txn.v != 27 && txn.v != 28) {
+            if (txn.v < 35) throw INVALID_TRANSACTION; // assumes CHAIN_ID >= 0
+            uint256_t chainid = (txn.v - 35) / 2;
+            if (chainid != CHAIN_ID) throw INVALID_TRANSACTION;
+        }
+    }
+    if (release >= HOMESTEAD) {
+        if (txn.s == 0 || 2*txn.s < txn.s || mod_t(2*txn.s - 1).as256() != 2*txn.s - 1) throw INVALID_TRANSACTION;
+    }
+}
+
+static inline uint256_t _txn_hash(struct txn &txn)
+{
+    _assert(txn.is_signed);
+    _assert(txn.v == 27 || txn.v == 28 || txn.v == 35 + 2 * CHAIN_ID || txn.v == 36 + 2 * CHAIN_ID);
+    uint256_t v = txn.v;
+    uint256_t r = txn.r;
+    uint256_t s = txn.s;
+    txn.is_signed = v > 28;
+    txn.v = CHAIN_ID;
+    txn.r = 0;
+    txn.s = 0;
+    uint64_t unsigned_size = encode_txn(txn);
+    uint8_t unsigned_buffer[unsigned_size];
+    encode_txn(txn, unsigned_buffer, unsigned_size);
+    uint256_t h = sha3(unsigned_buffer, unsigned_size);
+    txn.is_signed = true;
+    txn.v = v > 28 ? v - (8 + 2 * CHAIN_ID) : v;
+    txn.r = r;
+    txn.s = s;
+    _assert(txn.v == 27 || txn.v == 28);
+    return h;
+}
+
+void raw(Block &block, State &state, const uint8_t *buffer, uint64_t size, uint160_t sender)
+{
+    Storage storage(&state);
+    for (uint8_t i = ECRECOVER; i <= BLAKE2F; i++) storage.register_code(i, (uint8_t*)(intptr_t)i, 0);
+
+    Release release = get_release(block.forknumber().cast64());
+
+    struct txn txn = decode_txn(buffer, size);
+    _verify_txn(release, txn);
+    uint256_t h = _txn_hash(txn);
+
+    // check for overflow
+    uint64_t intrinsic_gas = _gas(release, txn.has_to ? GasTxMessageCall : GasTxContractCreation);
+    uint64_t zero_count = 0;
+    for (uint64_t i = 0; i < txn.data_size; i++) if (txn.data[i] == 0) zero_count++;
+    intrinsic_gas += zero_count * _gas(release, GasTxDataZero);
+    intrinsic_gas += (txn.data_size - zero_count) * _gas(release, GasTxDataNonZero);
+    if (txn.gaslimit < intrinsic_gas) throw INVALID_TRANSACTION;
+    uint64_t gas = txn.gaslimit.cast64() - intrinsic_gas;
+
+    uint160_t from = ecrecover(h, txn.v, txn.r, txn.s);
+    uint160_t to = txn.to;
+    if (!txn.has_to) to = gen_address(from, storage.get_nonce(from));
+
+    if (txn.nonce != storage.get_nonce(from)) throw NONCE_MISMATCH;
+    storage.increment_nonce(from);
+
+    if (storage.get_balance(from) < txn.gaslimit * txn.gasprice + txn.value) throw INSUFFICIENT_BALANCE;
+    storage.sub_balance(from, txn.gaslimit * txn.gasprice);
+
+    // NO TRANSACTION FAILURE FROM HERE
+    uint64_t snapshot = storage.begin();
+
+    storage.sub_balance(from, txn.value);
+    storage.add_balance(to, txn.value);
+
+    bool success = false;
+    uint64_t return_size = 0;
+    uint64_t return_capacity = 0;
+    uint8_t *return_data = nullptr;
+
+    // message call
+    if (txn.has_to) {
+        uint64_t code_size;
+        const uint8_t *code = storage.get_code(to, code_size);
+        try {
+            success = vm_run(release, block, storage,
+                            from, txn.gasprice,
+                            to, code, code_size,
+                            from, txn.value, txn.data, txn.data_size,
+                            return_data, return_size, return_capacity, gas,
+                            false, 0);
+        } catch (Error e) {
+            success = false;
+            gas = 0;
+        }
+    }
+
+    // contract creation
+    if (!txn.has_to) {
+        try {
+            success = vm_run(release, block, storage,
+                            from, txn.gasprice,
+                            to, txn.data, txn.data_size,
+                            from, txn.value, nullptr, 0,
+                            return_data, return_size, return_capacity, gas,
+                            false, 0);
+            if (success) {
+                _code_size_check(release, return_size);
+                _consume_gas(gas, _gas_create(release, return_size));
+                storage.register_code(to, return_data, return_size);
+            }
+        } catch (Error e) {
+            success = false;
+            gas = 0;
+        }
+    }
+
+    _delete(return_data);
+    storage.end(snapshot, success);
+
+    uint64_t refund_gas = storage.get_refund();
+    uint64_t used_gas = txn.gaslimit.cast64() - gas;
+    _refund_gas(gas, _min(refund_gas, used_gas / 2));
+    storage.add_balance(from, gas * txn.gasprice);
+
+    // after execution delete self destruct accounts
+    // after execution delete touched accounts that were zeroed
+}
+
 class _State : public State {
 private:
     struct account {
@@ -4166,138 +4294,6 @@ public:
     }
 };
 
-static inline void _verify_txn(Release release, struct txn &txn)
-{
-    if (!txn.is_signed) throw INVALID_TRANSACTION;
-    if (release >= SPURIOUS_DRAGON) {
-        if (txn.v != 27 && txn.v != 28) {
-            if (txn.v < 35) throw INVALID_TRANSACTION; // assumes CHAIN_ID >= 0
-            uint256_t chainid = (txn.v - 35) / 2;
-            if (chainid != CHAIN_ID) throw INVALID_TRANSACTION;
-        }
-    }
-    if (release >= HOMESTEAD) {
-        if (txn.s == 0 || 2*txn.s < txn.s || mod_t(2*txn.s - 1).as256() != 2*txn.s - 1) throw INVALID_TRANSACTION;
-    }
-}
-
-static inline uint256_t _txn_hash(struct txn &txn)
-{
-    _assert(txn.is_signed);
-    _assert(txn.v == 27 || txn.v == 28 || txn.v == 35 + 2 * CHAIN_ID || txn.v == 36 + 2 * CHAIN_ID);
-    uint256_t v = txn.v;
-    uint256_t r = txn.r;
-    uint256_t s = txn.s;
-    txn.is_signed = v > 28;
-    txn.v = CHAIN_ID;
-    txn.r = 0;
-    txn.s = 0;
-    uint64_t unsigned_size = encode_txn(txn);
-    uint8_t unsigned_buffer[unsigned_size];
-    encode_txn(txn, unsigned_buffer, unsigned_size);
-    uint256_t h = sha3(unsigned_buffer, unsigned_size);
-    txn.is_signed = true;
-    txn.v = v > 28 ? v - (8 + 2 * CHAIN_ID) : v;
-    txn.r = r;
-    txn.s = s;
-    _assert(txn.v == 27 || txn.v == 28);
-    return h;
-}
-
-void raw(const uint8_t *buffer, uint64_t size, uint160_t sender)
-{
-    _Block block;
-    _State state;
-    Storage storage(&state);
-
-    for (uint8_t i = ECRECOVER; i <= BLAKE2F; i++) storage.register_code(i, (uint8_t*)(intptr_t)i, 0);
-
-    Release release = get_release(block.forknumber().cast64());
-
-    struct txn txn = decode_txn(buffer, size);
-    _verify_txn(release, txn);
-    uint256_t h = _txn_hash(txn);
-
-    // check for overflow
-    uint64_t intrinsic_gas = _gas(release, txn.has_to ? GasTxMessageCall : GasTxContractCreation);
-    uint64_t zero_count = 0;
-    for (uint64_t i = 0; i < txn.data_size; i++) if (txn.data[i] == 0) zero_count++;
-    intrinsic_gas += zero_count * _gas(release, GasTxDataZero);
-    intrinsic_gas += (txn.data_size - zero_count) * _gas(release, GasTxDataNonZero);
-    if (txn.gaslimit < intrinsic_gas) throw INVALID_TRANSACTION;
-    uint64_t gas = txn.gaslimit.cast64() - intrinsic_gas;
-
-    uint160_t from = ecrecover(h, txn.v, txn.r, txn.s);
-    uint160_t to = txn.to;
-    if (!txn.has_to) to = gen_address(from, storage.get_nonce(from));
-
-    if (txn.nonce != storage.get_nonce(from)) throw NONCE_MISMATCH;
-    storage.increment_nonce(from);
-
-    if (storage.get_balance(from) < txn.gaslimit * txn.gasprice + txn.value) throw INSUFFICIENT_BALANCE;
-    storage.sub_balance(from, txn.gaslimit * txn.gasprice);
-
-    // NO TRANSACTION FAILURE FROM HERE
-    uint64_t snapshot = storage.begin();
-
-    storage.sub_balance(from, txn.value);
-    storage.add_balance(to, txn.value);
-
-    bool success = false;
-    uint64_t return_size = 0;
-    uint64_t return_capacity = 0;
-    uint8_t *return_data = nullptr;
-
-    // message call
-    if (txn.has_to) {
-        uint64_t code_size;
-        const uint8_t *code = storage.get_code(to, code_size);
-        try {
-            success = vm_run(release, block, storage,
-                            from, txn.gasprice,
-                            to, code, code_size,
-                            from, txn.value, txn.data, txn.data_size,
-                            return_data, return_size, return_capacity, gas,
-                            false, 0);
-        } catch (Error e) {
-            success = false;
-            gas = 0;
-        }
-    }
-
-    // contract creation
-    if (!txn.has_to) {
-        try {
-            success = vm_run(release, block, storage,
-                            from, txn.gasprice,
-                            to, txn.data, txn.data_size,
-                            from, txn.value, nullptr, 0,
-                            return_data, return_size, return_capacity, gas,
-                            false, 0);
-            if (success) {
-                _code_size_check(release, return_size);
-                _consume_gas(gas, _gas_create(release, return_size));
-                storage.register_code(to, return_data, return_size);
-            }
-        } catch (Error e) {
-            success = false;
-            gas = 0;
-        }
-    }
-
-    _delete(return_data);
-    storage.end(snapshot, success);
-
-    uint64_t refund_gas = storage.get_refund();
-    uint64_t used_gas = txn.gaslimit.cast64() - gas;
-    _refund_gas(gas, _min(refund_gas, used_gas / 2));
-    storage.add_balance(from, gas * txn.gasprice);
-
-    // after execution delete self destruct accounts
-    // after execution delete touched accounts that were zeroed
-    state.save();
-}
-
 /* main */
 
 static inline int hex(char c)
@@ -4373,7 +4369,10 @@ int main(int argc, const char *argv[])
     uint8_t buffer[size];
     if (len % 2 > 0 || !parse_hex(hexstr, buffer, size)) { std::cerr << progname << ": invalid input" << std::endl; return 1; }
     try {
-        raw(buffer, size, 0);
+        _Block block;
+        _State state;
+        raw(block, state, buffer, size, 0);
+        state.save();
     } catch (Error e) {
         std::cerr << progname << ": error " << errors[e] << std::endl; return 1;
     }
