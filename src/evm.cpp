@@ -2543,7 +2543,7 @@ public:
 };
 
 struct account {
-    uint256_t nonce;
+    uint64_t nonce;
     uint256_t balance;
     uint8_t *code;
     uint64_t code_size;
@@ -2639,13 +2639,19 @@ public:
     }
 };
 
+static const uint256_t empty_code_hash = sha3(nullptr, 0);
+
 class Storage {
 protected:
     Log log;
     virtual const struct account *find_account(const uint160_t &address) = 0;
-    virtual void update(const uint160_t &account, const uint256_t &nonce, const uint256_t &balance) = 0;
+    virtual void update(const uint160_t &account, const uint64_t &nonce, const uint256_t &balance) = 0;
 public:
-    inline uint256_t nonce(const uint160_t &v) {
+    inline bool empty(const uint160_t &v) {
+        const struct account *account = find_account(v);
+        return account->nonce == 0 && account->balance == 0 && account->code_hash == empty_code_hash;
+    }
+    inline uint64_t nonce(const uint160_t &v) {
         const struct account *account = find_account(v);
         return account == nullptr ? 0 : account->nonce;
     }
@@ -2670,31 +2676,31 @@ public:
     virtual void store(const uint160_t &account, const uint256_t &address, const uint256_t& v) = 0;
     virtual uint64_t commit() = 0;
     virtual void rollback(uint64_t commit_id) = 0;
-    inline void set_nonce(const uint160_t &v, const uint256_t &nonce) {
+    inline void set_nonce(const uint160_t &v, const uint64_t &nonce) {
         const struct account *account = find_account(v);
         uint256_t balance = account == nullptr ? 0 : account->balance;
         update(v, nonce, balance);
     }
     inline void increment_nonce(const uint160_t &v) {
         const struct account *account = find_account(v);
-        uint256_t nonce = account == nullptr ? 0 : account->nonce;
+        uint64_t nonce = account == nullptr ? 0 : account->nonce;
         uint256_t balance = account == nullptr ? 0 : account->balance;
         update(v, nonce + 1, balance);
     }
     inline void set_balance(const uint160_t &v, const uint256_t &balance) {
         const struct account *account = find_account(v);
-        uint256_t nonce = account == nullptr ? 0 : account->nonce;
+        uint64_t nonce = account == nullptr ? 0 : account->nonce;
         update(v, nonce, balance);
     }
     inline void add_balance(const uint160_t &v, uint256_t amount) {
         const struct account *account = find_account(v);
-        uint256_t nonce = account == nullptr ? 0 : account->nonce;
+        uint64_t nonce = account == nullptr ? 0 : account->nonce;
         uint256_t balance = account == nullptr ? 0 : account->balance;
         update(v, nonce, balance + amount);
     }
     inline void sub_balance(const uint160_t &v, uint256_t amount) {
         const struct account *account = find_account(v);
-        uint256_t nonce = account == nullptr ? 0 : account->nonce;
+        uint64_t nonce = account == nullptr ? 0 : account->nonce;
         uint256_t balance = account == nullptr ? 0 : account->balance;
         if (amount > account->balance) throw INSUFFICIENT_BALANCE;
         update(v, nonce, balance - amount);
@@ -3616,7 +3622,7 @@ private:
         }
         return nullptr;
     }
-    void update(const uint160_t &account, const uint256_t &nonce, const uint256_t &balance) {
+    void update(const uint160_t &account, const uint64_t &nonce, const uint256_t &balance) {
         int index = account_size;
         for (int i = 0; i < account_size; i++) {
             if (account == account_index[i]) {
@@ -3657,7 +3663,7 @@ private:
         if (account_size > L) throw INSUFFICIENT_SPACE;
         for (int i = 0; i < account_size; i++) {
             account_index[i] = uint160_t::from(&buffer[offset]); offset += 20;
-            account_list[i].nonce = uint256_t::from(&buffer[offset]); offset += 32;
+            account_list[i].nonce = uint256_t::from(&buffer[offset]).cast64(); offset += 32;
             account_list[i].balance = uint256_t::from(&buffer[offset]); offset += 32;
             account_list[i].code_size = b2w32le(&buffer[offset]); offset += 4;
             account_list[i].code = _new<uint8_t>(account_list[i].code_size);
