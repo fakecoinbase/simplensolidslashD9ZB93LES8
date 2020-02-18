@@ -2599,7 +2599,7 @@ private:
     inline uint64_t find_index(const K &key) const { return (key % size).cast64(); }
     inline void grow(uint64_t increment) {
         uint64_t new_size = size + increment;
-        struct key_list **new_table = _new<struct key_list *>(new_size);
+        struct key_list **new_table = _new<struct key_list*>(new_size);
         for (uint64_t i = 0; i < new_size; i++) new_table[i] = nullptr;
         struct key_list **old_table = table;
         uint64_t old_size = size;
@@ -2617,7 +2617,7 @@ private:
         }
     }
 public:
-    ~Store() { rollback(0); }
+    ~Store() { rollback(0); _delete(table); }
     inline const V &get(const K &key, const V &default_value) const {
         if (size == 0) return default_value;
         uint64_t i = find_index(key);
@@ -2652,12 +2652,13 @@ public:
             keys->next = table[i];
             table[i] = keys;
         }
+        _assert(keys->values == nullptr || keys->values->serial <= serial);
         if (keys->values == nullptr || (keys->values->serial < serial && keys->values->value != value)) {
             struct value_stack *values = _new<struct value_stack>(1);
-            values->next = values;
+            values->serial = serial;
+            values->next = keys->values;
             keys->values = values;
         }
-        keys->values->serial = serial;
         keys->values->value = value;
     }
     inline uint64_t snapshot() { return serial++; }
@@ -2674,12 +2675,14 @@ public:
                     if (prev == nullptr) table[i] = keys; else prev->next = keys;
                     continue;
                 }
-                if (values->serial <= snapshot) continue;
-                values->serial = snapshot;
-                while (values->next != nullptr && values->next->serial == snapshot) {
-                    struct value_stack *next = values->next->next;
-                    _delete(values->next);
-                    values->next = next;
+                if (values->serial > snapshot) {
+                    values->serial = snapshot;
+                    while (values->next != nullptr && values->next->serial >= snapshot) {
+                        _assert(values->next->serial == snapshot);
+                        struct value_stack *next = values->next->next;
+                        _delete(values->next);
+                        values->next = next;
+                    }
                 }
                 prev = keys;
                 keys = keys->next;
@@ -2836,24 +2839,24 @@ protected:
 public:
     Storage(State *_underlying) : underlying(_underlying) {}
     inline uint64_t get_nonce(const uint160_t &address) const {
-        return underlying->get_nonce(address);
-//        return nonces.get(address, underlying->get_nonce(address));
+//        return underlying->get_nonce(address);
+        return nonces.get(address, underlying->get_nonce(address));
     }
     inline void set_nonce(const uint160_t &address, const uint64_t &nonce) {
-        underlying->set_nonce(address, nonce);
-//        nonces.set(address, nonce, underlying->get_nonce(address));
+//        underlying->set_nonce(address, nonce);
+        nonces.set(address, nonce, underlying->get_nonce(address));
     }
     inline void increment_nonce(const uint160_t &address) {
         set_nonce(address, get_nonce(address) + 1);
     }
 
     inline uint256_t get_balance(const uint160_t &address) const {
-        return underlying->get_balance(address);
-//        return balances.get(address, underlying->get_balance(address));
+//        return underlying->get_balance(address);
+        return balances.get(address, underlying->get_balance(address));
     }
     inline void set_balance(const uint160_t &address, const uint256_t &balance) {
-        underlying->set_balance(address, balance);
-//        balances.set(address, balance, underlying->get_balance(address));
+//        underlying->set_balance(address, balance);
+        balances.set(address, balance, underlying->get_balance(address));
     }
     inline void add_balance(const uint160_t &address, uint256_t amount) {
         set_balance(address, get_balance(address) + amount);
@@ -2863,12 +2866,12 @@ public:
     }
 
     inline uint256_t get_codehash(const uint160_t &address) const {
-        return underlying->get_codehash(address);
-//        return contracts.get(address, underlying->get_codehash(address));
+//        return underlying->get_codehash(address);
+        return contracts.get(address, underlying->get_codehash(address));
     }
     inline void set_codehash(const uint160_t &address, const uint256_t &codehash) {
-        underlying->set_codehash(address, codehash);
-//        contracts.set(address, codehash, underlying->get_codehash(address));
+//        underlying->set_codehash(address, codehash);
+        contracts.set(address, codehash, underlying->get_codehash(address));
     }
 
     inline const uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
@@ -2893,14 +2896,14 @@ public:
     }
 
     inline const uint256_t& load(const uint160_t &address, const uint256_t &key) const {
-        return underlying->load(address, key);
-//        uint416_t extkey = uint160_t::concat(address, key);
-//        return data.get(extkey, underlying->load(address, key));
+//        return underlying->load(address, key);
+        uint416_t extkey = uint160_t::concat(address, key);
+        return data.get(extkey, underlying->load(address, key));
     }
     inline void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) {
-        underlying->store(address, key, value);
-//        uint416_t extkey = (uint416_t)key;
-//        data.set(extkey, value, underlying->load(address, key));
+//        underlying->store(address, key, value);
+        uint416_t extkey = uint160_t::concat(address, key);
+        data.set(extkey, value, underlying->load(address, key));
     }
     inline const uint256_t& _load(const uint160_t &address, const uint256_t &key) {
         return underlying->load(address, key);
@@ -2927,7 +2930,8 @@ public:
         _assert(serial1 == serial2);
         _assert(serial1 == serial3);
         _assert(serial1 == serial4);
-        return serial1 << 32 | serial5;
+        uint64_t serial = serial1 << 32 | serial5;
+        return serial;
     }
     void commit(uint64_t serial) {
         uint64_t serial1 = serial >> 32;
