@@ -1,27 +1,17 @@
-CPPC=g++ -std=c++11 -pedantic -Wall -Wno-vla -Wno-unused-variable -Wno-unused-but-set-variable -Os
-CPPFLAGS=
-
-CL=g++ -s
-CLFLAGS=
-
-EXE=evm
-
-SRCS=\
-	evm.cpp
-
-OBJS=$(SRCS:.cpp=.o)
-
 .PHONY: all clean
 
-.SUFFIXES: .cpp .o
+.SUFFIXES: .hpp .cpp .o
 
-all: $(EXE)
+all: evm
 
 clean:
-	rm -f $(EXE) $(OBJS)
+	rm -f evm *.o
 
-$(EXE): $(OBJS)
-	$(CL) $(OBJS) $(CLFLAGS) -o $(EXE)
+evm: evm.o
+	g++ -s -o evm evm.cpp
+
+evm.cpp: evm.hpp
 
 .cpp.o:
-	$(CPPC) -c $(CPPFLAGS) -o $@ $<
+	g++ -std=c++11 -pedantic -Wall -Wno-vla -Wno-unused-variable -Wno-unused-but-set-variable -Os -o $@ $<
+
