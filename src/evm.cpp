@@ -287,20 +287,20 @@ public:
 class _Block : public Block {
 private:
     uint64_t _timestamp = 0;
-    uint256_t _number = 0;
-    uint160_t _coinbase = 0;
+    uint64_t _number = 0;
     uint64_t _gaslimit = 10000000;
-    uint256_t _difficulty = 0;
+    uint64_t _difficulty = 0;
+    uint160_t _coinbase = 0;
 public:
     _Block() {}
-    _Block(uint64_t timestamp, uint256_t number, const uint160_t& coinbase, const uint64_t &gaslimit, const uint256_t &difficulty)
-        : _timestamp(timestamp), _number(number), _coinbase(coinbase), _gaslimit(gaslimit), _difficulty(difficulty) {}
-    const uint256_t& forknumber() { return _number; }
-    const uint64_t& timestamp() { return _timestamp; }
-    const uint256_t& number() { return _number; }
+    _Block(uint64_t timestamp, uint64_t number, uint64_t gaslimit, uint64_t difficulty, const uint160_t& coinbase)
+        : _timestamp(timestamp), _number(number), _gaslimit(gaslimit), _difficulty(difficulty), _coinbase(coinbase) {}
+    uint64_t forknumber() { return _number; }
+    uint64_t timestamp() { return _timestamp; }
+    uint64_t number() { return _number; }
+    uint64_t gaslimit() { return _gaslimit; }
+    uint64_t difficulty() { return _difficulty; }
     const uint160_t& coinbase() { return _coinbase; }
-    const uint64_t& gaslimit() { return _gaslimit; }
-    const uint256_t& difficulty() { return _difficulty; }
     uint256_t hash(const uint256_t &number) {
         uint8_t buffer[32];
         uint256_t::to(number, buffer);

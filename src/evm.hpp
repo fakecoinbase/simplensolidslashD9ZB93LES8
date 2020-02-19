@@ -2456,6 +2456,7 @@ static inline uint64_t _gas_datacopy(Release release, uint64_t size)
 static inline uint64_t _gas_bigmodexp(Release release)
 {
     assert(false); // UNIMPLEMENTED;
+    return 0;
 }
 
 static inline uint64_t _gas_bn256add(Release release)
@@ -2471,6 +2472,7 @@ static inline uint64_t _gas_bn256scalarmul(Release release)
 static inline uint64_t _gas_bn256pairing(Release release)
 {
     assert(false); // UNIMPLEMENTED;
+    return 0;
 }
 
 static inline uint64_t _gas_blake2f(Release release, uint64_t rounds)
@@ -3073,12 +3075,12 @@ public:
 
 class Block {
 public:
-    virtual const uint256_t& forknumber() = 0;
-    virtual const uint64_t& timestamp() = 0;
-    virtual const uint256_t& number() = 0;
+    virtual uint64_t forknumber() = 0;
+    virtual uint64_t timestamp() = 0;
+    virtual uint64_t number() = 0;
+    virtual uint64_t gaslimit() = 0;
+    virtual uint64_t difficulty() = 0;
     virtual const uint160_t& coinbase() = 0;
-    virtual const uint64_t& gaslimit() = 0;
-    virtual const uint256_t& difficulty() = 0;
     virtual uint256_t hash(const uint256_t &number) = 0;
 };
 
@@ -4026,7 +4028,7 @@ void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, uint64_t
 {
     Storage storage(&state);
 
-    Release release = get_release(block.forknumber().cast64());
+    Release release = get_release(block.forknumber());
 
     struct txn txn = { 0, 0, 0, false, 0, 0, nullptr, 0, false, 0, 0, 0 };
     _handles(decode_txn)(buffer, size, txn);
