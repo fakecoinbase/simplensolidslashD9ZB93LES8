@@ -1,20 +1,16 @@
-SRCS=\
-	evm.cpp
-
-ABIS=$(SRCS:.cpp=.abi)
-ASMS=$(SRCS:.cpp=.wasm)
-
 .PHONY: all clean
 
-.SUFFIXES: .cpp .abi .wasm
+.SUFFIXES: .hpp .cpp .abi .wasm
 
-all: $(ABIS) $(ASMS)
+all: evm.abi evm.wasm
 
 clean:
-	rm -f $(ABIS) $(ASMS)
+	rm -f *.abi *.wasm
+
+evm.o: evm.hpp evm.cpp
 
 .cpp.abi:
-	eosio-cpp $< -o $@
+	eosio-cpp -DNDEBUG $< -o $@
 
 .cpp.wasm:
-	eosio-cpp $< -o $@
+	eosio-cpp -DNDEBUG $< -o $@

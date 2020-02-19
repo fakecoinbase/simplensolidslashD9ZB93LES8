@@ -10,7 +10,7 @@ clean:
 evm: evm.o
 	g++ -s -o evm evm.cpp
 
-evm.cpp: evm.hpp
+evm.o: evm.hpp evm.cpp
 
 .cpp.o:
 	g++ -std=c++11 -pedantic -Wall -Wno-vla -Wno-unused-variable -Wno-unused-but-set-variable -Os -o $@ $<

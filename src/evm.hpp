@@ -1,5 +1,6 @@
-#include <new>
+#include <assert.h>
 #include <stdint.h>
+#include <new>
 
 #ifndef EVM_HPP
 #define EVM_HPP
@@ -7,10 +8,9 @@
 /* error */
 
 enum Error {
-    ASSERT_VIOLATION = 1,
+    NONE = 0,
     CODE_CONFLICT, // VM
     GAS_EXAUSTED, // VM
-    MEMORY_EXAUSTED,
     ILLEGAL_TARGET, // VM
     ILLEGAL_UPDATE, // VM
     INSUFFICIENT_BALANCE,
@@ -25,21 +25,15 @@ enum Error {
     RECURSION_LIMITED, // VM
     STACK_OVERFLOW, // VM
     STACK_UNDERFLOW, // VM
-    UNKNOWN_FILE,
     UNIMPLEMENTED,
 };
-
-static inline void _assert(bool cond)
-{
-    if (!cond) throw ASSERT_VIOLATION;
-}
 
 template<typename T>
 static inline T *_new(uint64_t size)
 {
     if (size == 0) return nullptr;
     T* p = new(std::nothrow) T[size];
-    if (p == nullptr) throw MEMORY_EXAUSTED;
+    if (p == nullptr) abort();
     return p;
 }
 
@@ -50,11 +44,9 @@ static inline void _delete(T *p)
 }
 
 static const char *errors[UNIMPLEMENTED+1] = {
-    nullptr,
-    "ASSERT_VIOLATION",
+    "NONE",
     "CODE_CONFLICT",
     "GAS_EXAUSTED",
-    "MEMORY_EXAUSTED",
     "ILLEGAL_TARGET",
     "ILLEGAL_UPDATE",
     "INSUFFICIENT_BALANCE",
@@ -69,7 +61,6 @@ static const char *errors[UNIMPLEMENTED+1] = {
     "RECURSION_LIMITED",
     "STACK_OVERFLOW",
     "STACK_UNDERFLOW",
-    "UNKNOWN_FILE",
     "UNIMPLEMENTED",
 };
 
@@ -97,14 +88,14 @@ private:
     }
 public:
     inline uintX_t() {}
-    inline uintX_t(uint64_t v) { _assert(W > 1); data[0] = v; data[1] = v >> 32; for (int i = 2; i < W; i++) data[i] = 0; }
+    inline uintX_t(uint64_t v) { assert(W > 1); data[0] = v; data[1] = v >> 32; for (int i = 2; i < W; i++) data[i] = 0; }
     template<int Y> inline uintX_t(const uintX_t<Y> &v) {
         int s = v.W < W ? v.W : W;
         for (int i = 0; i < s; i++) data[i] = v.data[i];
         for (int i = s; i < W; i++) data[i] = 0;
     }
     inline uintX_t& operator=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] = v.data[i]; return *this; }
-    inline uint64_t cast64() const { _assert(W > 1); for (int i = 2; i < W; i++) _assert(data[i] == 0); return ((uint64_t)data[1] << 32) | data[0]; }
+    inline uint64_t cast64() const { assert(W > 1); for (int i = 2; i < W; i++) assert(data[i] == 0); return ((uint64_t)data[1] << 32) | data[0]; }
     inline const uintX_t sigflip() const { uintX_t v = *this; v.data[W-1] ^= 0x80000000; return v; }
     inline uint64_t bytes() const { for (uint64_t i = 0; i < B; i++) if (this[i] != 0) return B - i; return 0; }
     inline const uintX_t operator~() const { uintX_t v; for (int i = 0; i < W; i++) v.data[i] = ~data[i]; return v; }
@@ -146,7 +137,7 @@ public:
     inline uintX_t& operator|=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] |= v.data[i]; return *this; }
     inline uintX_t& operator^=(const uintX_t& v) { for (int i = 0; i < W; i++) data[i] ^= v.data[i]; return *this; }
     inline uintX_t& operator<<=(int n) {
-        _assert(0 <= n && n < X);
+        assert(0 <= n && n < X);
         if (n == 0) return *this;
         int index = n / 32;
         int shift = n % 32;
@@ -159,7 +150,7 @@ public:
         return *this;
     }
     inline uintX_t& operator>>=(int n) {
-        _assert(0 <= n && n < X);
+        assert(0 <= n && n < X);
         if (n == 0) return *this;
         int index = n / 32;
         int shift = n % 32;
@@ -172,7 +163,7 @@ public:
         return *this;
     }
     inline const uintX_t sigext(int n) const {
-        _assert(0 <= n && n < B);
+        assert(0 <= n && n < B);
         int shift = 8 * n;
         uintX_t t = *this << shift;
         return sar(t, shift);
@@ -194,7 +185,7 @@ public:
     friend inline bool operator<=(const uintX_t& v1, const uintX_t& v2) { return v1.cmp(v2) <= 0; }
     friend inline bool operator>=(const uintX_t& v1, const uintX_t& v2) { return v1.cmp(v2) >= 0; }
     inline uint8_t operator[](int n) const {
-        _assert(0 <= n && n < B);
+        assert(0 <= n && n < B);
         n = B - 1 - n;
         int i = n / 4;
         int j = n % 4;
@@ -202,7 +193,7 @@ public:
         return (uint8_t)(data[i] >> shift);
     }
     inline uint8_t& operator[](int n) {
-        _assert(0 <= n && n < B);
+        assert(0 <= n && n < B);
         n = B - 1 - n;
         int i = n / 4;
         int j = n % 4;
@@ -210,7 +201,7 @@ public:
         return ((uint8_t*)&data[i])[j];
     }
     static inline const uintX_t sar(const uintX_t &v, int n) {
-        _assert(0 <= n && n < X);
+        assert(0 <= n && n < X);
         if (n == 0) return v;
         uintX_t t = v;
         bool is_neg = (t[0] & 0x80) > 0;
@@ -220,7 +211,7 @@ public:
         return t;
     }
     static inline void divmod(const uintX_t &num, const uintX_t &div, uintX_t &quo, uintX_t &rem) {
-        _assert(div > 0);
+        assert(div > 0);
         quo = 0;
         rem = num;
         int shift = 0;
@@ -283,7 +274,7 @@ public:
     static inline const uintX_t from(const char *buffer, int size) { return from((const uint8_t*)buffer, size); }
     static inline const uintX_t from(const uint8_t *buffer) { return from(buffer, B); }
     static inline const uintX_t from(const uint8_t *buffer, int size) {
-        _assert(0 <= size && size <= B);
+        assert(0 <= size && size <= B);
         uintX_t v = 0;
         for (int j = 0; j < size; j++) {
             int i = j + B - size;
@@ -293,7 +284,7 @@ public:
     }
     static inline void to(const uintX_t &v, uint8_t *buffer) { to(v, buffer, B); }
     static inline void to(const uintX_t &v, uint8_t *buffer, int size) {
-        _assert(0 <= size && size <= B);
+        assert(0 <= size && size <= B);
         for (int j = 0; j < size; j++) {
             int i = j + B - size;
             buffer[j] = v[i];
@@ -1859,7 +1850,7 @@ static inline Release get_release(uint64_t number)
         Release release = (Release)(i - 1);
         if (number >= releaseforkblock[release]) return release;
     }
-    _assert(false);
+    assert(false);
     return FRONTIER;
 }
 
@@ -2467,9 +2458,9 @@ private:
     uint256_t data[L];
 public:
     inline uint64_t top() const { return _top; }
-    inline const uint256_t pop() { _assert(_top > 0); return data[--_top]; }
-    inline void push(const uint256_t& v) {  _assert(_top < L); data[_top++] = v; }
-    inline uint256_t& operator[](uint64_t i) { _assert(i <= _top); return data[_top - i]; }
+    inline const uint256_t pop() { assert(_top > 0); return data[--_top]; }
+    inline void push(const uint256_t& v) {  assert(_top < L); data[_top++] = v; }
+    inline uint256_t& operator[](uint64_t i) { assert(i <= _top); return data[_top - i]; }
 };
 
 class Memory {
@@ -2514,8 +2505,8 @@ private:
     inline void set(uint64_t i, uint8_t v) {
         uint64_t page_index = i / P;
         uint64_t byte_index = i % P;
-        _assert(page_index < page_count);
-        _assert(pages[page_index] != nullptr);
+        assert(page_index < page_count);
+        assert(pages[page_index] != nullptr);
         pages[page_index][byte_index] = v;
     }
 public:
@@ -2535,12 +2526,12 @@ public:
         burn(offset, 32, buffer, 32);
     }
     inline void dump(uint64_t offset, uint64_t size, uint8_t *buffer) {
-        _assert(offset + size >= offset);
+        assert(offset + size >= offset);
         if (size > 0) mark(offset + size);
         for (uint64_t i = 0; i < size; i++) buffer[i] = get(offset+i);
     }
     inline void burn(uint64_t offset, uint64_t size, const uint8_t *buffer, uint64_t burnsize) {
-        _assert(offset + size >= offset);
+        assert(offset + size >= offset);
         if (size > 0) expand(offset + size);
         if (burnsize > size) burnsize = size;
         for (uint64_t i = 0; i < burnsize; i++) set(offset+i, buffer[i]);
@@ -2558,7 +2549,7 @@ public:
     virtual void set_codehash(const uint160_t &address, const uint256_t &codehash) = 0;
     virtual const uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const = 0;
     virtual void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) = 0;
-    virtual const uint256_t& load(const uint160_t &address, const uint256_t &key) const = 0;
+    virtual uint256_t load(const uint160_t &address, const uint256_t &key) const = 0;
     virtual void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) = 0;
     virtual void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) = 0;
     virtual void log1(const uint160_t &address, const uint256_t &v1, const uint8_t *data, uint64_t data_size) = 0;
@@ -2652,7 +2643,7 @@ public:
             keys->next = table[i];
             table[i] = keys;
         }
-        _assert(keys->values == nullptr || keys->values->serial <= serial);
+        assert(keys->values == nullptr || keys->values->serial <= serial);
         if (keys->values == nullptr || (keys->values->serial < serial && keys->values->value != value)) {
             struct value_stack *values = _new<struct value_stack>(1);
             values->serial = serial;
@@ -2678,7 +2669,7 @@ public:
                 if (values->serial > snapshot) {
                     values->serial = snapshot;
                     while (values->next != nullptr && values->next->serial >= snapshot) {
-                        _assert(values->next->serial == snapshot);
+                        assert(values->next->serial == snapshot);
                         struct value_stack *next = values->next->next;
                         _delete(values->next);
                         values->next = next;
@@ -2729,7 +2720,7 @@ protected:
     uint64_t count = 0;
     struct log *entries = nullptr;
     inline log &new_entry(int topic_count, uint64_t data_size) {
-        _assert(topic_count >= 0);
+        assert(topic_count >= 0);
         if (count == capacity) {
             uint64_t new_capacity = capacity + capacity_increment;
             struct log *new_entries = _new<struct log>(new_capacity);
@@ -2879,7 +2870,7 @@ public:
         set_codehash(account, codehash);
     }
 
-    inline const uint256_t& load(const uint160_t &address, const uint256_t &key) const {
+    inline uint256_t load(const uint160_t &address, const uint256_t &key) const {
         uint416_t extkey = ((uint416_t)address << 256) | (uint416_t)key;
         return data.get(extkey, underlying->load(address, key));
     }
@@ -2887,7 +2878,7 @@ public:
         uint416_t extkey = ((uint416_t)address << 256) | (uint416_t)key;
         data.set(extkey, value, underlying->load(address, key));
     }
-    inline const uint256_t& _load(const uint160_t &address, const uint256_t &key) {
+    inline uint256_t _load(const uint160_t &address, const uint256_t &key) {
         return underlying->load(address, key);
     }
 
@@ -2899,11 +2890,11 @@ public:
         return refund_gas;
     }
     inline void add_refund(uint64_t cost) {
-        _assert(refund_gas + cost > refund_gas);
+        assert(refund_gas + cost > refund_gas);
         refund_gas += cost;
     }
     inline void sub_refund(uint64_t cost) {
-        _assert(refund_gas >= cost);
+        assert(refund_gas >= cost);
         refund_gas -= cost;
     }
 
@@ -2929,9 +2920,9 @@ public:
         uint64_t serial3 = contracts.snapshot();
         uint64_t serial4 = data.snapshot();
         uint64_t serial5 = logs.snapshot();
-        _assert(serial1 == serial2);
-        _assert(serial1 == serial3);
-        _assert(serial1 == serial4);
+        assert(serial1 == serial2);
+        assert(serial1 == serial3);
+        assert(serial1 == serial4);
         uint64_t serial = serial1 << 32 | serial5;
         return serial;
     }
@@ -3092,7 +3083,7 @@ static inline void _consume_gas(uint64_t &gas, uint64_t cost)
 
 static inline void _refund_gas(uint64_t &gas, uint64_t stipend)
 {
-    _assert(gas + stipend >= gas);
+    assert(gas + stipend >= gas);
     gas += stipend;
 }
 
@@ -3118,7 +3109,7 @@ static inline void _code_size_check(Release release, const uint64_t code_size)
 
 static inline void _jumpdest_check(const uint8_t *code, uint64_t code_size, uint64_t pc, uint8_t *pc_valid, uint64_t &pc_limit)
 {
-    _assert(pc < code_size);
+    assert(pc < code_size);
     uint8_t opc = code[pc];
     if (opc != JUMPDEST) throw ILLEGAL_TARGET;
     for (; pc_limit <= pc; pc_limit++) {
@@ -3983,8 +3974,8 @@ static inline void _verify_txn(Release release, struct txn &txn)
 
 static inline uint256_t _txn_hash(struct txn &txn)
 {
-    _assert(txn.is_signed);
-    _assert(txn.v == 27 || txn.v == 28 || txn.v == 35 + 2 * CHAIN_ID || txn.v == 36 + 2 * CHAIN_ID);
+    assert(txn.is_signed);
+    assert(txn.v == 27 || txn.v == 28 || txn.v == 35 + 2 * CHAIN_ID || txn.v == 36 + 2 * CHAIN_ID);
     uint256_t v = txn.v;
     uint256_t r = txn.r;
     uint256_t s = txn.s;
@@ -4000,11 +3991,11 @@ static inline uint256_t _txn_hash(struct txn &txn)
     txn.v = v > 28 ? v - (8 + 2 * CHAIN_ID) : v;
     txn.r = r;
     txn.s = s;
-    _assert(txn.v == 27 || txn.v == 28);
+    assert(txn.v == 27 || txn.v == 28);
     return h;
 }
 
-void raw(Block &block, State &state, const uint8_t *buffer, uint64_t size, uint160_t sender)
+void vm_txn(Block &block, State &state, const uint8_t *buffer, uint64_t size, uint160_t sender)
 {
     Storage storage(&state);
 

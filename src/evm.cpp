@@ -109,7 +109,7 @@ private:
         ss << std::hex << std::setw(8) << std::setfill('0') << hash;
         std::string name(ss.str());
         std::ifstream fs("states/" + name + ".dat", std::ios::ate | std::ios::binary);
-        if (!fs.is_open()) throw UNKNOWN_FILE;
+        if (!fs.is_open()) throw UNIMPLEMENTED;
         uint64_t size = fs.tellg();
         uint8_t buffer[size];
         fs.seekg(0, std::ios::beg);
@@ -227,7 +227,7 @@ public:
         update(codehash, code, code_size);
     };
 
-    inline const uint256_t& load(const uint160_t &address, const uint256_t &key) const {
+    inline uint256_t load(const uint160_t &address, const uint256_t &key) const {
         for (int i = 0; i < keyvalue_size; i++) {
             if (keyvalue_list[i][0] == key && address == account_index[keyvalue_index[i]]) {
                 return keyvalue_list[i][1];
@@ -385,7 +385,7 @@ int main(int argc, const char *argv[])
     try {
         _Block block;
         _State state;
-        raw(block, state, buffer, size, 0);
+        vm_txn(block, state, buffer, size, 0);
         state.save();
     } catch (Error e) {
         std::cerr << progname << ": error " << errors[e] << std::endl; return 1;

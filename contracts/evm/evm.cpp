@@ -1,5 +1,11 @@
 #include <eosio/eosio.hpp>
 
+#include "../../src/evm.hpp"
+
+using namespace eosio;
+
+using std::string;
+
 // EVM executes as the Yellow Paper, and:
 // - there will be no effective BLOCK gas limit. Instructions that return block limit should return a sufficiently large supply
 // - the TRANSACTION gas limit will be enforced
@@ -12,9 +18,76 @@
 // - Provided that the EOSIO account in the “from” field of the transfer maps to a known and valid Account Table entry through the entry’s unique associated EOSIO account
 // - Transferred tokens should be added to the Account Table entry’s balance
 
-using namespace eosio;
+class _Block : public Block {
+private:
+    uint64_t _timestamp = 0;
+    uint256_t _number = 0;
+    uint160_t _coinbase = 0;
+    uint64_t _gaslimit = 10000000;
+    uint256_t _difficulty = 0;
+public:
+    _Block() {}
+    _Block(uint64_t timestamp, uint256_t number, const uint160_t& coinbase, const uint64_t &gaslimit, const uint256_t &difficulty)
+        : _timestamp(timestamp), _number(number), _coinbase(coinbase), _gaslimit(gaslimit), _difficulty(difficulty) {}
+    const uint256_t& forknumber() { return _number; }
+    const uint64_t& timestamp() { return _timestamp; }
+    const uint256_t& number() { return _number; }
+    const uint160_t& coinbase() { return _coinbase; }
+    const uint64_t& gaslimit() { return _gaslimit; }
+    const uint256_t& difficulty() { return _difficulty; }
+    uint256_t hash(const uint256_t &number) {
+        uint8_t buffer[32];
+        uint256_t::to(number, buffer);
+        return sha3(buffer, 32);
+    }
+};
 
-using std::string;
+class _State : public State {
+private:
+public:
+    inline uint64_t get_nonce(const uint160_t &address) const {
+	return 0;
+    };
+    inline void set_nonce(const uint160_t &address, const uint64_t &nonce) {
+    };
+    inline uint256_t get_balance(const uint160_t &address) const {
+	return 0;
+    };
+    inline void set_balance(const uint160_t &address, const uint256_t &balance) {
+    };
+
+    inline uint256_t get_codehash(const uint160_t &address) const {
+	return 0;
+    };
+
+    inline void set_codehash(const uint160_t &address, const uint256_t &codehash) {
+    };
+
+    inline const uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
+	return nullptr;
+    };
+    inline void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) {
+    };
+
+    inline uint256_t load(const uint160_t &address, const uint256_t &key) const {
+	return 0;
+    };
+    inline void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) {
+    };
+    inline void remove(const uint160_t &address) {
+    }
+
+    inline void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) {
+    }
+    inline void log1(const uint160_t &address, const uint256_t &v1, const uint8_t *data, uint64_t data_size) {
+    }
+    inline void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) {
+    }
+    inline void log3(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *data, uint64_t data_size) {
+    }
+    inline void log4(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *data, uint64_t data_size) {
+    }
+};
 
 class [[eosio::contract("evm")]] evm : public contract {
 private:
@@ -57,6 +130,9 @@ public:
     // - OR if the transaction has not been authorized by the Associated EOSIO Account
     [[eosio::action]]
     void raw(const string& data, const checksum160 sender) {
+        _Block block;
+        _State state;
+        vm_txn(block, state, nullptr, 0, 0);
         print("Unimplemented");
     }
 
