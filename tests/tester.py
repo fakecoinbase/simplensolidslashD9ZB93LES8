@@ -119,7 +119,7 @@ def codeInitLocation(location, number):
         {
             uint256_t location = uint256_t::from(\"""" + intToU256(location) + """\");
             uint256_t number = uint256_t::from(\"""" + intToU256(number) + """\");
-            storage.store(account, location, number);
+            state.store(account, location, number);
         }
 """
 
@@ -134,7 +134,7 @@ def codeDoneLocation(location, number):
         {
             uint256_t location = uint256_t::from(\"""" + intToU256(location) + """\");
             uint256_t number = uint256_t::from(\"""" + intToU256(number) + """\");
-            uint256_t _number = storage.load(account, location);
+            uint256_t _number = state.load(account, location);
             if (number != _number) {
                 std::cerr << "post: invalid storage" << std::endl;
                 std::cerr << number << std::endl;
@@ -152,10 +152,12 @@ def codeInitAccount(account, nonce, balance, code, storage):
         uint256_t balance = uint256_t::from(\"""" + intToU256(balance) + """\");
         uint8_t *code = (uint8_t*)\"""" + code + """\";
         uint64_t code_size = """ + str(len(code) // 4) + """;
+        uint256_t codehash = sha3(code, code_size);
 
-        storage.set_nonce(account, nonce);
-        storage.set_balance(account, balance);
-        storage.register_code(account, code, code_size);
+        state.store_code(codehash, code, code_size);
+        state.set_nonce(account, nonce);
+        state.set_balance(account, balance);
+        state.set_codehash(account, codehash);
 """
     for subkey, subvalue in storage.items():
         location = hexToInt(subkey)
@@ -175,16 +177,18 @@ def codeDoneAccount(account, nonce, balance, code, storage):
         uint8_t *code = (uint8_t*)\"""" + code + """\";
         uint64_t code_size = """ + str(len(code) // 4) + """;
 
-        if (nonce != storage.get_nonce(account)) {
+        if (nonce != state.get_nonce(account)) {
             std::cerr << "post: invalid nonce" << std::endl;
             return 1;
         }
-        if (balance != storage.get_balance(account)) {
+        if (balance != state.get_balance(account)) {
             std::cerr << "post: invalid balance" << std::endl;
             return 1;
         }
+
+        uint256_t codehash = state.get_codehash(account);
         uint64_t _code_size;
-        const uint8_t *_code = storage.get_code(account, _code_size);
+        const uint8_t *_code = state.load_code(codehash, _code_size);
         if (code_size != _code_size) {
             std::cerr << "post: invalid account code_size" << std::endl;
             return 1;
@@ -238,8 +242,8 @@ def codeDoneGas(fgas):
     return """
     uint256_t fgas = uint256_t::from(\"""" + intToU256(fgas) + """\");
     if (gas != fgas) {
-//        std::cerr << "post: invalid gas " << fgas << " " << gas << std::endl;
-//        return 1;
+        std::cerr << "post: invalid gas " << fgas << " " << gas << std::endl;
+        return 1;
     }
 """
 
@@ -280,8 +284,6 @@ int main()
     _State state;
     Storage storage(&state);
 
-    for (uint8_t i = ECRECOVER; i <= BLAKE2F; i++) storage.register_code(i, (uint8_t*)(intptr_t)i, 0);
-
     Release release = get_release(block.forknumber().cast64());
 """
 
@@ -307,7 +309,6 @@ int main()
 
     src += """
     uint64_t snapshot = storage.begin();
-
     bool success;
     uint64_t return_size = 0;
     uint64_t return_capacity = 0;
@@ -326,6 +327,11 @@ int main()
         if (std::getenv("EVM_DEBUG")) std::cerr << "vm exception " << errors[e] << std::endl;
     }
     storage.end(snapshot, success);
+    uint64_t refund_gas = storage.get_refund();
+    uint64_t used_gas = gaslimit - gas;
+    _refund_gas(gas, _min(refund_gas, used_gas / 2));
+    storage.add_balance(origin, gas * gasprice);
+    storage.flush();
 """
 
     if not "out" in item:

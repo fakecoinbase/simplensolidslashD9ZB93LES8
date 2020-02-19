@@ -3009,17 +3009,17 @@ public:
                 }
             }
         }
-        for (uint64_t i = 0; i < touched.size; i++) {
-            for (auto keys = touched.table[i]; keys != nullptr; keys = keys->next) {
-                if (keys->values != nullptr) {
-                    if (is_empty(keys->key)) destruct_account(keys->key);
-                }
-            }
-        }
         for (uint64_t i = 0; i < destructed.size; i++) {
             for (auto keys = destructed.table[i]; keys != nullptr; keys = keys->next) {
                 if (keys->values != nullptr) {
                     if (keys->values->value) underlying->remove(keys->key);
+                }
+            }
+        }
+        for (uint64_t i = 0; i < touched.size; i++) {
+            for (auto keys = touched.table[i]; keys != nullptr; keys = keys->next) {
+                if (keys->values != nullptr) {
+                    if (is_empty(keys->key)) underlying->remove(keys->key);
                 }
             }
         }
