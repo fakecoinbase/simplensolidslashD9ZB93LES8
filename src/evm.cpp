@@ -2631,6 +2631,7 @@ private:
         }
     }
 public:
+    Store() { for (uint8_t i = ECRECOVER; i <= BLAKE2F; i++) storage.register_code(i, (uint8_t*)(intptr_t)i, 0); }
     ~Store() { rollback(0); _delete(table); }
     inline const V &get(const K &key, const V &default_value) const {
         if (size == 0) return default_value;
@@ -3989,7 +3990,6 @@ static inline uint256_t _txn_hash(struct txn &txn)
 void raw(Block &block, State &state, const uint8_t *buffer, uint64_t size, uint160_t sender)
 {
     Storage storage(&state);
-    for (uint8_t i = ECRECOVER; i <= BLAKE2F; i++) storage.register_code(i, (uint8_t*)(intptr_t)i, 0);
 
     Release release = get_release(block.forknumber().cast64());
 
