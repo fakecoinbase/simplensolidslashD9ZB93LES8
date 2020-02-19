@@ -2580,6 +2580,7 @@ public:
     virtual void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) = 0;
     virtual void log3(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *data, uint64_t data_size) = 0;
     virtual void log4(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *data, uint64_t data_size) = 0;
+    virtual void remove(const uint160_t &address) = 0;
 };
 
 class Transactional {
@@ -2631,7 +2632,6 @@ private:
         }
     }
 public:
-    Store() { for (uint8_t i = ECRECOVER; i <= BLAKE2F; i++) storage.register_code(i, (uint8_t*)(intptr_t)i, 0); }
     ~Store() { rollback(0); _delete(table); }
     inline const V &get(const K &key, const V &default_value) const {
         if (size == 0) return default_value;
@@ -2840,7 +2840,9 @@ protected:
     Log logs;
     uint64_t refund_gas = 0;
 public:
-    Storage(State *_underlying) : underlying(_underlying) {}
+    Storage(State *_underlying) : underlying(_underlying) {
+        for (uint8_t i = ECRECOVER; i <= BLAKE2F; i++) register_code(i, (uint8_t*)(intptr_t)i, 0);
+    }
     inline uint64_t get_nonce(const uint160_t &address) const {
         return nonces.get(address, underlying->get_nonce(address));
     }
@@ -2902,6 +2904,10 @@ public:
     }
     inline const uint256_t& _load(const uint160_t &address, const uint256_t &key) {
         return underlying->load(address, key);
+    }
+
+    void remove(const uint160_t &address) {
+        underlying->remove(address);
     }
 
     inline uint64_t get_refund() {
@@ -2971,24 +2977,39 @@ public:
     void flush() {
         for (uint64_t i = 0; i < nonces.size; i++) {
             for (auto keys = nonces.table[i]; keys != nullptr; keys = keys->next) {
-                if (keys->values != nullptr) underlying->set_nonce(keys->key, keys->values->value);
+                if (keys->values != nullptr) {
+                    underlying->set_nonce(keys->key, keys->values->value);
+                }
             }
         }
         for (uint64_t i = 0; i < balances.size; i++) {
             for (auto keys = balances.table[i]; keys != nullptr; keys = keys->next) {
-                if (keys->values != nullptr) underlying->set_balance(keys->key, keys->values->value);
+                if (keys->values != nullptr) {
+                    underlying->set_balance(keys->key, keys->values->value);
+                }
             }
         }
         for (uint64_t i = 0; i < contracts.size; i++) {
             for (auto keys = contracts.table[i]; keys != nullptr; keys = keys->next) {
-                if (keys->values != nullptr) underlying->set_codehash(keys->key, keys->values->value);
+                if (keys->values != nullptr) {
+                    underlying->set_codehash(keys->key, keys->values->value);
+                }
             }
         }
         for (uint64_t i = 0; i < data.size; i++) {
             for (auto keys = data.table[i]; keys != nullptr; keys = keys->next) {
                 uint160_t address = (uint160_t)(keys->key >> 256);
                 uint256_t key = (uint256_t)keys->key;
-                if (keys->values != nullptr) underlying->store(address, key, keys->values->value);
+                if (keys->values != nullptr) {
+                    underlying->store(address, key, keys->values->value);
+                }
+            }
+        }
+        for (uint64_t i = 0; i < destructed.size; i++) {
+            for (auto keys = destructed.table[i]; keys != nullptr; keys = keys->next) {
+                if (keys->values != nullptr) {
+                    if (keys->values->value) underlying->remove(keys->key);
+                }
             }
         }
         for (uint64_t i = 0; i < logs.count; i++) {
@@ -4151,12 +4172,10 @@ private:
             contract_list[contract_size].code_size = 0;
             contract_size++;
         }
-//        if (account_list[index].code != nullptr) throw CODE_CONFLICT;
         uint8_t *code = _new<uint8_t>(size);
         for (uint64_t i = 0; i < size; i++) code[i] = buffer[i];
         contract_list[index].code = code;
         contract_list[index].code_size = size;
-//        contract_list[index].codehash = sha3(code, size);
     }
     void load(uint64_t hash) {
         std::stringstream ss;
@@ -4317,6 +4336,9 @@ public:
         keyvalue_list[keyvalue_size][1] = value;
         keyvalue_size++;
     };
+    inline void remove(const uint160_t &address) {
+        // missing removal
+    }
 
     inline void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) {
         if (std::getenv("EVM_DEBUG")) std::cout << "log0" << std::endl;
