@@ -2975,10 +2975,12 @@ public:
         success ? commit(snapshot) : rollback(snapshot);
     }
     void flush() {
+        Store<uint160_t, bool> touched;
         for (uint64_t i = 0; i < nonces.size; i++) {
             for (auto keys = nonces.table[i]; keys != nullptr; keys = keys->next) {
                 if (keys->values != nullptr) {
                     underlying->set_nonce(keys->key, keys->values->value);
+                    touched.set(keys->key, true, false);
                 }
             }
         }
@@ -2986,6 +2988,7 @@ public:
             for (auto keys = balances.table[i]; keys != nullptr; keys = keys->next) {
                 if (keys->values != nullptr) {
                     underlying->set_balance(keys->key, keys->values->value);
+                    touched.set(keys->key, true, false);
                 }
             }
         }
@@ -2993,6 +2996,7 @@ public:
             for (auto keys = contracts.table[i]; keys != nullptr; keys = keys->next) {
                 if (keys->values != nullptr) {
                     underlying->set_codehash(keys->key, keys->values->value);
+                    touched.set(keys->key, true, false);
                 }
             }
         }
@@ -3002,6 +3006,13 @@ public:
                 uint256_t key = (uint256_t)keys->key;
                 if (keys->values != nullptr) {
                     underlying->store(address, key, keys->values->value);
+                }
+            }
+        }
+        for (uint64_t i = 0; i < touched.size; i++) {
+            for (auto keys = touched.table[i]; keys != nullptr; keys = keys->next) {
+                if (keys->values != nullptr) {
+                    if (is_empty(keys->key)) destruct_account(keys->key);
                 }
             }
         }
