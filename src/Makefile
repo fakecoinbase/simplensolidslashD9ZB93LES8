@@ -13,5 +13,5 @@ evm: evm.o
 evm.o: evm.hpp evm.cpp
 
 .cpp.o:
-	g++ -std=c++11 -pedantic -Wall -Wno-vla -Wno-unused-variable -Wno-unused-but-set-variable -Os -o $@ $<
+	g++ -std=c++11 -pedantic -Wall -Wno-vla -Wno-unused-variable -Os -o $@ $<
 

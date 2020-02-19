@@ -109,7 +109,7 @@ private:
         ss << std::hex << std::setw(8) << std::setfill('0') << hash;
         std::string name(ss.str());
         std::ifstream fs("states/" + name + ".dat", std::ios::ate | std::ios::binary);
-        if (!fs.is_open()) throw UNIMPLEMENTED;
+        if (!fs.is_open()) assert(false);
         uint64_t size = fs.tellg();
         uint8_t buffer[size];
         fs.seekg(0, std::ios::beg);
@@ -382,13 +382,13 @@ int main(int argc, const char *argv[])
     uint64_t size = len / 2;
     uint8_t buffer[size];
     if (len % 2 > 0 || !parse_hex(hexstr, buffer, size)) { std::cerr << progname << ": invalid input" << std::endl; return 1; }
-    try {
+    _try({
         _Block block;
         _State state;
-        vm_txn(block, state, buffer, size, 0);
+        _catches(vm_txn)(block, state, buffer, size, 0);
         state.save();
-    } catch (Error e) {
+    }, Error e, {
         std::cerr << progname << ": error " << errors[e] << std::endl; return 1;
-    }
+    })
     return 0;
 }
