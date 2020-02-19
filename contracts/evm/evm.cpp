@@ -56,17 +56,17 @@ private:
     typedef eosio::multi_index<"code"_n, code_table, code_secondary, code_tertiary> code_index;
     code_index _code;
 
-    static uint64_t hash(const uint160_t &address) { return 0; } // implement
-    static uint64_t hash(const checksum160 &address) { return 0; } // implement
-    static uint64_t hash(uint64_t acc_id, const checksum256 &key) { return 0; } // implement
-    static uint64_t hash(uint64_t acc_id, const uint256_t &key) { return 0; } // implement
-    static uint64_t hash(const std::vector<uint8_t> &code) { return 0; } // implement
-    static uint64_t _hash(const uint256_t &codehash) { return 0; } // implement
-    static bool equals(const checksum160 &address1, const uint160_t &address2) { return false; } // implement
-    static bool equals(const checksum256 &key1, const uint256_t &key2) { return false; } // implement
-    static checksum160 convert(const uint160_t &address) { abort(); };
-    static uint256_t convert(const checksum256 &address) { abort(); };
-    static checksum256 convert(const uint256_t &address) { abort(); };
+    static inline uint64_t hash(const uint160_t &address) { return 0; } // implement
+    static inline uint64_t hash(const checksum160 &address) { return 0; } // implement
+    static inline uint64_t hash(uint64_t acc_id, const checksum256 &key) { return 0; } // implement
+    static inline uint64_t hash(uint64_t acc_id, const uint256_t &key) { return 0; } // implement
+    static inline uint64_t hash(const std::vector<uint8_t> &code) { return 0; } // implement
+    static inline uint64_t _hash(const uint256_t &codehash) { return 0; } // implement
+    static inline bool equals(const checksum160 &address1, const uint160_t &address2) { return false; } // implement
+    static inline bool equals(const checksum256 &key1, const uint256_t &key2) { return false; } // implement
+    static inline checksum160 convert(const uint160_t &address) { abort(); };
+    static inline uint256_t convert(const checksum256 &address) { abort(); };
+    static inline checksum256 convert(const uint256_t &address) { abort(); };
 
 public:
     using contract::contract;
@@ -136,6 +136,13 @@ public:
 //        check( , "user does not exist in table" );
     }
 
+    [[eosio::on_notify("eosio.token::transfer")]]
+    void deposit(const name& account, const name &to, asset &quantity, string memo) {
+        if (to == get_self()) {
+//            add_balance();
+        }
+    }
+
 private:
 
     static constexpr uint64_t _gaslimit = 10000000; // sufficiently large supply
@@ -143,38 +150,44 @@ private:
 
     uint160_t _coinbase = 0; // static value
 
-    uint64_t timestamp() {
+    inline uint64_t timestamp() {
         return eosio::current_block_time().to_time_point().sec_since_epoch();
     }
 
-    uint64_t number() {
+    inline uint64_t number() {
         return 0; // implement
     }
 
-    uint64_t forknumber() {
+    inline uint64_t forknumber() {
         return 0; //implement
     }
 
-    uint64_t gaslimit() {
+    inline uint64_t gaslimit() {
         return _gaslimit;
     }
 
-    uint64_t difficulty() {
+    inline uint64_t difficulty() {
         return _difficulty;
     }
 
-    const uint160_t& coinbase() {
+    inline const uint160_t& coinbase() {
         static uint160_t _coinbase = 0; // could be something else
         return _coinbase;
     }
 
-    uint256_t hash(const uint256_t &number) {
+    inline uint256_t hash(const uint256_t &number) {
         uint8_t buffer[32];
         uint256_t::to(number, buffer);
         return sha3(buffer, 32);
     }
 
 private:
+    inline uint64_t get_account(uint64_t user_id) const {
+        auto idx = _account.get_index<"account2"_n>();
+        auto itr = idx.find(user_id);
+        if (itr != idx.end()) return itr->id;
+        return 0;
+    }
 
     inline uint64_t get_account(const uint160_t &address) const {
         auto idx = _account.get_index<"account3"_n>();
@@ -233,6 +246,24 @@ private:
         }
         if (balance > 0) insert_account(address, balance, 0, 0);
     };
+
+    inline void add_balance(const uint160_t &address, uint64_t amount) {
+        uint64_t id = get_account(address);
+        if (id > 0) {
+            auto itr = _account.find(id);
+            _account.modify(itr, _self, [&](auto& row) { row.balance += amount; });
+            return;
+        }
+    }
+
+    inline void sub_balance(const uint160_t &address, uint64_t amount) {
+        uint64_t id = get_account(address);
+        if (id > 0) {
+            auto itr = _account.find(id);
+            _account.modify(itr, _self, [&](auto& row) { row.balance -= amount; });
+            return;
+        }
+    }
 
     inline uint256_t get_codehash(const uint160_t &address) const {
         uint64_t id = get_account(address);
