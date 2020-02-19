@@ -138,8 +138,10 @@ public:
 
     [[eosio::on_notify("eosio.token::transfer")]]
     void deposit(const name& account, const name &to, asset &quantity, string memo) {
-        if (to == get_self()) {
-//            add_balance();
+        if (to == _self) {
+//            if (quantity.symbol == ) {
+//            add_balance(quantity.amount);
+//            }
         }
     }
 
