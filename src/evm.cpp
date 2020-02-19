@@ -300,12 +300,6 @@ public:
             buffer[j] = v[i];
         }
     }
-    template<int Y> static inline uintX_t<X+Y> concat(uintX_t v1, uintX_t<Y> v2) {
-        uintX_t<X+Y> t;
-        for (int i = 0; i < v2.W; i++) t.data[i] = v2.data[i];
-        for (int i = 0; i < v1.W; i++) t.data[v2.W + i] = v1.data[i];
-        return t;
-    }
     friend std::ostream& operator<<(std::ostream &os, const uintX_t &v) {
         for (int i = 0; i < B; i++) {
             os << std::hex << std::setw(2) << std::setfill('0') << (uint32_t)v[i];
@@ -2569,6 +2563,20 @@ public:
     }
 };
 
+class State {
+public:
+    virtual uint64_t get_nonce(const uint160_t &address) const = 0;
+    virtual void set_nonce(const uint160_t &address, const uint64_t &nonce) = 0;
+    virtual uint256_t get_balance(const uint160_t &address) const = 0;
+    virtual void set_balance(const uint160_t &address, const uint256_t &balance) = 0;
+    virtual uint256_t get_codehash(const uint160_t &address) const = 0;
+    virtual void set_codehash(const uint160_t &address, const uint256_t &codehash) = 0;
+    virtual const uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const = 0;
+    virtual void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) = 0;
+    virtual const uint256_t& load(const uint160_t &address, const uint256_t &key) const = 0;
+    virtual void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) = 0;
+};
+
 class Transactional {
 public:
     virtual uint64_t snapshot() = 0;
@@ -2579,6 +2587,7 @@ public:
 template<class K, class V>
 class Store : public Transactional {
 private:
+    friend class Storage;
     static constexpr int avgmaxperslot = 3;
     static constexpr int minsize = 32;
     static constexpr int growthdiv = 4;
@@ -2813,20 +2822,6 @@ public:
 
 static const uint256_t empty_code_hash = sha3(nullptr, 0);
 
-class State {
-public:
-    virtual uint64_t get_nonce(const uint160_t &address) const = 0;
-    virtual void set_nonce(const uint160_t &address, const uint64_t &nonce) = 0;
-    virtual uint256_t get_balance(const uint160_t &address) const = 0;
-    virtual void set_balance(const uint160_t &address, const uint256_t &balance) = 0;
-    virtual uint256_t get_codehash(const uint160_t &address) const = 0;
-    virtual void set_codehash(const uint160_t &address, const uint256_t &codehash) = 0;
-    virtual const uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const = 0;
-    virtual void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) = 0;
-    virtual const uint256_t& load(const uint160_t &address, const uint256_t &key) const = 0;
-    virtual void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) = 0;
-};
-
 class Storage : public State, public Transactional {
 protected:
     State *underlying;
@@ -2839,11 +2834,9 @@ protected:
 public:
     Storage(State *_underlying) : underlying(_underlying) {}
     inline uint64_t get_nonce(const uint160_t &address) const {
-//        return underlying->get_nonce(address);
         return nonces.get(address, underlying->get_nonce(address));
     }
     inline void set_nonce(const uint160_t &address, const uint64_t &nonce) {
-//        underlying->set_nonce(address, nonce);
         nonces.set(address, nonce, underlying->get_nonce(address));
     }
     inline void increment_nonce(const uint160_t &address) {
@@ -2851,11 +2844,9 @@ public:
     }
 
     inline uint256_t get_balance(const uint160_t &address) const {
-//        return underlying->get_balance(address);
         return balances.get(address, underlying->get_balance(address));
     }
     inline void set_balance(const uint160_t &address, const uint256_t &balance) {
-//        underlying->set_balance(address, balance);
         balances.set(address, balance, underlying->get_balance(address));
     }
     inline void add_balance(const uint160_t &address, uint256_t amount) {
@@ -2866,11 +2857,9 @@ public:
     }
 
     inline uint256_t get_codehash(const uint160_t &address) const {
-//        return underlying->get_codehash(address);
         return contracts.get(address, underlying->get_codehash(address));
     }
     inline void set_codehash(const uint160_t &address, const uint256_t &codehash) {
-//        underlying->set_codehash(address, codehash);
         contracts.set(address, codehash, underlying->get_codehash(address));
     }
 
@@ -2896,13 +2885,11 @@ public:
     }
 
     inline const uint256_t& load(const uint160_t &address, const uint256_t &key) const {
-//        return underlying->load(address, key);
-        uint416_t extkey = uint160_t::concat(address, key);
+        uint416_t extkey = ((uint416_t)address << 256) | (uint416_t)key;
         return data.get(extkey, underlying->load(address, key));
     }
     inline void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) {
-//        underlying->store(address, key, value);
-        uint416_t extkey = uint160_t::concat(address, key);
+        uint416_t extkey = ((uint416_t)address << 256) | (uint416_t)key;
         data.set(extkey, value, underlying->load(address, key));
     }
     inline const uint256_t& _load(const uint160_t &address, const uint256_t &key) {
@@ -2919,6 +2906,22 @@ public:
     inline void sub_refund(uint64_t cost) {
         _assert(refund_gas >= cost);
         refund_gas -= cost;
+    }
+
+    inline void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) {
+        logs.log0(address, data, data_size);
+    }
+    inline void log1(const uint160_t &address, const uint256_t &v1, const uint8_t *data, uint64_t data_size) {
+        logs.log1(address, v1, data, data_size);
+    }
+    inline void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) {
+        logs.log2(address, v1, v2, data, data_size);
+    }
+    inline void log3(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *data, uint64_t data_size) {
+        logs.log3(address, v1, v2, v3, data, data_size);
+    }
+    inline void log4(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *data, uint64_t data_size) {
+        logs.log4(address, v1, v2, v3, v4, data, data_size);
     }
 
     uint64_t snapshot() {
@@ -2957,21 +2960,29 @@ public:
     void end(uint64_t snapshot, bool success) {
         success ? commit(snapshot) : rollback(snapshot);
     }
-
-    inline void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) {
-        logs.log0(address, data, data_size);
-    }
-    inline void log1(const uint160_t &address, const uint256_t &v1, const uint8_t *data, uint64_t data_size) {
-        logs.log1(address, v1, data, data_size);
-    }
-    inline void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) {
-        logs.log2(address, v1, v2, data, data_size);
-    }
-    inline void log3(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *data, uint64_t data_size) {
-        logs.log3(address, v1, v2, v3, data, data_size);
-    }
-    inline void log4(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *data, uint64_t data_size) {
-        logs.log4(address, v1, v2, v3, v4, data, data_size);
+    void flush() {
+        for (uint64_t i = 0; i < nonces.size; i++) {
+            for (auto keys = nonces.table[i]; keys != nullptr; keys = keys->next) {
+                if (keys->values != nullptr) underlying->set_nonce(keys->key, keys->values->value);
+            }
+        }
+        for (uint64_t i = 0; i < balances.size; i++) {
+            for (auto keys = balances.table[i]; keys != nullptr; keys = keys->next) {
+                if (keys->values != nullptr) underlying->set_balance(keys->key, keys->values->value);
+            }
+        }
+        for (uint64_t i = 0; i < contracts.size; i++) {
+            for (auto keys = contracts.table[i]; keys != nullptr; keys = keys->next) {
+                if (keys->values != nullptr) underlying->set_codehash(keys->key, keys->values->value);
+            }
+        }
+        for (uint64_t i = 0; i < data.size; i++) {
+            for (auto keys = data.table[i]; keys != nullptr; keys = keys->next) {
+                uint160_t address = (uint160_t)(keys->key >> 256);
+                uint256_t key = (uint256_t)keys->key;
+                if (keys->values != nullptr) underlying->store(address, key, keys->values->value);
+            }
+        }
     }
 
     // TODO review
@@ -4026,6 +4037,7 @@ void raw(Block &block, State &state, const uint8_t *buffer, uint64_t size, uint1
 
     // after execution delete self destruct accounts
     // after execution delete touched accounts that were zeroed
+    storage.flush();
 }
 
 class _State : public State {
