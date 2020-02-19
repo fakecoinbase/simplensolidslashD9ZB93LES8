@@ -130,10 +130,14 @@ public:
     // - OR if the transaction has not been authorized by the Associated EOSIO Account
     [[eosio::action]]
     void raw(const string& data, const checksum160 sender) {
-        _Block block;
-        _State state;
-        vm_txn(block, state, nullptr, 0, 0);
         print("Unimplemented");
+        _try({
+            _Block block;
+            _State state;
+            _catches(vm_txn)(block, state, nullptr, 0, 0);
+        }, Error e, {
+            print("error");
+        })
     }
 
     // 1 an EOSIO account

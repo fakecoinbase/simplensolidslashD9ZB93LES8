@@ -10,7 +10,7 @@ clean:
 evm.o: evm.hpp evm.cpp
 
 .cpp.abi:
-	eosio-cpp -DNDEBUG $< -o $@
+	eosio-cpp -DNDEBUG -o $@ $<
 
 .cpp.wasm:
-	eosio-cpp -DNDEBUG $< -o $@
+	eosio-cpp -DNDEBUG -o $@ $<
