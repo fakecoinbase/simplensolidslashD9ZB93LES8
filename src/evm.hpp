@@ -1,3 +1,4 @@
+#include <new>
 #include <stdint.h>
 
 #ifndef EVM_HPP
@@ -297,12 +298,6 @@ public:
             int i = j + B - size;
             buffer[j] = v[i];
         }
-    }
-    friend std::ostream& operator<<(std::ostream &os, const uintX_t &v) {
-        for (int i = 0; i < B; i++) {
-            os << std::hex << std::setw(2) << std::setfill('0') << (uint32_t)v[i];
-        }
-        return os;
     }
 };
 
@@ -841,10 +836,6 @@ public:
     friend inline bool operator==(const modN_t& v1, const modN_t& v2) { return v1.u == v2.u; }
     friend inline bool operator!=(const modN_t& v1, const modN_t& v2) { return v1.u != v2.u; }
     static inline const modN_t pow(const modN_t &v1, const modN_t &v2) { return modN_t(uint256_t::powmod(v1.u, v2.u, n())); }
-    friend std::ostream& operator<<(std::ostream &os, const modN_t &v) {
-        os << v.u;
-        return os;
-    }
 };
 
 template<int N, int GX, int GY, int A, int B>
@@ -909,10 +900,6 @@ public:
         modN_t<N> y = modN_t<N>::pow(poly, (modN_t<N>)1 / 4);
         if (is_odd == (y.as256()[31] % 2 == 0)) y = -y;
         return pointN_t(x, y);
-    }
-    friend std::ostream& operator<<(std::ostream &os, const pointN_t &v) {
-        os << v.x << " " << v.y;
-        return os;
     }
 };
 
@@ -3201,7 +3188,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
     if (code_size == 0) {
         if ((intptr_t)code < 256) {
             uint8_t opc = (intptr_t)code;
-            if (std::getenv("EVM_DEBUG")) std::cout << prenames[opc] << std::endl;
+//            if (std::getenv("EVM_DEBUG")) std::cout << prenames[opc] << std::endl;
             if ((pre[release] & (_1 << opc)) == 0) {
                 switch (opc) {
                 case ECRECOVER: {
@@ -3368,7 +3355,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
     uint8_t pc_valid[(code_size + 7) / 8];
     for (uint64_t pc = 0; ; pc++) {
         uint8_t opc = pc < code_size ? code[pc] : STOP;
-        if (std::getenv("EVM_DEBUG")) std::cout << opcodes[opc] << std::endl;
+//        if (std::getenv("EVM_DEBUG")) std::cout << opcodes[opc] << std::endl;
         if ((is[release] & (_1 << opc)) == 0) throw INVALID_OPCODE;
         _stack_check(opc, stack.top());
         if (read_only && (is_writes & (_1 << opc)) > 0) throw ILLEGAL_UPDATE;

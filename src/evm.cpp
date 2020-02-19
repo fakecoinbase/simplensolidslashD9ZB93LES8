@@ -7,6 +7,24 @@
 
 #include "evm.hpp"
 
+/*
+friend std::ostream& operator<<(std::ostream &os, const uintX_t &v) {
+    for (int i = 0; i < B; i++) {
+        os << std::hex << std::setw(2) << std::setfill('0') << (uint32_t)v[i];
+    }
+    return os;
+}
+
+friend std::ostream& operator<<(std::ostream &os, const modN_t &v) {
+    os << v.u;
+    return os;
+}
+friend std::ostream& operator<<(std::ostream &os, const pointN_t &v) {
+    os << v.x << " " << v.y;
+    return os;
+}
+*/
+
 class _State : public State {
 private:
     struct account {
