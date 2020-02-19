@@ -2575,6 +2575,11 @@ public:
     virtual void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) = 0;
     virtual const uint256_t& load(const uint160_t &address, const uint256_t &key) const = 0;
     virtual void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) = 0;
+    virtual void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) = 0;
+    virtual void log1(const uint160_t &address, const uint256_t &v1, const uint8_t *data, uint64_t data_size) = 0;
+    virtual void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) = 0;
+    virtual void log3(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *data, uint64_t data_size) = 0;
+    virtual void log4(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *data, uint64_t data_size) = 0;
 };
 
 class Transactional {
@@ -2725,6 +2730,7 @@ public:
 
 class Log : public Transactional {
 protected:
+    friend class Storage;
     struct log {
         uint160_t address;
         uint256_t *topics;
@@ -2820,7 +2826,7 @@ public:
     }
 };
 
-static const uint256_t empty_code_hash = sha3(nullptr, 0);
+static const uint256_t EMPTY_CODEHASH = sha3(nullptr, 0);
 
 class Storage : public State, public Transactional {
 protected:
@@ -2829,6 +2835,7 @@ protected:
     Store<uint160_t, uint256_t> balances;
     Store<uint160_t, uint256_t> contracts;
     Store<uint416_t, uint256_t> data;
+    Store<uint160_t, bool> destructed;
     Log logs;
     uint64_t refund_gas = 0;
 public:
@@ -2983,19 +2990,49 @@ public:
                 if (keys->values != nullptr) underlying->store(address, key, keys->values->value);
             }
         }
+        for (uint64_t i = 0; i < logs.count; i++) {
+            auto entry = &logs.entries[i];
+            switch (entry->topic_count) {
+            case 0: underlying->log0(entry->address, entry->data, entry->data_size); break;
+            case 1: underlying->log1(entry->address, entry->topics[0], entry->data, entry->data_size); break;
+            case 2: underlying->log2(entry->address, entry->topics[0], entry->topics[1], entry->data, entry->data_size); break;
+            case 3: underlying->log3(entry->address, entry->topics[0], entry->topics[1], entry->topics[2], entry->data, entry->data_size); break;
+            case 4: underlying->log4(entry->address, entry->topics[0], entry->topics[1], entry->topics[2], entry->topics[3], entry->data, entry->data_size); break;
+            }
+        }
     }
 
-    // TODO review
-    inline bool exist(const uint160_t &v) { return false; }
-    inline bool empty(const uint160_t &v) { return false; }
+    inline void create_account(const uint160_t &address) {
+        set_codehash(address, EMPTY_CODEHASH);
+    }
+
+    inline bool exists(const uint160_t &address) {
+        uint64_t nonce = get_nonce(address);
+        uint256_t balance = get_balance(address);
+        uint256_t codehash = get_codehash(address);
+        return nonce == 0 && balance == 0 && codehash == 0;
+    }
+
+    inline bool is_empty(const uint160_t &address) {
+        uint64_t nonce = get_nonce(address);
+        uint256_t balance = get_balance(address);
+        uint256_t codehash = get_codehash(address);
+        return nonce == 0 && balance == 0 && codehash == EMPTY_CODEHASH;
+    }
+
     inline bool has_contract(const uint160_t &address) {
         uint64_t nonce = get_nonce(address);
         uint256_t codehash = get_codehash(address);
-        return nonce > 0 || (codehash != 0 && codehash != empty_code_hash);
+        return nonce > 0 || (codehash != 0 && codehash != EMPTY_CODEHASH);
     }
-    inline void create_account(const uint160_t &v) { }
-    inline bool destructed(const uint160_t &v) { return false; }
-    inline void destruct(const uint160_t &v) { }
+
+    inline void destruct_account(const uint160_t &address) {
+        destructed.set(address, true, false);
+    }
+
+    inline bool is_destructed(const uint160_t &address) {
+        return destructed.get(address, false);
+    }
 };
 
 class Block {
@@ -3675,7 +3712,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             _memory_check(v3, v4);
             uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
             _consume_gas(gas, _gas_memory(release, memory.size(), ret_offset + ret_size));
-            _consume_gas(gas, _gas_call(release, value > 0, storage.empty(code_address), storage.exist(code_address)));
+            _consume_gas(gas, _gas_call(release, value > 0, storage.is_empty(code_address), storage.exists(code_address)));
             uint64_t reserved_gas = v0 > gas ? gas : v0.cast64();
             uint64_t call_gas = _gas_callcap(release, gas, reserved_gas);
             _consume_gas(gas, call_gas);
@@ -3687,7 +3724,7 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
             uint64_t code_size;
             const uint8_t *code = storage.get_code(code_address, code_size);
             uint64_t snapshot = storage.begin();
-            if (!storage.exist(code_address)) {
+            if (!storage.exists(code_address)) {
                 if (release >= SPURIOUS_DRAGON) {
                     if (value > 0) {
                         if ((intptr_t)code > BLAKE2F) {
@@ -3898,11 +3935,11 @@ static bool vm_run(const Release release, Block &block, Storage &storage,
         case SELFDESTRUCT: {
             uint160_t to = (uint160_t)stack.pop();
             uint256_t amount = storage.get_balance(owner_address);
-            _consume_gas(gas, _gas_selfdestruct(release, amount > 0, storage.empty(owner_address), storage.exist(owner_address)));
-            if (!storage.destructed(owner_address)) storage.add_refund(_refund_selfdestruct(release));
+            _consume_gas(gas, _gas_selfdestruct(release, amount > 0, storage.is_empty(owner_address), storage.exists(owner_address)));
+            if (!storage.is_destructed(owner_address)) storage.add_refund(_refund_selfdestruct(release));
             storage.add_balance(to, amount);
             storage.set_balance(owner_address, 0);
-            storage.destruct(owner_address);
+            storage.destruct_account(owner_address);
             return_size = 0;
             return true;
         }
@@ -4045,7 +4082,7 @@ private:
     struct account {
         uint64_t nonce;
         uint256_t balance;
-        uint256_t code_hash;
+        uint256_t codehash;
     };
     struct contract {
         uint8_t *code;
@@ -4092,12 +4129,12 @@ private:
             account_index[account_size] = account;
             account_list[account_size].nonce = 0;
             account_list[account_size].balance = 0;
-            account_list[account_size].code_hash = 0;
+            account_list[account_size].codehash = 0;
             account_size++;
         }
         account_list[index].nonce = nonce;
         account_list[index].balance = balance;
-        account_list[index].code_hash = codehash;
+        account_list[index].codehash = codehash;
     }
     void update(const uint256_t &codehash, const uint8_t *buffer, uint64_t size) {
         int index = contract_size;
@@ -4140,8 +4177,8 @@ private:
             account_list[i].balance = uint256_t::from(&buffer[offset]); offset += 32;
             uint64_t code_size = b2w32le(&buffer[offset]); offset += 4;
             uint64_t code_offset = offset; offset += code_size;
-            account_list[i].code_hash = uint256_t::from(&buffer[offset]); offset += 32;
-            update(account_list[i].code_hash, &buffer[code_offset], code_size);
+            account_list[i].codehash = uint256_t::from(&buffer[offset]); offset += 32;
+            update(account_list[i].codehash, &buffer[code_offset], code_size);
         }
         keyvalue_size = b2w32le(&buffer[offset]); offset += 4;
         if (keyvalue_size > L) throw INSUFFICIENT_SPACE;
@@ -4156,7 +4193,7 @@ private:
         size += 4;
         for (int i = 0; i < account_size; i++) {
             uint64_t code_size;
-            load_code(account_list[i].code_hash, code_size);
+            load_code(account_list[i].codehash, code_size);
             size += 20 + 32 + 32 + 4 + code_size + 32;
         }
         size += 4;
@@ -4168,7 +4205,7 @@ private:
         w2b32le(account_size, &buffer[offset]); offset += 4;
         for (int i = 0; i < account_size; i++) {
             uint64_t code_size;
-            const uint8_t *code = load_code(account_list[i].code_hash, code_size);
+            const uint8_t *code = load_code(account_list[i].codehash, code_size);
             uint160_t::to(account_index[i], &buffer[offset]); offset += 20;
             uint256_t::to(account_list[i].nonce, &buffer[offset]); offset += 32;
             uint256_t::to(account_list[i].balance, &buffer[offset]); offset += 32;
@@ -4176,7 +4213,7 @@ private:
             for (uint64_t j = 0; j < code_size; j++) {
                 buffer[offset] = code[j]; offset++;
             }
-            uint256_t::to(account_list[i].code_hash, &buffer[offset]); offset += 32;
+            uint256_t::to(account_list[i].codehash, &buffer[offset]); offset += 32;
         }
         w2b32le(keyvalue_size, &buffer[offset]); offset += 4;
         for (int i = 0; i < keyvalue_size; i++) {
@@ -4228,7 +4265,7 @@ public:
 
     inline uint256_t get_codehash(const uint160_t &address) const {
         const struct account *account = find(address);
-        return account == nullptr ? 0 : account->code_hash;
+        return account == nullptr ? 0 : account->codehash;
     };
 
     inline void set_codehash(const uint160_t &address, const uint256_t &codehash) {
@@ -4271,7 +4308,7 @@ public:
             if (account_size == L) throw INSUFFICIENT_SPACE;
             account_list[account_size].nonce = 0;
             account_list[account_size].balance = 0;
-            account_list[account_size].code_hash = 0;
+            account_list[account_size].codehash = 0;
             account_size++;
         }
         if (keyvalue_size == L) throw INSUFFICIENT_SPACE;
@@ -4280,6 +4317,22 @@ public:
         keyvalue_list[keyvalue_size][1] = value;
         keyvalue_size++;
     };
+
+    inline void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) {
+        if (std::getenv("EVM_DEBUG")) std::cout << "log0" << std::endl;
+    }
+    inline void log1(const uint160_t &address, const uint256_t &v1, const uint8_t *data, uint64_t data_size) {
+        if (std::getenv("EVM_DEBUG")) std::cout << "log1" << std::endl;
+    }
+    inline void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) {
+        if (std::getenv("EVM_DEBUG")) std::cout << "log2" << std::endl;
+    }
+    inline void log3(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *data, uint64_t data_size) {
+        if (std::getenv("EVM_DEBUG")) std::cout << "log3" << std::endl;
+    }
+    inline void log4(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *data, uint64_t data_size) {
+        if (std::getenv("EVM_DEBUG")) std::cout << "log3" << std::endl;
+    }
 };
 
 class _Block : public Block {
