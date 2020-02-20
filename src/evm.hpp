@@ -95,30 +95,24 @@ static inline uint64_t _max(uint64_t v1, uint64_t v2) { return v1 > v2 ? v1 : v2
 class bigint {
 private:
     uint64_t W = 0;
+    uint64_t capacity = 0;
     uint32_t *data = nullptr;
     inline void ensure(uint64_t size) {
         if (W >= size) return;
+        if (capacity >= size) {
+            for (uint64_t i = W; i < size; i++) data[i] = 0;
+            W = size;
+            return;
+        }
         uint32_t *new_data = new uint32_t[size];
         for (uint64_t i = 0; i < W; i++) new_data[i] = data[i];
         for (uint64_t i = W; i < size; i++) new_data[i] = 0;
         delete data;
         data = new_data;
+        capacity = size;
         W = size;
     }
-    inline void pack() {
-        uint64_t count = 0;
-        for (uint64_t i = W; i > 0; i--) {
-            if (data[i-1] != 0) break;
-            count++;
-        }
-        if (count == 0) return;
-        uint64_t size = W - count;
-        uint32_t *new_data = size > 0 ? new uint32_t[size] : nullptr;
-        for (uint64_t i = 0; i < size; i++) new_data[i] = data[i];
-        delete data;
-        data = new_data;
-        W = size;
-    }
+    inline void pack() { while (W > 0 && data[W-1] == 0) W--; }
     inline int cmp(const bigint& v) const {
         uint64_t _W = W < v.W ? W : v.W;
         for (uint64_t i = v.W; i > _W; i--) {
@@ -135,16 +129,43 @@ private:
     }
 public:
     inline bigint() {}
+    inline ~bigint() { delete data; }
     inline bigint(uint64_t v) { ensure(2); data[0] = v; data[1] = v >> 32; }
-    inline bigint(const bigint &v) { ensure(v.W); for (uint64_t i = 0; i < v.W; i++) data[i] = v.data[i]; }
+    inline bigint(const bigint &v) {
+        ensure(v.W);
+        for (uint64_t i = 0; i < v.W; i++) data[i] = v.data[i];
+    }
     inline bigint& operator=(const bigint& v) {
         ensure(v.W);
         for (uint64_t i = 0; i < v.W; i++) data[i] = v.data[i];
         for (uint64_t i = v.W; i < W; i++) data[i] = 0;
         return *this;
     }
-    inline bigint& operator++() { ensure(data[W-1] == 0xffffffff ? W+1 : W); for (uint64_t i = 0; i < W; i++) if (++data[i] != 0) break; return *this; }
-    inline bigint& operator--() { if (*this == 0) throw INVALID_SIZE; for (uint64_t i = 0; i < W; i++) if (data[i]-- != 0) break; return *this; }
+    inline uint64_t bitlen() const {
+        for (uint64_t i = 32 * W; i > 0; i--) {
+            if (bit(i - 1)) return i;
+        }
+        return 0;
+    }
+    inline bool bit(uint64_t index) const {
+        uint64_t i = index / 32;
+        uint64_t j = index % 32;
+        return (data[i] & (1 << j)) > 0;
+    }
+    inline bigint& operator++() {
+        ensure(data[W-1] == 0xffffffff ? W+1 : W);
+        for (uint64_t i = 0; i < W; i++) {
+            if (++data[i] != 0) break;
+        }
+        return *this;
+    }
+    inline bigint& operator--() {
+        assert(*this > 0);
+        for (uint64_t i = 0; i < W; i++) {
+            if (data[i]-- != 0) break;
+        }
+        return *this;
+    }
     inline const bigint operator++(int) { const bigint v = *this; ++(*this); return v; }
     inline const bigint operator--(int) { const bigint v = *this; --(*this); return v; }
     inline bigint& operator+=(const bigint& v)
@@ -166,7 +187,7 @@ public:
         return *this;
     }
     inline bigint& operator-=(const bigint& v) {
-        if (*this < v) throw INVALID_SIZE;
+        assert(*this >= v);
         bigint t = v;
         t.ensure(W);
         uint64_t _W = W;
@@ -197,9 +218,16 @@ public:
     }
     inline bigint& operator/=(const bigint& v) { bigint t1 = *this, t2; divmod(t1, v, *this, t2); return *this; }
     inline bigint& operator%=(const bigint& v) { bigint t1 = *this, t2; divmod(t1, v, t2, *this); return *this; }
-    inline bigint& operator&=(const bigint& v) { ensure(v.W); for (uint64_t i = 0; i < v.W; i++) data[i] &= v.data[i]; return *this; }
-    inline bigint& operator|=(const bigint& v) { ensure(v.W); for (uint64_t i = 0; i < v.W; i++) data[i] |= v.data[i]; return *this; }
-    inline bigint& operator^=(const bigint& v) { ensure(v.W); for (uint64_t i = 0; i < v.W; i++) data[i] ^= v.data[i]; return *this; }
+    inline bigint& operator&=(const bigint& v) {
+        ensure(v.W);
+        for (uint64_t i = 0; i < v.W; i++) data[i] &= v.data[i];
+        for (uint64_t i = v.W; i < W; i++) data[i] = 0;
+        W = v.W;
+        pack();
+        return *this;
+    }
+    inline bigint& operator|=(const bigint& v) { ensure(v.W); for (uint64_t i = 0; i < v.W; i++) data[i] |= v.data[i]; pack(); return *this; }
+    inline bigint& operator^=(const bigint& v) { ensure(v.W); for (uint64_t i = 0; i < v.W; i++) data[i] ^= v.data[i]; pack(); return *this; }
     inline bigint& operator<<=(uint64_t n) {
         if (n == 0) return *this;
         ensure(W + (n + 31) / 32);
@@ -211,6 +239,7 @@ public:
             if (i > index + 1 && shift > 0) w |= data[i - index - 2] >> (32 - shift);
             data[i - 1] = w;
         }
+        pack();
         return *this;
     }
     inline bigint& operator>>=(uint64_t n) {
@@ -223,6 +252,7 @@ public:
             if (W > i + index + 1 && shift > 0) w |= data[i + index + 1] << (32 - shift);
             data[i] = w;
         }
+        pack();
         return *this;
     }
     static inline void divmod(const bigint &num, const bigint &div, bigint &quo, bigint &rem) {
@@ -250,6 +280,8 @@ public:
             shift--;
         }
         rem = _num;
+        quo.pack();
+        rem.pack();
     }
     static inline const bigint pow(const bigint &v1, const bigint &v2) {
         bigint v0 = v2;
@@ -320,12 +352,6 @@ public:
             uint64_t y = i % 4;
             buffer[j] = (v.data[x] >> 8*y) & 0xff;
         }
-    }
-    friend std::ostream& operator<<(std::ostream &os, const bigint &v) {
-        for (uint64_t i = v.W; i > 0; i--) {
-            os << std::hex << std::setw(8) << std::setfill('0') << v.data[i-1];
-        }
-        return os;
     }
 };
 
