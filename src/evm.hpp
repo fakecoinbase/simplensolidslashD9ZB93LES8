@@ -90,6 +90,245 @@ static const char *errors[STACK_UNDERFLOW+1] = {
 static inline uint64_t _min(uint64_t v1, uint64_t v2) { return v1 < v2 ? v1 : v2; }
 static inline uint64_t _max(uint64_t v1, uint64_t v2) { return v1 > v2 ? v1 : v2; }
 
+/* bigint */
+
+class bigint {
+private:
+    uint64_t W = 0;
+    uint32_t *data = nullptr;
+    inline void ensure(uint64_t size) {
+        if (W >= size) return;
+        uint32_t *new_data = new uint32_t[size];
+        for (uint64_t i = 0; i < W; i++) new_data[i] = data[i];
+        for (uint64_t i = W; i < size; i++) new_data[i] = 0;
+        delete data;
+        data = new_data;
+        W = size;
+    }
+    inline void pack() {
+        uint64_t count = 0;
+        for (uint64_t i = W; i > 0; i--) {
+            if (data[i-1] != 0) break;
+            count++;
+        }
+        if (count == 0) return;
+        uint64_t size = W - count;
+        uint32_t *new_data = size > 0 ? new uint32_t[size] : nullptr;
+        for (uint64_t i = 0; i < size; i++) new_data[i] = data[i];
+        delete data;
+        data = new_data;
+        W = size;
+    }
+    inline int cmp(const bigint& v) const {
+        uint64_t _W = W < v.W ? W : v.W;
+        for (uint64_t i = v.W; i > _W; i--) {
+            if (0 < v.data[i-1]) return -1;
+        }
+        for (uint64_t i = W; i > _W; i--) {
+            if (data[i-1] > 0) return 1;
+        }
+        for (uint64_t i = _W; i > 0; i--) {
+            if (data[i-1] < v.data[i-1]) return -1;
+            if (data[i-1] > v.data[i-1]) return 1;
+        }
+        return 0;
+    }
+public:
+    inline bigint() {}
+    inline bigint(uint64_t v) { ensure(2); data[0] = v; data[1] = v >> 32; }
+    inline bigint(const bigint &v) { ensure(v.W); for (uint64_t i = 0; i < v.W; i++) data[i] = v.data[i]; }
+    inline bigint& operator=(const bigint& v) {
+        ensure(v.W);
+        for (uint64_t i = 0; i < v.W; i++) data[i] = v.data[i];
+        for (uint64_t i = v.W; i < W; i++) data[i] = 0;
+        return *this;
+    }
+    inline bigint& operator++() { ensure(data[W-1] == 0xffffffff ? W+1 : W); for (uint64_t i = 0; i < W; i++) if (++data[i] != 0) break; return *this; }
+    inline bigint& operator--() { if (*this == 0) throw INVALID_SIZE; for (uint64_t i = 0; i < W; i++) if (data[i]-- != 0) break; return *this; }
+    inline const bigint operator++(int) { const bigint v = *this; ++(*this); return v; }
+    inline const bigint operator--(int) { const bigint v = *this; --(*this); return v; }
+    inline bigint& operator+=(const bigint& v)
+    {
+        ensure(W > v.W ? W + 1 : v.W + 1);
+        uint64_t carry = 0;
+        for (uint64_t i = 0; i < v.W; i++) {
+            uint64_t n = data[i] + (v.data[i] + carry);
+            data[i] = n & 0xffffffff;
+            carry = n >> 32;
+        }
+        for (uint64_t i = v.W; i < W; i++) {
+            if (carry == 0) break;
+            uint64_t n = data[i] + carry;
+            data[i] = n & 0xffffffff;
+            carry = n >> 32;
+        }
+        pack();
+        return *this;
+    }
+    inline bigint& operator-=(const bigint& v) {
+        if (*this < v) throw INVALID_SIZE;
+        bigint t = v;
+        t.ensure(W);
+        uint64_t _W = W;
+        for (uint64_t i = 0; i < t.W; i++) t.data[i] = ~t.data[i];
+        t++;
+        *this += t;
+        for (uint64_t i = _W; i < W; i++) data[i] = 0;
+        pack();
+        return *this;
+    }
+    inline bigint& operator*=(const bigint& v) {
+        uint64_t _W = W + v.W;
+        ensure(_W);
+        bigint t = *this;
+        *this = 0;
+        for (uint64_t j = 0; j < v.W; j++) {
+            uint64_t base = v.data[j];
+            if (base == 0) continue;
+            uint64_t carry = 0;
+            for (uint64_t i = j; i < _W; i++) {
+                uint64_t n = data[i] + base * t.data[i-j] + carry;
+                data[i] = n & 0xffffffff;
+                carry = n >> 32;
+            }
+        }
+        pack();
+        return *this;
+    }
+    inline bigint& operator/=(const bigint& v) { bigint t1 = *this, t2; divmod(t1, v, *this, t2); return *this; }
+    inline bigint& operator%=(const bigint& v) { bigint t1 = *this, t2; divmod(t1, v, t2, *this); return *this; }
+    inline bigint& operator&=(const bigint& v) { ensure(v.W); for (uint64_t i = 0; i < v.W; i++) data[i] &= v.data[i]; return *this; }
+    inline bigint& operator|=(const bigint& v) { ensure(v.W); for (uint64_t i = 0; i < v.W; i++) data[i] |= v.data[i]; return *this; }
+    inline bigint& operator^=(const bigint& v) { ensure(v.W); for (uint64_t i = 0; i < v.W; i++) data[i] ^= v.data[i]; return *this; }
+    inline bigint& operator<<=(uint64_t n) {
+        if (n == 0) return *this;
+        ensure(W + (n + 31) / 32);
+        uint64_t index = n / 32;
+        uint64_t shift = n % 32;
+        for (uint64_t i = W; i > 0; i--) {
+            uint32_t w = 0;
+            if (i > index) w |= data[i - index - 1] << shift;
+            if (i > index + 1 && shift > 0) w |= data[i - index - 2] >> (32 - shift);
+            data[i - 1] = w;
+        }
+        return *this;
+    }
+    inline bigint& operator>>=(uint64_t n) {
+        if (n == 0) return *this;
+        uint64_t index = n / 32;
+        uint64_t shift = n % 32;
+        for (uint64_t i = 0; i < W; i++) {
+            uint32_t w = 0;
+            if (W > i + index) w |= data[i + index] >> shift;
+            if (W > i + index + 1 && shift > 0) w |= data[i + index + 1] << (32 - shift);
+            data[i] = w;
+        }
+        return *this;
+    }
+    static inline void divmod(const bigint &num, const bigint &div, bigint &quo, bigint &rem) {
+        assert(div > 0);
+        quo = 0;
+        rem = num;
+        uint64_t shift = 0;
+        bigint _num = num;
+        bigint _div = div;
+        _div.ensure(_num.W);
+        while (_div <= _num) {
+            _div <<= 32;
+            shift += 32;
+        }
+        if (shift == 0) return;
+        quo.ensure((shift + 31) / 32);
+        while (shift+1 > 0) {
+            if (_num >= _div) {
+                _num -= _div;
+                int i = shift / 32;
+                int j = shift % 32;
+                quo.data[i] |= 1 << j;
+            }
+            _div >>= 1;
+            shift--;
+        }
+        rem = _num;
+    }
+    static inline const bigint pow(const bigint &v1, const bigint &v2) {
+        bigint v0 = v2;
+        v0.pack();
+        bigint x1 = 1;
+        bigint x2 = v1;
+        for (uint64_t n = 32*v0.W; n > 0; n--) {
+            int i = (n - 1) / 32;
+            int j = (n - 1) % 32;
+            bigint t = (v0.data[i] & (1 << j)) == 0 ? x1 : x2;
+            x1 *= t;
+            x2 *= t;
+        }
+        return x1;
+    }
+    static inline const bigint powmod(const bigint &v1, const bigint &v2, const bigint &v3) {
+        bigint v0 = v2;
+        v0.pack();
+        bigint x1 = 1;
+        bigint x2 = v1;
+        for (uint64_t n = 32*v0.W; n > 0; n--) {
+            int i = (n - 1) / 32;
+            int j = (n - 1) % 32;
+            bigint t = (v0.data[i] & (1 << j)) == 0 ? x1 : x2;
+            x1 = mulmod(x1, t, v3);
+            x2 = mulmod(x2, t, v3);
+        }
+        return x1;
+    }
+    static inline const bigint addmod(const bigint &v1, const bigint &v2, const bigint &v3) { return (v1 + v2) % v3; }
+    static inline const bigint mulmod(const bigint &v1, const bigint &v2, const bigint &v3) { return (v1 * v2) % v3; }
+    friend inline const bigint operator+(const bigint& v1, const bigint& v2) { return bigint(v1) += v2; }
+    friend inline const bigint operator-(const bigint& v1, const bigint& v2) { return bigint(v1) -= v2; }
+    friend inline const bigint operator*(const bigint& v1, const bigint& v2) { return bigint(v1) *= v2; }
+    friend inline const bigint operator/(const bigint& v1, const bigint& v2) { return bigint(v1) /= v2; }
+    friend inline const bigint operator%(const bigint& v1, const bigint& v2) { return bigint(v1) %= v2; }
+    friend inline const bigint operator&(const bigint& v1, const bigint& v2) { return bigint(v1) &= v2; }
+    friend inline const bigint operator|(const bigint& v1, const bigint& v2) { return bigint(v1) |= v2; }
+    friend inline const bigint operator^(const bigint& v1, const bigint& v2) { return bigint(v1) ^= v2; }
+    friend inline const bigint operator<<(const bigint& v, int n) { return bigint(v) <<= n; }
+    friend inline const bigint operator>>(const bigint& v, int n) { return bigint(v) >>= n; }
+    friend inline bool operator==(const bigint& v1, const bigint& v2) { return v1.cmp(v2) == 0; }
+    friend inline bool operator!=(const bigint& v1, const bigint& v2) { return v1.cmp(v2) != 0; }
+    friend inline bool operator<(const bigint& v1, const bigint& v2) { return v1.cmp(v2) < 0; }
+    friend inline bool operator>(const bigint& v1, const bigint& v2) { return v1.cmp(v2) > 0; }
+    friend inline bool operator<=(const bigint& v1, const bigint& v2) { return v1.cmp(v2) <= 0; }
+    friend inline bool operator>=(const bigint& v1, const bigint& v2) { return v1.cmp(v2) >= 0; }
+    static inline const bigint from(const char *buffer, uint64_t size) { return from((const uint8_t*)buffer, size); }
+    static inline const bigint from(const uint8_t *buffer, uint64_t size) {
+        bigint v = 0;
+        v.ensure((size + 3) / 4);
+        for (uint64_t j = 0; j < size; j++) {
+            uint64_t i = size - (j + 1);
+            uint64_t x = i / 4;
+            uint64_t y = i % 4;
+            v.data[x] |= buffer[j] << 8*i;
+        }
+        return v;
+    }
+    static inline void to(const bigint &v, uint8_t *buffer, uint64_t size) {
+        uint64_t B = size < 4*v.W ? size : 4*v.W;
+        for (uint64_t j = 0; j < size-B; j++) {
+            buffer[j] = 0;
+        }
+        for (uint64_t j = size-B; j < size; j++) {
+            uint64_t i = size - (j + 1);
+            uint64_t x = i / 4;
+            uint64_t y = i % 4;
+            buffer[j] = (v.data[x] >> 8*y) & 0xff;
+        }
+    }
+    friend std::ostream& operator<<(std::ostream &os, const bigint &v) {
+        for (uint64_t i = v.W; i > 0; i--) {
+            os << std::hex << std::setw(8) << std::setfill('0') << v.data[i-1];
+        }
+        return os;
+    }
+};
+
 /* uintX_t */
 
 const uint32_t _WORD = 0xdeadbeef;
@@ -3263,7 +3502,7 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
                     uint256_t _base_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
                     uint256_t _exp_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
                     uint256_t _mod_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
-                    if (_base_len > 512 || _exp_len > 512 || _mod_len > 512) assert(false); // UNIMPLEMENTED
+                    if (((_base_len + _exp_len + _mod_len) >> 64) > 0) _throw0(OUTOFBOUND_INDEX);
                     uint64_t base_len = _base_len.cast64();
                     uint64_t exp_len = _exp_len.cast64();
                     uint64_t mod_len = _mod_len.cast64();
@@ -3273,13 +3512,13 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
                     for (uint64_t i = 0; i < minsize2; i++) buffer2[i] = call_data[minsize1 + i];
                     for (uint64_t i = minsize2; i < size2; i++) buffer2[i] = 0;
                     uint64_t offset2 = 0;
-                    uint4096_t base = uint4096_t::from(&buffer2[offset2], base_len); offset2 += base_len;
-                    uint4096_t exp = uint4096_t::from(&buffer2[offset2], exp_len); offset2 += exp_len;
-                    uint4096_t mod = uint4096_t::from(&buffer2[offset2], mod_len); offset2 += mod_len;
-                    uint4096_t res = mod == 0 ? 0 : uint4096_t::powmod(base, exp, mod);
+                    bigint base = bigint::from(&buffer2[offset2], base_len); offset2 += base_len;
+                    bigint exp = bigint::from(&buffer2[offset2], exp_len); offset2 += exp_len;
+                    bigint mod = bigint::from(&buffer2[offset2], mod_len); offset2 += mod_len;
+                    bigint res = mod == 0 ? 0 : bigint::powmod(base, exp, mod);
                     return_size = mod_len;
                     _ensure_capacity(return_data, return_size, return_capacity);
-                    uint4096_t::to(res, return_data, return_size);
+                    bigint::to(res, return_data, return_size);
                     return true;
                 }
                 case BN256ADD: {
