@@ -338,7 +338,7 @@ public:
             uint64_t i = size - (j + 1);
             uint64_t x = i / 4;
             uint64_t y = i % 4;
-            v.data[x] |= buffer[j] << 8*i;
+            v.data[x] |= buffer[j] << 8*y;
         }
         return v;
     }
@@ -1547,7 +1547,7 @@ static inline bool bn256pairing(G1 *a, G2 *b, uint64_t count)
 
 /* secp256k1 */
 
-const uint256_t _N[8] = {
+static const uint256_t _N[8] = {
     // secp
     uint256_t::from("\xfe\xff\xff\xfc\x2f", 5).sigext(27),
     uint256_t::from("\xfe\xba\xae\xdc\xe6\xaf\x48\xa0\x3b\xbf\xd2\x5e\x8c\xd0\x36\x41\x41", 17).sigext(15),
@@ -2589,8 +2589,8 @@ enum Release : uint8_t {
     // MUIR_GLACIER
 };
 
-const uint8_t CHAIN_ID = 1;
-const uint32_t releaseforkblock[ISTANBUL+1] = {
+static const uint8_t CHAIN_ID = 1;
+static const uint32_t releaseforkblock[ISTANBUL+1] = {
     0000000, // 2015-07-30 FRONTIER
     1150000, // 2016-03-15 HOMESTEAD
     2463000, // 2016-10-18 TANGERINE_WHISTLE
@@ -2611,8 +2611,8 @@ static inline Release get_release(uint64_t number)
     return FRONTIER;
 }
 
-const uint256_t _1 = (uint256_t)1;
-const uint256_t is_frontier = 0
+static const uint256_t _1 = (uint256_t)1;
+static const uint256_t is_frontier = 0
     | _1 << STOP | _1 << ADD | _1 << MUL | _1 << SUB | _1 << DIV | _1 << SDIV | _1 << MOD | _1 << SMOD
     | _1 << ADDMOD | _1 << MULMOD | _1 << EXP | _1 << SIGNEXTEND
     | _1 << LT | _1 << GT | _1 << SLT | _1 << SGT | _1 << EQ | _1 << ISZERO | _1 << AND | _1 << OR
@@ -2634,23 +2634,23 @@ const uint256_t is_frontier = 0
     | _1 << LOG0 | _1 << LOG1 | _1 << LOG2 | _1 << LOG3 | _1 << LOG4
     | _1 << CREATE | _1 << CALL | _1 << CALLCODE | _1 << RETURN
     | _1 << SELFDESTRUCT;
-const uint256_t is_homestead = is_frontier
+static const uint256_t is_homestead = is_frontier
     | _1 << DELEGATECALL;
-const uint256_t is_tangerine_whistle = is_homestead;
-const uint256_t is_spurious_dragon = is_tangerine_whistle;
-const uint256_t is_byzantium = is_spurious_dragon
+static const uint256_t is_tangerine_whistle = is_homestead;
+static const uint256_t is_spurious_dragon = is_tangerine_whistle;
+static const uint256_t is_byzantium = is_spurious_dragon
     | _1 << STATICCALL
     | _1 << RETURNDATASIZE
     | _1 << RETURNDATACOPY
     | _1 << REVERT;
-const uint256_t is_constantinople = is_byzantium
+static const uint256_t is_constantinople = is_byzantium
     | _1 << SHL
     | _1 << SHR
     | _1 << SAR
     | _1 << EXTCODEHASH
     | _1 << CREATE2;
-const uint256_t is_petersburg = is_constantinople;
-const uint256_t is_istanbul = is_petersburg
+static const uint256_t is_petersburg = is_constantinople;
+static const uint256_t is_istanbul = is_petersburg
     | _1 << CHAINID
     | _1 << SELFBALANCE;
 
@@ -2694,20 +2694,20 @@ static const uint256_t pre[ISTANBUL+1] = {
     pre_istanbul,
 };
 
-const uint256_t is_halts = 0
+static const uint256_t is_halts = 0
     | _1 << STOP
     | _1 << RETURN
     | _1 << SELFDESTRUCT;
-const uint256_t is_jumps = 0
+static const uint256_t is_jumps = 0
     | _1 << JUMP | _1 << JUMPI;
-const uint256_t is_writes = 0
+static const uint256_t is_writes = 0
     | _1 << SSTORE
     | _1 << LOG0 | _1 << LOG1 | _1 << LOG2 | _1 << LOG3 | _1 << LOG4
     | _1 << CREATE | _1 << CREATE2
     | _1 << SELFDESTRUCT;
-const uint256_t is_reverts = 0
+static const uint256_t is_reverts = 0
     | _1 << REVERT;
-const uint256_t is_returns = 0
+static const uint256_t is_returns = 0
     | _1 << CREATE | _1 << CREATE2
     | _1 << CALL | _1 << CALLCODE | _1 << DELEGATECALL | _1 << STATICCALL
     | _1 << REVERT;
@@ -3464,7 +3464,6 @@ public:
             struct key_list *prev = nullptr;
             struct key_list *keys = table[i];
             while (keys != nullptr) {
-                struct value_stack *values = keys->values;
                 while (keys->values != nullptr && keys->values->serial > snapshot) {
                     struct value_stack *next = keys->values->next;
                     _delete(keys->values);
@@ -3572,8 +3571,8 @@ public:
         log.data_size = data_size;
     }
     inline uint64_t snapshot() { return count; }
-    void commit(uint64_t snapshot) {}
-    void rollback(uint64_t snapshot) {
+    inline void commit(uint64_t snapshot) {}
+    inline void rollback(uint64_t snapshot) {
         for (uint64_t i = snapshot; i < count; i++) {
             _delete(entries[i].topics);
             _delete(entries[i].data);
@@ -3595,7 +3594,7 @@ protected:
     Log logs;
     uint64_t refund_gas = 0;
 public:
-    Storage(State *_underlying) : underlying(_underlying) {
+    inline Storage(State *_underlying) : underlying(_underlying) {
         for (uint8_t i = ECRECOVER; i <= BLAKE2F; i++) register_code(i, (uint8_t*)(intptr_t)i, 0);
     }
     inline uint64_t get_nonce(const uint160_t &address) const {
@@ -3693,7 +3692,7 @@ public:
         logs.log4(address, v1, v2, v3, v4, data, data_size);
     }
 
-    uint64_t snapshot() {
+    inline uint64_t snapshot() {
         uint64_t serial1 = nonces.snapshot();
         uint64_t serial2 = balances.snapshot();
         uint64_t serial3 = contracts.snapshot();
@@ -3705,7 +3704,7 @@ public:
         uint64_t serial = serial1 << 32 | serial5;
         return serial;
     }
-    void commit(uint64_t serial) {
+    inline void commit(uint64_t serial) {
         uint64_t serial1 = serial >> 32;
         uint64_t serial2 = serial & 0xffffffff;
         nonces.commit(serial1);
@@ -3714,7 +3713,7 @@ public:
         data.commit(serial1);
         logs.commit(serial2);
     }
-    void rollback(uint64_t serial) {
+    inline void rollback(uint64_t serial) {
         uint64_t serial1 = serial >> 32;
         uint64_t serial2 = serial & 0xffffffff;
         nonces.rollback(serial1);
@@ -3723,10 +3722,10 @@ public:
         data.rollback(serial1);
         logs.rollback(serial2);
     }
-    uint64_t begin() {
+    inline uint64_t begin() {
         return snapshot();
     }
-    void end(uint64_t snapshot, bool success) {
+    inline void end(uint64_t snapshot, bool success) {
         success ? commit(snapshot) : rollback(snapshot);
     }
     void flush() {
@@ -4810,7 +4809,7 @@ static inline uint256_t _throws(_txn_hash)(struct txn &txn)
     return h;
 }
 
-void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, uint64_t size, uint160_t sender, bool pays_gas)
+static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, uint64_t size, uint160_t sender, bool pays_gas)
 {
     Release release = get_release(block.forknumber());
     Storage storage(&state);
