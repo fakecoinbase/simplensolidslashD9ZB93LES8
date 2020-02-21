@@ -402,14 +402,20 @@ private:
     };
 
     // vm call back to load code
-    inline const uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
+    inline uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
         uint64_t hash_id = id64(codehash);
         auto idx = _code.get_index<"code3"_n>();
         auto itr = idx.find(hash_id);
         while (itr != idx.end()) {
-            if (hash(itr->code) == codehash) return 0; //implement
+            if (hash(itr->code) == codehash) {
+                code_size = itr->code.size();
+                uint8_t *code = _new<uint8_t>(code_size);
+                for (uint64_t i = 0; i < code_size; i++) code[i] = itr->code[i];
+                return code;
+            }
         }
-        return 0; // implement
+        code_size = 0;
+        return nullptr;
     };
 
     // vm call back to store code

@@ -589,6 +589,25 @@ public:
             buffer[j] = v[i];
         }
     }
+    inline uint64_t murmur3(uint32_t seed) const {
+        uint32_t h = seed;
+        for (uint64_t i = 0; i < W; i++) {
+            uint32_t k = data[i];
+            k *= 0xcc9e2d51;
+            k = (k << 15) | (k >> 17);
+            k *= 0x1b873593;
+            h ^= k;
+            h = (h << 13) | (h >> 19);
+            h = h * 5 + 0xe6546b64;
+        }
+        h ^= W;
+        h ^= h >> 16;
+        h *= 0x85ebca6b;
+        h ^= h >> 13;
+        h *= 0xc2b2ae35;
+        h ^= h >> 16;
+        return h;
+    }
 };
 
 template<int X>
@@ -3326,7 +3345,7 @@ public:
     virtual void set_balance(const uint160_t &address, const uint256_t &balance) = 0;
     virtual uint256_t get_codehash(const uint160_t &address) const = 0;
     virtual void set_codehash(const uint160_t &address, const uint256_t &codehash) = 0;
-    virtual const uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const = 0;
+    virtual uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const = 0;
     virtual void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) = 0;
     virtual uint256_t load(const uint160_t &address, const uint256_t &key) const = 0;
     virtual void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) = 0;
@@ -3627,19 +3646,20 @@ public:
         contracts.set(address, codehash, underlying->get_codehash(address));
     }
 
-    inline const uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
+    inline uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
         return underlying->load_code(codehash, code_size);
     }
     inline void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) {
         underlying->store_code(codehash, code, code_size);
     }
 
-    inline const uint8_t *get_code(const uint160_t &address, uint64_t &code_size) const {
+    inline uint8_t *get_code(const uint160_t &address, uint64_t &code_size) const {
         return load_code(get_codehash(address), code_size);
     }
     inline uint64_t get_codesize(const uint160_t &address) const {
         uint64_t code_size;
-        load_code(get_codehash(address), code_size);
+        const uint8_t *code = load_code(get_codehash(address), code_size);
+        _delete(code);
         return code_size;
     }
     inline void register_code(const uint160_t &account, const uint8_t *code, uint64_t code_size) {
@@ -3829,7 +3849,7 @@ public:
     virtual uint64_t number() = 0;
     virtual uint64_t gaslimit() = 0;
     virtual uint64_t difficulty() = 0;
-    virtual const uint160_t& coinbase() = 0;
+    virtual const uint160_t coinbase() = 0;
     virtual uint256_t hash(const uint256_t &number) = 0;
 };
 
@@ -4279,6 +4299,7 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
             const uint8_t *extcode = storage.get_code(address, extcode_size);
             if (v3 > extcode_size) offset2 = extcode_size;
             memory.burn(offset1, size, &extcode[offset2], _min(size, extcode_size - offset2));
+            _delete(code);
             break;
         }
         case RETURNDATASIZE: { stack.push(return_size); break; }
@@ -4576,6 +4597,7 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
                 success = false;
                 return_size = 0;
             })
+            _delete(code);
             storage.end(snapshot, success);
             memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
             stack.push(success);
@@ -4614,6 +4636,7 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
                 success = false;
                 return_size = 0;
             })
+            _delete(code);
             storage.end(snapshot, success);
             memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
             stack.push(success);
@@ -4659,6 +4682,7 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
                 success = false;
                 return_size = 0;
             })
+            _delete(code);
             storage.end(snapshot, success);
             memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
             stack.push(success);
@@ -4740,6 +4764,7 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
                 success = false;
                 return_size = 0;
             })
+            _delete(code);
             storage.end(snapshot, success);
             memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
             stack.push(success);
@@ -4865,6 +4890,7 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
                             from, txn.value, txn.data, txn.data_size,
                             return_data, return_size, return_capacity, gas,
                             false, 0);
+            _delete(code);
         } else { // contract creation
             if (storage.has_contract(to)) _trythrow(CODE_CONFLICT);
             storage.create_account(to);
