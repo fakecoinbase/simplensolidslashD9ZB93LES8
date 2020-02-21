@@ -139,7 +139,8 @@ private:
         size += 4;
         for (int i = 0; i < account_size; i++) {
             uint64_t code_size;
-            load_code(account_list[i].codehash, code_size);
+            const uint8_t *code = load_code(account_list[i].codehash, code_size);
+            _delete(code);
             size += 20 + 32 + 32 + 4 + code_size + 32;
         }
         size += 4;
@@ -160,6 +161,7 @@ private:
                 buffer[offset] = code[j]; offset++;
             }
             uint256_t::to(account_list[i].codehash, &buffer[offset]); offset += 32;
+            _delete(code);
         }
         w2b32le(keyvalue_size, &buffer[offset]); offset += 4;
         for (int i = 0; i < keyvalue_size; i++) {
@@ -218,10 +220,16 @@ public:
         update(address, get_nonce(address), get_balance(address), codehash);
     };
 
-    inline const uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
+    inline uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
         const struct contract *contract = find(codehash);
-        code_size = contract == nullptr ? 0 : contract->code_size;
-        return contract == nullptr ? nullptr : contract->code;
+        if (contract == nullptr) {
+            code_size = 0;
+            return nullptr;
+        }
+        code_size = contract->code_size;
+        uint8_t *code = _new<uint8_t>(code_size);
+        for (uint64_t i = 0; i < code_size; i++) code[i] = contract->code[i];
+        return code;
     };
     inline void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) {
         update(codehash, code, code_size);
@@ -300,7 +308,7 @@ public:
     uint64_t number() { return _number; }
     uint64_t gaslimit() { return _gaslimit; }
     uint64_t difficulty() { return _difficulty; }
-    const uint160_t& coinbase() { return _coinbase; }
+    const uint160_t coinbase() { return _coinbase; }
     uint256_t hash(const uint256_t &number) {
         uint8_t buffer[32];
         uint256_t::to(number, buffer);
