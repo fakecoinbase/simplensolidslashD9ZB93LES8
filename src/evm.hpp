@@ -1072,6 +1072,397 @@ static void blake2f(const uint32_t ROUNDS,
     h7 ^= v7 ^ v15;
 }
 
+/* bn256 */
+
+static bigint big(const char *s)
+{
+    bigint t = 0;
+    for (uint64_t i = 0; s[i] != '\0'; i++) {
+        assert(s[i] >= '0' && s[i] <= '9');
+        t = 10 * t + (s[i] - '0');
+    }
+    return t;
+}
+
+static const bigint P = big("21888242871839275222246405745257275088696311157297823662689037894645226208583");
+static const bigint Q = big("21888242871839275222246405745257275088548364400416034343698204186575808495617");
+
+class Gen2 {
+private:
+    static inline bigint neg(const bigint &v) { return P - (v % P); }
+public:
+	bigint x, y;
+    inline Gen2() {}
+    inline Gen2(const bigint &_x, const bigint &_y) : x(_x), y(_y) {}
+    inline bool is_zero() const { return x == 0 && y == 0; }
+    inline bool is_one() const { return x == 0 && y == 1; }
+    inline Gen2 conj() const { return Gen2(neg(x), y); }
+    inline Gen2 twice() const { return Gen2(x << 1, y << 1); }
+    inline Gen2 mulxi() const { return Gen2((x << 3) + x + y, (y << 3) + neg(x) + y); }
+    inline Gen2 sqr() const { return Gen2(((x * y) << 1) % P, ((y + neg(x)) * (y + x)) % P); }
+    inline Gen2 inv() const { bigint inv = bigint::powmod(x * x + y * y, P - 2, P); return Gen2((neg(x) * inv) % P, (y * inv) % P); }
+    inline Gen2 canon() const { return Gen2(x % P, y % P); }
+    inline Gen2& operator=(const bigint& v) { x = 0; y = v; return *this; }
+    inline Gen2& operator=(const Gen2& v) { x = v.x; y = v.y; return *this; }
+    inline const Gen2 operator-() const { Gen2 v = *this; v.x = neg(x); v.y = neg(y); return v; }
+    inline Gen2& operator+=(const Gen2& v) { x += v.x; y += v.y; return *this; }
+    inline Gen2& operator-=(const Gen2& v) { x += neg(v.x); y += neg(v.y); return *this; }
+    inline Gen2& operator*=(const bigint& v) { x *= v; y *= v; return *this; }
+    inline Gen2& operator*=(const Gen2& v2) {
+        Gen2 v1 = *this;
+        x = (v1.x * v2.y + v1.y * v2.x) % P;
+        y = (v1.y * v2.y + neg(v1.x * v2.x)) % P;
+        return *this;
+    }
+    friend inline const Gen2 operator+(const Gen2& v1, const Gen2& v2) { return Gen2(v1) += v2; }
+    friend inline const Gen2 operator-(const Gen2& v1, const Gen2& v2) { return Gen2(v1) -= v2; }
+    friend inline const Gen2 operator*(const Gen2& v1, const Gen2& v2) { return Gen2(v1) *= v2; }
+    friend inline const Gen2 operator*(const Gen2& v1, const bigint& v2) { return Gen2(v1) *= v2; }
+};
+
+static const bigint XI_P2_1_3 = big("21888242871839275220042445260109153167277707414472061641714758635765020556616");
+static const Gen2 XI_P_1_3(
+    big("10307601595873709700152284273816112264069230130616436755625194854815875713954"),
+    big("21575463638280843010398324269430826099269044274347216827212613867836435027261")
+);
+
+class Gen6 {
+public:
+    Gen2 x, y, z;
+    inline Gen6() {}
+    inline Gen6(const Gen2 &_x, const Gen2 &_y, const Gen2 &_z) : x(_x), y(_y), z(_z) {}
+    inline bool is_zero() const { return x.is_zero() && y.is_zero() && z.is_zero(); }
+    inline bool is_one() const { return x.is_zero() && y.is_zero() && z.is_one(); }
+    inline Gen6 twice() const { return Gen6(x.twice(), y.twice(), z.twice()); }
+    inline Gen6 frob() const {
+        static const Gen2 XI_2_P_2_3(
+            big("19937756971775647987995932169929341994314640652964949448313374472400716661030"),
+            big("2581911344467009335267311115468803099551665605076196740867805258568234346338")
+        );
+        return Gen6(x.conj() * XI_2_P_2_3, y.conj() * XI_P_1_3, z.conj());
+    }
+    inline Gen6 frob2() const {
+        static const bigint XI_2_P2_2_3 = big("2203960485148121921418603742825762020974279258880205651966");
+        return Gen6(x * XI_2_P2_2_3, y * XI_P2_1_3, z);
+    }
+    inline Gen6 inv() const {
+        Gen2 t0 = x.sqr().mulxi() - (y * z);
+        Gen2 t1 = y.sqr() - (x * z);
+        Gen2 t2 = z.sqr() - (x * y).mulxi();
+        Gen2 t3 = ((t1 * y).mulxi() + t2 * z + (t0 * x).mulxi()).inv();
+        return Gen6(t1 * t3, t0 * t3, t2 * t3);
+    }
+    inline Gen6 multau() const { return Gen6(y, z, x.mulxi()); }
+    inline Gen6 sqr() const {
+        Gen2 t0 = x.sqr();
+        Gen2 t1 = y.sqr();
+        Gen2 t2 = z.sqr();
+        Gen2 t3 = (x + z).sqr() - (t2 + t0) + t1;
+        Gen2 t4 = (y + z).sqr() - (t2 + t1) + t0.mulxi();
+        Gen2 t5 = ((x + y).sqr() - (t1 + t0)).mulxi() + t2;
+	    return Gen6(t3, t4, t5);
+    }
+    inline Gen6 canon() const { return Gen6(x.canon(), y.canon(), z.canon()); }
+    inline Gen6& operator=(const bigint& v) { x = 0; y = 0; z = v; return *this; }
+    inline const Gen6 operator-() const { return Gen6(-x, -y, -z); }
+    inline Gen6& operator+=(const Gen6& v) { x += v.x; y += v.y; z += v.z; return *this; }
+    inline Gen6& operator-=(const Gen6& v) { x -= v.x; y -= v.y; z -= v.z; return *this; }
+    inline Gen6& operator*=(const Gen6& v2) {
+        Gen6 v1 = *this;
+        Gen2 t0 = v1.x * v2.x;
+        Gen2 t1 = v1.y * v2.y;
+        Gen2 t2 = v1.z * v2.z;
+        x = (v1.x + v1.z) * (v2.x + v2.z) - (t2 + t0) + t1;
+        y = (v1.y + v1.z) * (v2.y + v2.z) - (t2 + t1) + t0.mulxi();
+        z = (((v1.x + v1.y) * (v2.x + v2.y)) - (t1 + t0)).mulxi() + t2;
+        return *this;
+    }
+    inline Gen6& operator*=(const Gen2& v) { x *= v; y *= v; z *= v; return *this; }
+    inline Gen6& operator*=(const bigint &v) { x *= v; y *= v; z *= v; return *this; }
+    friend inline const Gen6 operator+(const Gen6& v1, const Gen6& v2) { return Gen6(v1) += v2; }
+    friend inline const Gen6 operator-(const Gen6& v1, const Gen6& v2) { return Gen6(v1) -= v2; }
+    friend inline const Gen6 operator*(const Gen6& v1, const Gen6& v2) { return Gen6(v1) *= v2; }
+    friend inline const Gen6 operator*(const Gen6& v1, const Gen2& v2) { return Gen6(v1) *= v2; }
+    friend inline const Gen6 operator*(const Gen6& v1, const bigint& v2) { return Gen6(v1) *= v2; }
+};
+
+class Gen12 {
+public:
+    Gen6 x, y;
+    inline Gen12() {}
+    inline Gen12(const Gen6 &_x, const Gen6 &_y) : x(_x), y(_y) {}
+    inline Gen12 conj() const { return Gen12(-x, y); }
+    inline Gen12 pow(const bigint &power) const {
+        const Gen12 &a = *this;
+        Gen12 sum; sum = 1;
+        for (uint64_t i = power.bitlen(); i > 0; i--) {
+            Gen12 t = sum.sqr();
+            sum = power.bit(i - 1) ? t * a : t;
+        }
+        return sum;
+    }
+    inline Gen12 frob() const {
+        static const Gen2 XI_P_1_6(
+            big("16469823323077808223889137241176536799009286646108169935659301613961712198316"),
+            big("8376118865763821496583973867626364092589906065868298776909617916018768340080")
+        );
+        return Gen12(x.frob() * XI_P_1_6, y.frob());
+    }
+    inline Gen12 frob2() const {
+        static const bigint XI_P2_1_6 = big("21888242871839275220042445260109153167277707414472061641714758635765020556617");
+        return Gen12(x.frob2() * XI_P2_1_6, y.frob2());
+    }
+    inline Gen12 inv() const { return Gen12(-x, y) * (y.sqr() - x.sqr().multau()).inv(); }
+    inline Gen12 sqr() const {
+        Gen6 t0 = x * y;
+        Gen6 t1 = (x + y) * (x.multau() + y) - (t0 + t0.multau());
+        return Gen12(t0.twice(), t1);
+    }
+    inline bool is_one() const { Gen12 t = *this; t.canon(); return t.x.is_zero() && t.y.is_one(); }
+    inline Gen12 canon() const { return Gen12(x.canon(), y.canon()); }
+    inline Gen12& operator=(const bigint& v) { x = 0; y = v; return *this; }
+    inline Gen12& operator*=(const Gen12& v2) {
+        Gen12 v1 = *this;
+        x = v1.x * v2.y + v1.y * v2.x;
+        y = (v1.y * v2.y) + (v1.x * v2.x).multau();
+        return *this;
+    }
+    inline Gen12& operator*=(const Gen6& v) { x *= v; y *= v; return *this; }
+    friend inline const Gen12 operator*(const Gen12& v1, const Gen12& v2) { return Gen12(v1) *= v2; }
+    friend inline const Gen12 operator*(const Gen12& v1, const Gen6& v2) { return Gen12(v1) *= v2; }
+};
+
+class CurvePoint {
+private:
+    static constexpr uint64_t b = 3;
+    static inline bigint neg(const bigint &v) { return P - (v % P); }
+public:
+    bigint x, y, z, t;
+    inline CurvePoint() {}
+    inline CurvePoint(const bigint &_x, const bigint &_y, const bigint &_z, const bigint &_t) : x(_x), y(_y), z(_z), t(_t) {}
+    inline bool is_inf() const { return z == 0; }
+    inline bool is_valid() const {
+        bigint t = y * y + neg(x * x * x + b);
+        if (t >= P) t %= P;
+        return t == 0;
+    }
+    inline CurvePoint affine() const {
+        if (z == 1) return *this;
+        if (is_inf()) { return CurvePoint(0, 1, 0, 0); }
+        bigint zinv = bigint::powmod(z, P - 2, P);
+        bigint zinv2 = (zinv * zinv) % P;
+        bigint _x = (x * zinv2) % P;
+        bigint _y = (((y * zinv2) % P) * zinv) % P;
+        return CurvePoint(_x, _y, 1, 1);
+    }
+};
+
+class TwistPoint {
+public:
+    Gen2 x, y, z, t;
+    inline TwistPoint() {}
+    inline TwistPoint(const Gen2 &_x, const Gen2 &_y, const Gen2 &_z, const Gen2 &_t) : x(_x), y(_y), z(_z), t(_t) {}
+    inline bool is_inf() const { return z.is_zero(); }
+    inline bool is_valid() const {
+        static const Gen2 twistB(
+	        big("266929791119991161246907387137283842545076965332900288569378510910307636690"),
+	        big("19485874751759354771024239261021720505790618469301721065564631296452457478373")
+        );
+        Gen2 t = y.sqr() - (x.sqr() * x + twistB);
+        t = t.canon();
+        if (t.x != 0 || t.y != 0) return false;
+        TwistPoint p = *this * Q;
+        return p.z.is_zero();
+    }
+    inline TwistPoint twice() const {
+        Gen2 a = x.sqr();
+        Gen2 b = y.sqr();
+        Gen2 c = b.sqr();
+        Gen2 d = (x + b).sqr() - (a + c);
+        Gen2 e = d + d;
+        Gen2 f = a + a + a;
+        Gen2 g = y * z;
+        Gen2 h = c + c;
+        Gen2 i = h + h;
+        Gen2 _x = f.sqr() - (e + e);
+        Gen2 _y = f * (e - _x) - (i + i);
+        Gen2 _z = g + g;
+        Gen2 _t; _t = 0;
+        return TwistPoint(_x, _y, _z, _t);
+    }
+    inline TwistPoint affine() const {
+        if (z.is_one()) return *this;
+        if (is_inf()) { Gen2 _x, _y, _z, _t; _x = 0; _y = 1; _z = 0; _t = 0; return TwistPoint(_x, _y, _z, _t); }
+        Gen2 zinv = z.inv();
+        Gen2 zinv2 = zinv.sqr();
+        Gen2 _x = x * zinv2;
+        Gen2 _y = y * zinv2 * zinv;
+        Gen2 _z; _z = 1;
+        Gen2 _t; _t = 1;
+        return TwistPoint(_x, _y, _z, _t);
+    }
+    inline void inf() { z = 0; }
+    inline const TwistPoint operator-() const { Gen2 t; t = 0; return TwistPoint(x, -y, z, t); }
+    inline TwistPoint& operator+=(const TwistPoint& b) {
+        TwistPoint a = *this;
+	    if (a.is_inf()) { *this = b; return *this; }
+	    if (b.is_inf()) { *this = a; return *this; }
+	    Gen2 z1z1 = a.z.sqr();
+	    Gen2 z2z2 = b.z.sqr();
+	    Gen2 u1 = a.x * z2z2;
+	    Gen2 u2 = b.x * z1z1;
+	    Gen2 s1 = a.y * b.z * z2z2;
+	    Gen2 s2 = a.z * b.y * z1z1;
+	    Gen2 h = u2 - u1;
+	    Gen2 t = s2 - s1;
+	    if (h.is_zero() && t.is_zero()) { *this = a.twice(); return *this; }
+	    Gen2 i = (h + h).sqr();
+	    Gen2 j = h * i;
+	    Gen2 r = t + t;
+	    Gen2 v = u1 * i;
+	    Gen2 w = s1 * j;
+	    x = r.sqr() - (j + v + v);
+	    y = (r * (v - x)) - (w + w);
+	    z = ((a.z + b.z).sqr() - (z1z1 + z2z2)) * h;
+        return *this;
+    }
+    inline TwistPoint& operator*=(const bigint& scalar) {
+        TwistPoint a = *this;
+        TwistPoint sum; sum.inf();
+        for (uint64_t i = scalar.bitlen() + 1; i > 0; i--) {
+            TwistPoint t = sum.twice();
+            sum = scalar.bit(i - 1) ? t + a : t;
+        }
+        *this = sum;
+        return *this;
+    }
+    friend inline const TwistPoint operator+(const TwistPoint& v1, const TwistPoint& v2) { return TwistPoint(v1) += v2; }
+    friend inline const TwistPoint operator*(const TwistPoint& v1, const bigint& v2) { return TwistPoint(v1) *= v2; }
+};
+
+class G1 : public CurvePoint {};
+class G2 : public TwistPoint {};
+
+static inline void mul_line(const Gen2 &a, const Gen2 &b, const Gen2 &c, Gen12 &inout)
+{
+    Gen2 _0; _0 = 0;
+    Gen6 t1 = inout.x * Gen6(_0, a, b);
+    Gen6 t2 = inout.y * c;
+    inout.x = (inout.x + inout.y) * Gen6(_0, a, b + c) - (t1 + t2);
+    inout.y = t1.multau() + t2;
+}
+
+static inline TwistPoint line_func_twice(const CurvePoint &q, const TwistPoint &r, Gen2 &a, Gen2 &b, Gen2 &c)
+{
+    Gen2 A = r.x.sqr();
+    Gen2 B = r.y.sqr();
+    Gen2 C = B.sqr();
+    Gen2 D = (r.x + B).sqr() - (A + C);
+    Gen2 E = D + D;
+    Gen2 F = A + A + A;
+    Gen2 G = F.sqr();
+    Gen2 H = G - (E + E);
+    Gen2 I = C + C;
+    Gen2 J = I + I;
+    Gen2 K = (r.y + r.z).sqr() - (B + r.t);
+    Gen2 L = F * r.t;
+    Gen2 M = B + B;
+    Gen2 N = K * r.t;
+    a = ((r.x + F).sqr() - (A + G)) - (M + M);
+    b = -(L + L) * q.x;
+    c = (N + N) * q.y;
+    return TwistPoint(H, (E - H) * F - (J + J), K, K.sqr());
+}
+
+static inline TwistPoint line_func_add(const CurvePoint &q, const TwistPoint &r, const TwistPoint &p, const Gen2 &r2, Gen2 &a, Gen2&b, Gen2&c)
+{
+    Gen2 A = ((p.y + r.z).sqr() - (r2 + r.t)) * r.t - (r.y + r.y);
+    Gen2 B = p.x * r.t;
+    Gen2 C = B - r.x;
+    Gen2 D = C.sqr();
+    Gen2 E = D + D;
+    Gen2 F = E + E;
+    Gen2 G = C * F;
+    Gen2 H = r.x * F;
+    Gen2 I = A.sqr() - (G + H + H);
+    Gen2 J = r.y * G;
+    Gen2 K = (r.z + C).sqr() - (r.t + D);
+    Gen2 L = K.sqr();
+    Gen2 M = A * p.x;
+    Gen2 N = K * q.y;
+    Gen2 O = -A * q.x;
+    a = M + M - (p.y + K).sqr() + r2 + L;
+    b = O + O;
+    c = N + N;
+    return TwistPoint(I, (H - I) * A - (J + J), K, L);
+}
+
+static inline Gen12 miller(const CurvePoint &_A, const TwistPoint &_B)
+{
+    static const int8_t sixuPlus2NAF[] = {
+        1, 0, 1, 0, 0, -1, 0, 1, 1, 0, 0, 0, -1, 0, 0, 1,
+        1, 0, 0, -1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 1,
+        1, 1, 0, 0, 0, 0, -1, 0, 1, 0, 0, -1, 0, 1, 1, 0,
+        0, 1, 0, 0, -1, 1, 0, 0, -1, 0, 1, 0, 1, 0, 0, 0,
+    };
+
+    static const Gen2 XI_P_1_2(
+        big("3505843767911556378687030309984248845540243509899259641013678093033130930403"),
+        big("2821565182194536844548159561693502659359617185244120367078079554186484126554")
+    );
+
+    Gen2 _1; _1 = 1;
+    CurvePoint A = _A.affine();
+    TwistPoint B = _B; B.affine();
+    TwistPoint C = -B;
+    TwistPoint P(B.x.conj() * XI_P_1_3, B.y.conj() * XI_P_1_2, _1, _1);
+    TwistPoint Q(B.x * XI_P2_1_3, B.y, _1, _1);
+    TwistPoint R = B;
+    Gen2 r2 = B.y.sqr();
+    Gen2 a, b, c;
+    Gen12 ret; ret = 1;
+    for (uint64_t i = 0; i < sizeof(sixuPlus2NAF); i++) {
+        R = line_func_twice(A, R, a, b, c);
+        if (i > 0) ret = ret.sqr();
+        mul_line(a, b, c, ret);
+        if (sixuPlus2NAF[i] == 0) continue;
+        if (sixuPlus2NAF[i] > 0) R = line_func_add(A, R, B, r2, a, b, c);
+        if (sixuPlus2NAF[i] < 0) R = line_func_add(A, R, C, r2, a, b, c);
+        mul_line(a, b, c, ret);
+    }
+    R = line_func_add(A, R, P, P.y.sqr(), a, b, c);
+    mul_line(a, b, c, ret);
+    R = line_func_add(A, R, Q, Q.y.sqr(), a, b, c);
+    mul_line(a, b, c, ret);
+    return ret;
+}
+
+static inline Gen12 bn256check(const Gen12 &v)
+{
+    static const bigint U = big("4965661367192848881");
+    Gen12 t0 = Gen12(-v.x, v.y) * v.inv();
+    Gen12 t1 = t0 * t0.frob2();
+    Gen12 t2 = t1.frob2();
+    Gen12 t3 = t1.pow(U);
+    Gen12 t4 = t3.pow(U);
+    Gen12 t5 = t4.pow(U);
+    Gen12 t6 = t4.conj();
+    Gen12 t7 = (t5 * t5.frob()).conj().sqr() * (t3 * t4.frob()).conj() * t6;
+    Gen12 t8 = ((t7 * t3.frob().conj() * t6).sqr() * t7 * t4.frob2()).sqr();
+    return (t8 * t1.conj()).sqr() * t8 * t1.frob() * t2 * t2.frob();
+}
+
+static inline bool bn256pairing(G1 *a, G2 *b, uint64_t count)
+{
+    Gen12 prod; prod = 1;
+    for (uint64_t i = 0; i < count; i++) {
+        if (a[i].is_inf() || b[i].is_inf()) continue;
+        prod *= miller(a[i], b[i]);
+    }
+	Gen12 value = bn256check(prod);
+	return value.is_one();
+}
+
 /* secp256k1 */
 
 const uint256_t _N[8] = {
