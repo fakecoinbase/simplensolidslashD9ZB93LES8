@@ -1084,7 +1084,7 @@ class Gen2 {
 private:
     static inline bigint neg(const bigint &v) { return P - (v % P); }
 public:
-	bigint x, y;
+    bigint x, y;
     inline Gen2() {}
     inline Gen2(const bigint &_x, const bigint &_y) : x(_x), y(_y) {}
     inline bool is_zero() const { return x == 0 && y == 0; }
@@ -1153,7 +1153,7 @@ public:
         Gen2 t3 = (x + z).sqr() - (t2 + t0) + t1;
         Gen2 t4 = (y + z).sqr() - (t2 + t1) + t0.mulxi();
         Gen2 t5 = ((x + y).sqr() - (t1 + t0)).mulxi() + t2;
-	    return Gen6(t3, t4, t5);
+        return Gen6(t3, t4, t5);
     }
     inline Gen6 canon() const { return Gen6(x.canon(), y.canon(), z.canon()); }
     inline Gen6& operator=(const bigint& v) { x = 0; y = 0; z = v; return *this; }
@@ -1242,6 +1242,23 @@ public:
         if (t >= P) t %= P;
         return t == 0;
     }
+    inline CurvePoint twice() const {
+        bigint a = (x * x) % P;
+        bigint b = (y * y) % P;
+        bigint c = (b * b) % P;
+        bigint t0 = x + b;
+        bigint d = ((t0 * t0) % P) - (a + c);
+        bigint e = d + d;
+        bigint f = a + a + a;
+        bigint g = (y * z) % P;
+        bigint h = c + c;
+        bigint i = h + h;
+        bigint _x = ((f * f) % P) - (e + e);
+        bigint _y = ((f * (e - _x)) % P) - (i + i);
+        bigint _z = g + g;
+        bigint _t = t; // check
+        return CurvePoint(_x, _y, _z, _t);
+    }
     inline CurvePoint affine() const {
         if (z == 1) return *this;
         if (is_inf()) { return CurvePoint(0, 1, 0, 0); }
@@ -1251,6 +1268,46 @@ public:
         bigint _y = (((y * zinv2) % P) * zinv) % P;
         return CurvePoint(_x, _y, 1, 1);
     }
+    inline void inf() { z = 0; }
+    inline const CurvePoint operator-() const { return CurvePoint(x, neg(y), z, 0); }
+    inline CurvePoint& operator+=(const CurvePoint& b) {
+        CurvePoint a = *this;
+        if (a.is_inf()) { *this = b; return *this; }
+        if (b.is_inf()) { *this = a; return *this; }
+        bigint z1z1 = (a.z * a.z) % P;
+        bigint z2z2 = (b.z * b.z) % P;
+        bigint u1 = (a.x * z2z2) % P;
+        bigint u2 = (b.x * z1z1) % P;
+        bigint s1 = (a.y * ((b.z * z2z2) % P)) % P;
+        bigint s2 = (b.y * ((a.z * z1z1) % P)) % P;
+        bigint h = u2 - u1;
+        bigint t = s2 - s1;
+        if (h == 0 && t == 0) { *this = a.twice(); return *this; }
+        bigint _t = h + h;
+        bigint i = (_t * _t) % P;
+        bigint j = (h * i) % P;
+        bigint r = t + t;
+        bigint v = (u1 * i) % P;
+        bigint w = (s1 * j) % P;
+        bigint t0 = a.z + b.z;
+        x = ((r * r) % P) - (j + v + v);
+        y = ((r * (v - x)) % P) - (w + w);
+        z = ((((t0 * t0) % P) - (z1z1 + z2z2)) * h) % P;
+        // check t
+        return *this;
+    }
+    inline CurvePoint& operator*=(const bigint& scalar) {
+        CurvePoint a = *this;
+        CurvePoint sum; sum.inf();
+        for (uint64_t i = scalar.bitlen() + 1; i > 0; i--) {
+            CurvePoint t = sum.twice();
+            sum = scalar.bit(i - 1) ? t + a : t;
+        }
+        *this = sum;
+        return *this;
+    }
+    friend inline const CurvePoint operator+(const CurvePoint& v1, const CurvePoint& v2) { return CurvePoint(v1) += v2; }
+    friend inline const CurvePoint operator*(const CurvePoint& v1, const bigint& v2) { return CurvePoint(v1) *= v2; }
 };
 
 class TwistPoint {
@@ -1264,8 +1321,8 @@ public:
     inline bool is_inf() const { return z.is_zero(); }
     inline bool is_valid() const {
         static const Gen2 twistB(
-	        big("266929791119991161246907387137283842545076965332900288569378510910307636690"),
-	        big("19485874751759354771024239261021720505790618469301721065564631296452457478373")
+            big("266929791119991161246907387137283842545076965332900288569378510910307636690"),
+            big("19485874751759354771024239261021720505790618469301721065564631296452457478373")
         );
         Gen2 t = y.sqr() - (x.sqr() * x + twistB);
         t = t.canon();
@@ -1286,7 +1343,7 @@ public:
         Gen2 _x = f.sqr() - (e + e);
         Gen2 _y = f * (e - _x) - (i + i);
         Gen2 _z = g + g;
-        Gen2 _t; _t = 0;
+        Gen2 _t; _t = 0; // check
         return TwistPoint(_x, _y, _z, _t);
     }
     inline TwistPoint affine() const {
@@ -1304,25 +1361,26 @@ public:
     inline const TwistPoint operator-() const { Gen2 t; t = 0; return TwistPoint(x, -y, z, t); }
     inline TwistPoint& operator+=(const TwistPoint& b) {
         TwistPoint a = *this;
-	    if (a.is_inf()) { *this = b; return *this; }
-	    if (b.is_inf()) { *this = a; return *this; }
-	    Gen2 z1z1 = a.z.sqr();
-	    Gen2 z2z2 = b.z.sqr();
-	    Gen2 u1 = a.x * z2z2;
-	    Gen2 u2 = b.x * z1z1;
-	    Gen2 s1 = a.y * b.z * z2z2;
-	    Gen2 s2 = a.z * b.y * z1z1;
-	    Gen2 h = u2 - u1;
-	    Gen2 t = s2 - s1;
-	    if (h.is_zero() && t.is_zero()) { *this = a.twice(); return *this; }
-	    Gen2 i = (h + h).sqr();
-	    Gen2 j = h * i;
-	    Gen2 r = t + t;
-	    Gen2 v = u1 * i;
-	    Gen2 w = s1 * j;
-	    x = r.sqr() - (j + v + v);
-	    y = (r * (v - x)) - (w + w);
-	    z = ((a.z + b.z).sqr() - (z1z1 + z2z2)) * h;
+        if (a.is_inf()) { *this = b; return *this; }
+        if (b.is_inf()) { *this = a; return *this; }
+        Gen2 z1z1 = a.z.sqr();
+        Gen2 z2z2 = b.z.sqr();
+        Gen2 u1 = a.x * z2z2;
+        Gen2 u2 = b.x * z1z1;
+        Gen2 s1 = a.y * b.z * z2z2;
+        Gen2 s2 = a.z * b.y * z1z1;
+        Gen2 h = u2 - u1;
+        Gen2 t = s2 - s1;
+        if (h.is_zero() && t.is_zero()) { *this = a.twice(); return *this; }
+        Gen2 i = (h + h).sqr();
+        Gen2 j = h * i;
+        Gen2 r = t + t;
+        Gen2 v = u1 * i;
+        Gen2 w = s1 * j;
+        x = r.sqr() - (j + v + v);
+        y = (r * (v - x)) - (w + w);
+        z = ((a.z + b.z).sqr() - (z1z1 + z2z2)) * h;
+        // check t
         return *this;
     }
     inline TwistPoint& operator*=(const bigint& scalar) {
@@ -1467,8 +1525,8 @@ static inline bool bn256pairing(G1 *a, G2 *b, uint64_t count)
         if (a[i].is_inf() || b[i].is_inf()) continue;
         prod *= miller(a[i], b[i]);
     }
-	Gen12 value = bn256check(prod);
-	return value.is_one();
+    Gen12 value = bn256check(prod);
+    return value.is_one();
 }
 
 /* secp256k1 */
@@ -1612,14 +1670,6 @@ public:
     inline mod_bn_t(const modN_t &v) : modN_t(v) {}
 };
 
-class mud_bn_t : public modN_t<5> {
-public:
-    inline mud_bn_t() {}
-    inline mud_bn_t(uint64_t v) : modN_t(v) {}
-    inline mud_bn_t(const uint256_t &v) : modN_t(v) {}
-    inline mud_bn_t(const modN_t &v) : modN_t(v) {}
-};
-
 class point_bn_t : public pointN_t<4, 6, 7, 0, 3> {
 public:
     inline point_bn_t() {}
@@ -1715,14 +1765,14 @@ static uint64_t _throws(parse_varlen)(const uint8_t *&b, uint64_t &s, bool &is_l
     if (n < 0x80) { is_list = false; return 1; }
     b++; s--;
     if (n >= 0xc0 + 56) {
-	uint256_t t = _handles0(parse_nlzint)(b, s, n - (0xc0 + 56) + 1);
+        uint256_t t = _handles0(parse_nlzint)(b, s, n - (0xc0 + 56) + 1);
         uint64_t l = t.cast64();
         if (l < 56) _throw0(INVALID_ENCODING);
         is_list = true; return l;
     }
     if (n >= 0xc0) { is_list = true; return n - 0xc0; }
     if (n >= 0x80 + 56) {
-	uint256_t t = _handles0(parse_nlzint)(b, s, n - (0x80 + 56) + 1);
+        uint256_t t = _handles0(parse_nlzint)(b, s, n - (0x80 + 56) + 1);
         uint64_t l = t.cast64();
         if (l < 56) _throw0(INVALID_ENCODING);
         is_list = true; return l;
@@ -3140,7 +3190,7 @@ static inline uint64_t _gas_bigmodexp(Release release, uint64_t base_len, uint64
     uint64_t log2_exp = exp_cap > 0 ? exp_cap.bitlen() - 1 : 0;
     uint64_t exp_gas;
     if (exp_len <= 32) exp_gas = log2_exp;
-	else exp_gas = 8 * (exp_len - 32) + log2_exp;
+    else exp_gas = 8 * (exp_len - 32) + log2_exp;
     return (base_gas * _max(exp_gas, 1)) / _gas(release, GasBigModExpDiv);
 }
 
