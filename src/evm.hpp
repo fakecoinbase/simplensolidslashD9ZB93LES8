@@ -608,13 +608,6 @@ public:
     inline uint512_t(const uintX_t& v) : uintX_t(v) {}
 };
 
-class uint4096_t : public uintX_t<4096> {
-public:
-    inline uint4096_t() {}
-    inline uint4096_t(uint64_t v) : uintX_t(v) {}
-    inline uint4096_t(const uintX_t& v) : uintX_t(v) {}
-};
-
 /* crypto */
 
 static inline uint64_t rot(uint64_t x, int y) { return y > 0 ? (x >> (64 - y)) ^ (x << y) : x; }
@@ -3135,10 +3128,20 @@ static inline uint64_t _gas_datacopy(Release release, uint64_t size)
     return _gas(release, GasDataCopy) + words * _gas(release, GasDataCopyWord);
 }
 
-static inline uint64_t _gas_bigmodexp(Release release)
+static inline uint64_t _gas_bigmodexp(Release release, uint64_t base_len, uint64_t exp_len, uint64_t mod_len, const bigint &exp)
 {
-    assert(false); // UNIMPLEMENTED;
-    return 0;
+    // check for overflow, max out in case
+    uint64_t max_len = _max(base_len, mod_len);
+    uint64_t base_gas;
+    if (max_len <= 64) base_gas = max_len * max_len;
+    else if (max_len <= 1024) base_gas = (max_len * max_len) / 4 + (96 * max_len - 3072);
+    else base_gas = (max_len * max_len) / 16 + (480 * max_len - 199680);
+    bigint exp_cap = exp % ((bigint)1 << 256);
+    uint64_t log2_exp = exp_cap > 0 ? exp_cap.bitlen() - 1 : 0;
+    uint64_t exp_gas;
+    if (exp_len <= 32) exp_gas = log2_exp;
+	else exp_gas = 8 * (exp_len - 32) + log2_exp;
+    return (base_gas * _max(exp_gas, 1)) / _gas(release, GasBigModExpDiv);
 }
 
 static inline uint64_t _gas_bn256add(Release release)
@@ -3934,7 +3937,6 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
                     return true;
                 }
                 case BIGMODEXP: {
-                    _handles0(_consume_gas)(gas, _gas_bigmodexp(release));
                     uint64_t size1 = 3 * 32;
                     uint8_t buffer1[size1];
                     uint64_t minsize1 = _min(size1, call_size);
@@ -3957,6 +3959,7 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
                     bigint base = bigint::from(&buffer2[offset2], base_len); offset2 += base_len;
                     bigint exp = bigint::from(&buffer2[offset2], exp_len); offset2 += exp_len;
                     bigint mod = bigint::from(&buffer2[offset2], mod_len); offset2 += mod_len;
+                    _handles0(_consume_gas)(gas, _gas_bigmodexp(release, base_len, exp_len, mod_len, exp));
                     bigint res = mod == 0 ? 0 : bigint::powmod(base, exp, mod);
                     return_size = mod_len;
                     _ensure_capacity(return_data, return_size, return_capacity);
