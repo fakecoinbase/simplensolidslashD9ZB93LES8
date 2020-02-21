@@ -66,22 +66,6 @@ private:
     typedef eosio::multi_index<"code"_n, code_table, code_secondary, code_tertiary> code_index;
     code_index _code;
 
-    static inline uint64_t hash(const uint160_t &address) { return 0; } // implement
-    static inline uint64_t hash(const checksum160 &address) { return 0; } // implement
-    static inline uint64_t hash(uint64_t acc_id, const checksum256 &key) { return 0; } // implement
-    static inline uint64_t hash(uint64_t acc_id, const uint256_t &key) { return 0; } // implement
-    static inline uint64_t hash(const std::vector<uint8_t> &code) { return 0; } // implement
-    static inline uint64_t _hash(const uint256_t &codehash) { return 0; } // implement
-    static inline bool equals(const checksum160 &address1, const uint160_t &address2) { return false; } // implement
-    static inline bool equals(const checksum256 &key1, const uint256_t &key2) { return false; } // implement
-    static inline uint160_t convert(const checksum160 &address) { abort(); };
-    static inline checksum160 convert(const uint160_t &address) { abort(); };
-    static inline uint256_t convert(const checksum256 &address) { abort(); };
-    static inline checksum256 convert(const uint256_t &address) { abort(); };
-
-//        checksum160 c;
-//        auto bytes = c.extract_as_byte_array();
-
     // get account id from eos username integer id
     inline uint64_t get_account(uint64_t user_id) const {
         auto idx = _account.get_index<"account2"_n>();
@@ -240,15 +224,27 @@ public:
     //   by the EOSIO account listed in the inputs OR if such a withdrawal would
     //   leave the Account Table entry’s balance negative
     [[eosio::action]]
-    void withdraw(const name& account, const uint64_t amount) {
+    void withdraw(const name& account, const asset& asset) {
         require_auth(account);
         uint64_t user_id = account.value;
         uint64_t acc_id = get_account(user_id);
         check(acc_id != 0, "account does not exist");
+        check(asset.symbol == eosio::symbol("SYS", 4), "should withdraw SYS");
+        uint64_t amount = asset.amount;
         uint64_t balance = get_balance(acc_id);
         check(balance >= amount, "insufficient funds");
         sub_balance(acc_id, amount);
-        // perform SYS transfer of amount to account
+
+        // using transfer_action = action_wrapper<"transfer"_n, &token::transfer>;
+        // transfer_action action{ "eosio.token"_n, { _self, "active"_n }};
+        // action.send( _self, account, asset, "withdrawal");
+        struct transfer { eosio::name from; eosio::name to; eosio::asset quantity; std::string memo; };
+        eosio::action transfer_action = eosio::action(
+            eosio::permission_level(_self, eosio::name("active")),
+            eosio::name("evm"),
+            eosio::name("transfer"),
+            transfer{ _self, account, asset, "withdraw" });
+        transfer_action.send();
     }
 
     // The Application MUST respond to EOSIO token transfers
@@ -475,27 +471,52 @@ private:
 
     // vm call back to register log0
     inline void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) {
-        eosio::print_f("log{%}\n", 0); // implement
+        eosio::print_f("log0 address<0x{%}> data<0x{%}>\n",
+            to_string(address), to_string(data, data_size));
     }
 
     // vm call back to register log1
-    inline void log1(const uint160_t &address, const uint256_t &v1, const uint8_t *data, uint64_t data_size) {
-        eosio::print_f("log{%}\n", 1); // implement
+    inline void log1(const uint160_t &address, const uint256_t &topic1, const uint8_t *data, uint64_t data_size) {
+        eosio::print_f("log1 address<0x{%}> topic1<0x{%}> data<0x{%}>\n",
+            to_string(address), to_string(topic1), to_string(data, data_size));
     }
 
     // vm call back to register log2
-    inline void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) {
-        eosio::print_f("log{%}\n", 2); // implement
+    inline void log2(const uint160_t &address, const uint256_t &topic1, const uint256_t &topic2, const uint8_t *data, uint64_t data_size) {
+        eosio::print_f("log2 address<0x{%}> topic1<0x{%}> topic2<0x{%}> data<0x{%}>\n",
+            to_string(address), to_string(topic1), to_string(topic2), to_string(data, data_size));
     }
 
     // vm call back to register log3
-    inline void log3(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *data, uint64_t data_size) {
-        eosio::print_f("log{%}\n", 3); // implement
+    inline void log3(const uint160_t &address, const uint256_t &topic1, const uint256_t &topic2, const uint256_t &topic3, const uint8_t *data, uint64_t data_size) {
+        eosio::print_f("log3 address<0x{%}> topic1<0x{%}> topic2<0x{%}> topic3<0x{%}> data<0x{%}>\n",
+            to_string(address), to_string(topic1), to_string(topic2), to_string(topic3), to_string(data, data_size));
     }
 
     // vm call back to register log4
-    inline void log4(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *data, uint64_t data_size) {
-        eosio::print_f("log{%}\n", 4); // implement
+    inline void log4(const uint160_t &address, const uint256_t &topic1, const uint256_t &topic2, const uint256_t &topic3, const uint256_t &topic4, const uint8_t *data, uint64_t data_size) {
+        eosio::print_f("log4 address<0x{%}> topic1<0x{%}> topic2<0x{%}> topic3<0x{%}> topic4<0x{%}> data<0x{%}>\n",
+            to_string(address), to_string(topic1), to_string(topic2), to_string(topic3), to_string(topic4), to_string(data, data_size));
     }
+
+private:
+    static inline uint64_t hash(const uint160_t &address) { return 0; } // implement
+    static inline uint64_t hash(const checksum160 &address) { return 0; } // implement
+    static inline uint64_t hash(uint64_t acc_id, const checksum256 &key) { return 0; } // implement
+    static inline uint64_t hash(uint64_t acc_id, const uint256_t &key) { return 0; } // implement
+    static inline uint64_t hash(const std::vector<uint8_t> &code) { return 0; } // implement
+    static inline uint64_t _hash(const uint256_t &codehash) { return 0; } // implement
+    static inline bool equals(const checksum160 &address1, const uint160_t &address2) { return false; } // implement
+    static inline bool equals(const checksum256 &key1, const uint256_t &key2) { return false; } // implement
+    static inline uint160_t convert(const checksum160 &address) { abort(); };
+    static inline checksum160 convert(const uint160_t &address) { abort(); };
+    static inline uint256_t convert(const checksum256 &address) { abort(); };
+    static inline checksum256 convert(const uint256_t &address) { abort(); };
+    static inline string to_string(const uint160_t &address) { abort(); }
+    static inline string to_string(const uint256_t &address) { abort(); }
+    static inline string to_string(const uint8_t *data, uint64_t size) { abort(); }
+
+//        checksum160 c;
+//        auto bytes = c.extract_as_byte_array();
 
 };
