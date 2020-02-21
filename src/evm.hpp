@@ -3140,10 +3140,9 @@ static inline uint64_t _gas_bn256scalarmul(Release release)
     return _gas(release, GasBn256ScalarMul);
 }
 
-static inline uint64_t _gas_bn256pairing(Release release)
+static inline uint64_t _gas_bn256pairing(Release release, uint64_t points)
 {
-    assert(false); // UNIMPLEMENTED;
-    return 0;
+    return _gas(release, GasBn256Pairing) + points * _gas(release, GasBn256PairingPoint);
 }
 
 static inline uint64_t _gas_blake2f(Release release, uint64_t rounds)
@@ -3998,6 +3997,7 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
                 case BN256PAIRING: {
                     if (call_size % (2 * 32 + 2 * 2 * 32) != 0) _throw0(INVALID_SIZE);
                     uint64_t count = call_size / (2 * 32 + 2 * 2 * 32);
+                    _handles0(_consume_gas)(gas, _gas_bn256pairing(release, count));
                     G1 curve_points[count];
                     G2 twist_points[count];
                     uint64_t call_offset = 0;
@@ -4025,7 +4025,11 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
                         }
                         twist_points[i] = g2;
                     }
-                    return bn256pairing(curve_points, twist_points, count);
+                    bool pairs = bn256pairing(curve_points, twist_points, count);
+                    return_size = 32;
+                    _ensure_capacity(return_data, return_size, return_capacity);
+                    uint256_t::to(pairs, return_data);
+                    return true;
                 }
                 case BLAKE2F: {
                     if (call_size != 4 + 8 * 8 + 16 * 8 + 2 * 8 + 1) _throw0(INVALID_SIZE);
