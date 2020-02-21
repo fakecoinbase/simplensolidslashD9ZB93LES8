@@ -1,16 +1,7 @@
-.PHONY: all clean
-
-.SUFFIXES: .hpp .cpp .abi .wasm
-
-all: evm.abi evm.wasm
+all: evm.wasm
 
 clean:
 	rm -f *.abi *.wasm
 
-evm.o: evm.hpp evm.cpp
-
-.cpp.abi:
-	eosio-cpp -DNDEBUG -o $@ $<
-
-.cpp.wasm:
+evm.wasm: evm.cpp evm.hpp ../../src/evm.hpp
 	eosio-cpp -DNDEBUG -o $@ $<
