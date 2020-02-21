@@ -53,11 +53,11 @@ private:
     // Account Code Table (per account):
     // - EVM bytecode associated with account
     struct [[eosio::table]] code_table {
-        uint64_t id;
+        uint64_t code_id;
         uint64_t acc_id;
         std::vector<uint8_t> code;
 
-        uint64_t primary_key() const { return id; }
+        uint64_t primary_key() const { return code_id; }
         uint64_t secondary_key() const { return acc_id; }
         uint64_t tertiary_key() const { return hash(code); }
     };
@@ -129,14 +129,16 @@ private:
     }
 
     // insert a new account, assumer account does not exist (unique address/user_id)
-    inline void insert_account(const uint160_t &address, uint64_t nonce, uint64_t balance, uint64_t user_id) {
+    inline uint64_t insert_account(const uint160_t &address, uint64_t nonce, uint64_t balance, uint64_t user_id) {
+        uint64_t acc_id = _account.available_primary_key();
         _account.emplace(_self, [&](auto& row) {
-            row.acc_id = _account.available_primary_key();
+            row.acc_id = acc_id;
             row.address = convert(address);
             row.nonce = nonce;
             row.balance = balance;
             row.user_id = user_id;
         });
+        return acc_id;
     }
 
 public:
@@ -357,39 +359,78 @@ private:
         if (balance > 0) insert_account(address, balance, 0, 0);
     };
 
+    // vm callback to read the account codehash
     inline uint256_t get_codehash(const uint160_t &address) const {
-        uint64_t id = get_account(address);
-        auto idx = _code.get_index<"code2"_n>();
-        auto itr = idx.find(id);
-        if (itr != idx.end()) return hash(itr->code);
-        return 0;
-    };
-
-    inline void set_codehash(const uint160_t &address, const uint256_t &codehash) {
-        //_codehash.set(address, codehash, 0);
-    };
-
-    inline const uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
-        auto idx = _code.get_index<"code3"_n>();
-        auto itr = idx.find(_hash(codehash));
-        while (itr != idx.end()) {
-            // if (sha3(itr->code) == codehash) return 0; // implement
+        uint64_t acc_id = get_account(address);
+        if (acc_id > 0) {
+            auto idx = _code.get_index<"code2"_n>();
+            auto itr = idx.find(acc_id);
+            if (itr != idx.end()) return hash(itr->code);
         }
         return 0;
     };
 
+    // vm callback to update the account codehash
+    inline void set_codehash(const uint160_t &address, const uint256_t &codehash) {
+        uint64_t acc_id = get_account(address);
+        if (acc_id > 0) {
+            auto idx = _code.get_index<"code2"_n>();
+            auto itr = idx.find(acc_id);
+            if (itr != idx.end()) {
+                if (hash(itr->code) == codehash) return;
+                idx.erase(itr);
+            }
+        }
+        if (codehash > 0) {
+            if (acc_id == 0) acc_id = insert_account(address, 0, 0, 0);
+            uint64_t hash_id = _hash(codehash);
+            auto idx = _code.get_index<"code3"_n>();
+            auto itr = idx.find(hash_id);
+            while (itr != idx.end()) {
+                if (itr->acc_id == 0 && hash(itr->code) == codehash) {
+                    idx.modify(itr, _self, [&](auto& row) { row.acc_id = acc_id; });
+                    return;
+                }
+            }
+        }
+    };
+
+    // vm call back to load code
+    inline const uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
+        uint64_t hash_id = _hash(codehash);
+        auto idx = _code.get_index<"code3"_n>();
+        auto itr = idx.find(hash_id);
+        while (itr != idx.end()) {
+            if (hash(itr->code) == codehash) return 0; //implement
+        }
+        return 0; // implement
+    };
+
+    // vm call back to store code
     inline void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) {
-        // implement
+        uint64_t hash_id = _hash(codehash);
+        auto idx = _code.get_index<"code3"_n>();
+        auto itr = idx.find(hash_id);
+        while (itr != idx.end()) {
+            if (hash(itr->code) == codehash) return;
+        }
+        _code.emplace(_self, [&](auto& row) {
+            row.code_id = _account.available_primary_key();
+            row.acc_id = 0;
+            // row.code = ; // implement
+        });
     };
 
     // vm callback to read from the storage
     inline uint256_t load(const uint160_t &address, const uint256_t &key) const {
         uint64_t acc_id = get_account(address);
-        uint64_t key_id = hash(acc_id, key);
-        auto idx = _state.get_index<"state3"_n>();
-        auto itr = idx.find(key_id);
-        while (itr != idx.end()) {
-            if (itr->acc_id == acc_id && equals(itr->key, key)) return convert(itr->value);
+        if (acc_id > 0) {
+            uint64_t key_id = hash(acc_id, key);
+            auto idx = _state.get_index<"state3"_n>();
+            auto itr = idx.find(key_id);
+            while (itr != idx.end()) {
+                if (itr->acc_id == acc_id && equals(itr->key, key)) return convert(itr->value);
+            }
         }
         return 0;
     };
@@ -397,20 +438,23 @@ private:
     // vm callback to update the storage
     inline void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) {
         uint64_t acc_id = get_account(address);
-        uint64_t key_id = hash(acc_id, key);
-        auto idx = _state.get_index<"state3"_n>();
-        auto itr = idx.find(key_id);
-        while (itr != idx.end()) {
-            if (itr->acc_id == acc_id && equals(itr->key, key)) {
-                if (value > 0) {
-                    idx.modify(itr, _self, [&](auto& row) { row.value = convert(value); });
-                } else {
-                    idx.erase(itr);
+        if (acc_id > 0) {
+            uint64_t key_id = hash(acc_id, key);
+            auto idx = _state.get_index<"state3"_n>();
+            auto itr = idx.find(key_id);
+            while (itr != idx.end()) {
+                if (itr->acc_id == acc_id && equals(itr->key, key)) {
+                    if (value > 0) {
+                        idx.modify(itr, _self, [&](auto& row) { row.value = convert(value); });
+                    } else {
+                        idx.erase(itr);
+                    }
+                    return;
                 }
-                return;
             }
         }
         if (value > 0) {
+            if (acc_id == 0) acc_id = insert_account(address, 0, 0, 0);
             _state.emplace(_self, [&](auto& row) {
                 row.key_id = _account.available_primary_key();
                 row.acc_id = acc_id;
