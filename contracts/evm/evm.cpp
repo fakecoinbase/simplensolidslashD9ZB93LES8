@@ -429,24 +429,29 @@ private:
         }
     }
 
+    // vm call back to register log0
     inline void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) {
-        eosio::print_f("log {%}\n", 0); // implement
+        eosio::print_f("log{%}\n", 0); // implement
     }
 
+    // vm call back to register log1
     inline void log1(const uint160_t &address, const uint256_t &v1, const uint8_t *data, uint64_t data_size) {
-        eosio::print_f("log {%}\n", 1); // implement
+        eosio::print_f("log{%}\n", 1); // implement
     }
 
+    // vm call back to register log2
     inline void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) {
-        eosio::print_f("log {%}\n", 2); // implement
+        eosio::print_f("log{%}\n", 2); // implement
     }
 
+    // vm call back to register log3
     inline void log3(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *data, uint64_t data_size) {
-        eosio::print_f("log {%}\n", 3); // implement
+        eosio::print_f("log{%}\n", 3); // implement
     }
 
+    // vm call back to register log4
     inline void log4(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *data, uint64_t data_size) {
-        eosio::print_f("log {%}\n", 4); // implement
+        eosio::print_f("log{%}\n", 4); // implement
     }
 
 };
