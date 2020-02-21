@@ -280,6 +280,7 @@ private:
 
     static constexpr uint64_t _gaslimit = 10000000; // sufficiently large supply
     static constexpr uint64_t _difficulty = 17179869184; // aleatory, from genesis
+    static constexpr uint64_t _forknumber = 10000000; // after istanbul
 
     // vm call back to obtain the current block timestamp
     inline uint64_t timestamp() {
@@ -295,7 +296,7 @@ private:
     // based on this number the vm realizes the current release
     // and may run in compatibility mode
     inline uint64_t forknumber() {
-        return 0; //implement
+        return _forknumber;
     }
 
     // vm callback to obtain the current block gas limit
