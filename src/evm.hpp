@@ -1239,6 +1239,9 @@ private:
 public:
     bigint x, y, z, t;
     inline CurvePoint() {}
+    inline CurvePoint(const bigint &_x, const bigint &_y) : x(_x), y(_y) {
+        if (x == 0 && y == 0) { y = 1; z = 0; t = 0; } else { z = 1; t = 1; }
+    }
     inline CurvePoint(const bigint &_x, const bigint &_y, const bigint &_z, const bigint &_t) : x(_x), y(_y), z(_z), t(_t) {}
     inline bool is_inf() const { return z == 0; }
     inline bool is_valid() const {
@@ -1261,6 +1264,9 @@ class TwistPoint {
 public:
     Gen2 x, y, z, t;
     inline TwistPoint() {}
+    inline TwistPoint(const Gen2 &_x, const Gen2 &_y) : x(_x), y(_y) {
+        if (x.is_zero() && y.is_zero()) { y = 1; z = 0; t = 0; } else { z = 1; t = 1; }
+    }
     inline TwistPoint(const Gen2 &_x, const Gen2 &_y, const Gen2 &_z, const Gen2 &_t) : x(_x), y(_y), z(_z), t(_t) {}
     inline bool is_inf() const { return z.is_zero(); }
     inline bool is_valid() const {
@@ -1340,8 +1346,17 @@ public:
     friend inline const TwistPoint operator*(const TwistPoint& v1, const bigint& v2) { return TwistPoint(v1) *= v2; }
 };
 
-class G1 : public CurvePoint {};
-class G2 : public TwistPoint {};
+class G1 : public CurvePoint {
+public:
+    inline G1() {}
+    inline G1(const bigint &_x, const bigint &_y) : CurvePoint(_x, _y) {}
+};
+
+class G2 : public TwistPoint {
+public:
+    inline G2() {}
+    inline G2(const Gen2 &_x, const Gen2 &_y) : TwistPoint(_x, _y) {}
+};
 
 static inline void mul_line(const Gen2 &a, const Gen2 &b, const Gen2 &c, Gen12 &inout)
 {
@@ -3980,7 +3995,38 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
                     uint512_t::to(p2.as512(), return_data);
                     return true;
                 }
-                case BN256PAIRING: assert(false); // UNIMPLEMENTED
+                case BN256PAIRING: {
+                    if (call_size % (2 * 32 + 2 * 2 * 32) != 0) _throw0(INVALID_SIZE);
+                    uint64_t count = call_size / (2 * 32 + 2 * 2 * 32);
+                    G1 curve_points[count];
+                    G2 twist_points[count];
+                    uint64_t call_offset = 0;
+                    for (uint64_t i = 0; i < count; i++) {
+                        bigint x1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+                        bigint y1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+                        if (x1 >= P) _throw0(INVALID_ENCODING);
+                        if (y1 >= P) _throw0(INVALID_ENCODING);
+                        G1 g1 = G1(x1, y1);
+                        if (!(x1 == 0 && y1 == 0)) {
+                            if (!g1.is_valid()) _throw0(INVALID_ENCODING);
+                        }
+                        curve_points[i] = g1;
+                        bigint xx2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+                        bigint xy2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+                        bigint yx2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+                        bigint yy2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+                        if (xx2 >= P) _throw0(INVALID_ENCODING);
+                        if (xy2 >= P) _throw0(INVALID_ENCODING);
+                        if (yx2 >= P) _throw0(INVALID_ENCODING);
+                        if (yy2 >= P) _throw0(INVALID_ENCODING);
+                        G2 g2 = G2(Gen2(xx2, xy2), Gen2(yx2, yy2));
+                        if (!(xx2 == 0 && xy2 == 0 && yx2 == 0 && yy2 == 0)) {
+                            if (!g2.is_valid()) _throw0(INVALID_ENCODING);
+                        }
+                        twist_points[i] = g2;
+                    }
+                    return bn256pairing(curve_points, twist_points, count);
+                }
                 case BLAKE2F: {
                     if (call_size != 4 + 8 * 8 + 16 * 8 + 2 * 8 + 1) _throw0(INVALID_SIZE);
                     if (call_data[call_size-1] > 1) _throw0(INVALID_ENCODING);
