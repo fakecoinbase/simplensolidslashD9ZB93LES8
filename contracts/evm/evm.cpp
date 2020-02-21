@@ -64,9 +64,13 @@ private:
     static inline uint64_t _hash(const uint256_t &codehash) { return 0; } // implement
     static inline bool equals(const checksum160 &address1, const uint160_t &address2) { return false; } // implement
     static inline bool equals(const checksum256 &key1, const uint256_t &key2) { return false; } // implement
+    static inline uint160_t convert(const checksum160 &address) { abort(); };
     static inline checksum160 convert(const uint160_t &address) { abort(); };
     static inline uint256_t convert(const checksum256 &address) { abort(); };
     static inline checksum256 convert(const uint256_t &address) { abort(); };
+
+//        checksum160 c;
+//        auto bytes = c.extract_as_byte_array();
 
 public:
     using contract::contract;
@@ -89,12 +93,25 @@ public:
     // - If the associated entry in the Accounts Table has no Associated EOSIO Account
     // - OR if the transaction has not been authorized by the Associated EOSIO Account
     [[eosio::action]]
-    void raw(const string& data, const checksum160 &sender) {
-//        require_auth(account);
+    void raw(const string& data, const checksum160 &_sender) {
+        const uint8_t *buffer = (const uint8_t*)data.c_str();
+        uint64_t size = data.size();
+        uint160_t sender = convert(_sender);
+        struct txn txn;
         _try({
-            _catches(vm_txn)(*this, *this, nullptr, 0, 0, false);
+            _catches(decode_txn)(buffer, size, txn);
         }, Error e, {
-//            print("error");
+            check(false, "malformed transaction");
+        })
+        if (txn.r == 0 && txn.s == 0 && sender > 0) {
+            uint64_t user_id = get_user_id(sender);
+            name account(user_id);
+            require_auth(account);
+        }
+        _try({
+            _catches(vm_txn)(*this, *this, buffer, size, sender, false);
+        }, Error e, {
+            check(false, "execution failure: " + string(errors[e]));
         })
     }
 
@@ -108,18 +125,38 @@ public:
     // - a transaction containing this action must fail if it is not authorized by the EOSIO account listed in the inputs
     // - a transaction containing this action must fail if an Account Table entry exists with this EOSIO account associated
     [[eosio::action]]
-    void create(const name& account, const string& data) {
+    void create(const name& account, const string& _data) {
         require_auth(account);
-
-//        uint160_t t = (uint160_t)sha3((const uint8_t*)data.c_str(), data.length());
-//        checksum160 c;
-//        auto bytes = c.extract_as_byte_array();
-
-// sha256(const_cast<char*>(str.c_str()), str.size(), &sum);
-//        auto itr = testtab.find(user.value);
-//        check(itr == testtab.end(), "account already exists");
-
-        print("Unimplemented");
+        uint64_t user_id = account.value;
+        uint64_t acc_id = get_account(user_id);
+        check(acc_id == 0, "account already exists");
+        string _name = account.to_string();
+        const uint8_t *name = (const uint8_t*)_name.c_str();
+        const uint8_t *data = (const uint8_t*)_data.c_str();
+        uint160_t address;
+        struct rlp rlp;
+        _try({
+            rlp.is_list = true;
+            rlp.size = 2;
+            rlp.list = _new<struct rlp>(rlp.size);
+            rlp.list[0].is_list = false;
+            rlp.list[0].size = _name.size();
+            rlp.list[0].data = _new<uint8_t>(rlp.list[0].size);
+            for (uint64_t i = 0; i < rlp.list[0].size; i++) rlp.list[0].data[i] = name[i];
+            rlp.list[1].is_list = false;
+            rlp.list[1].size = _data.size();
+            rlp.list[1].data = _new<uint8_t>(rlp.list[1].size);
+            for (uint64_t i = 0; i < rlp.list[1].size; i++) rlp.list[1].data[i] = data[i];
+            uint64_t size = _catches(dump_rlp)(rlp, nullptr, 0);
+            uint8_t buffer[size];
+            _catches(dump_rlp)(rlp, buffer, size);
+            free_rlp(rlp);
+            address = (uint160_t)sha3(buffer, size);
+        }, Error e, {
+            free_rlp(rlp);
+            check(false, "execution failure: " + string(errors[e]));
+        })
+        insert_account(address, 1, 0, user_id);
     }
 
     // 1 an EOSIO account
@@ -208,6 +245,15 @@ private:
             row.balance = balance;
             row.user_id = user_id;
         });
+    }
+
+    inline uint64_t get_user_id(const uint160_t &address) const {
+        uint64_t id = get_account(address);
+        if (id > 0) {
+            auto itr = _account.find(id);
+            return itr->user_id;
+        }
+        return 0;
     }
 
     inline uint64_t get_nonce(const uint160_t &address) const {
