@@ -25,7 +25,7 @@ private:
 
         uint64_t primary_key() const { return acc_id; }
         uint64_t secondary_key() const { return user_id; }
-        uint64_t tertiary_key() const { return hash(address); }
+        uint64_t tertiary_key() const { return id64(address); }
     };
     typedef eosio::indexed_by<"account3"_n, eosio::const_mem_fun<account_table, uint64_t, &account_table::tertiary_key>> account_tertiary;
     typedef eosio::indexed_by<"account2"_n, eosio::const_mem_fun<account_table, uint64_t, &account_table::secondary_key>> account_secondary;
@@ -43,7 +43,7 @@ private:
 
         uint64_t primary_key() const { return key_id; }
         uint64_t secondary_key() const { return acc_id; }
-        uint64_t tertiary_key() const { return hash(acc_id, key); }
+        uint64_t tertiary_key() const { return id64(acc_id, key); }
     };
     typedef eosio::indexed_by<"state3"_n, eosio::const_mem_fun<state_table, uint64_t, &state_table::tertiary_key>> state_tertiary;
     typedef eosio::indexed_by<"state2"_n, eosio::const_mem_fun<state_table, uint64_t, &state_table::secondary_key>> state_secondary;
@@ -76,8 +76,9 @@ private:
 
     // get account id from 160-bit address
     inline uint64_t get_account(const uint160_t &address) const {
+        uint64_t key_id = id64(address);
         auto idx = _account.get_index<"account3"_n>();
-        auto itr = idx.find(hash(address));
+        auto itr = idx.find(key_id);
         while (itr != idx.end()) {
             if (equals(itr->address, address)) return itr->acc_id;
         }
@@ -388,7 +389,7 @@ private:
         }
         if (codehash > 0) {
             if (acc_id == 0) acc_id = insert_account(address, 0, 0, 0);
-            uint64_t hash_id = _hash(codehash);
+            uint64_t hash_id = id64(codehash);
             auto idx = _code.get_index<"code3"_n>();
             auto itr = idx.find(hash_id);
             while (itr != idx.end()) {
@@ -402,7 +403,7 @@ private:
 
     // vm call back to load code
     inline const uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
-        uint64_t hash_id = _hash(codehash);
+        uint64_t hash_id = id64(codehash);
         auto idx = _code.get_index<"code3"_n>();
         auto itr = idx.find(hash_id);
         while (itr != idx.end()) {
@@ -413,7 +414,7 @@ private:
 
     // vm call back to store code
     inline void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) {
-        uint64_t hash_id = _hash(codehash);
+        uint64_t hash_id = id64(codehash);
         auto idx = _code.get_index<"code3"_n>();
         auto itr = idx.find(hash_id);
         while (itr != idx.end()) {
@@ -422,7 +423,8 @@ private:
         _code.emplace(_self, [&](auto& row) {
             row.code_id = _account.available_primary_key();
             row.acc_id = 0;
-            // row.code = ; // implement
+            row.code.resize(code_size);
+            for (uint64_t i = 0; i < code_size; i++) row.code[i] = code[i];
         });
     };
 
@@ -430,7 +432,7 @@ private:
     inline uint256_t load(const uint160_t &address, const uint256_t &key) const {
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
-            uint64_t key_id = hash(acc_id, key);
+            uint64_t key_id = id64(acc_id, key);
             auto idx = _state.get_index<"state3"_n>();
             auto itr = idx.find(key_id);
             while (itr != idx.end()) {
@@ -444,7 +446,7 @@ private:
     inline void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) {
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
-            uint64_t key_id = hash(acc_id, key);
+            uint64_t key_id = id64(acc_id, key);
             auto idx = _state.get_index<"state3"_n>();
             auto itr = idx.find(key_id);
             while (itr != idx.end()) {
@@ -509,23 +511,110 @@ private:
     }
 
 private:
-    static inline uint64_t hash(const uint160_t &address) { return 0; } // implement
-    static inline uint64_t hash(const checksum160 &address) { return 0; } // implement
-    static inline uint64_t hash(uint64_t acc_id, const checksum256 &key) { return 0; } // implement
-    static inline uint64_t hash(uint64_t acc_id, const uint256_t &key) { return 0; } // implement
-    static inline uint64_t hash(const std::vector<uint8_t> &code) { return 0; } // implement
-    static inline uint64_t _hash(const uint256_t &codehash) { return 0; } // implement
-    static inline bool equals(const checksum160 &address1, const uint160_t &address2) { return false; } // implement
-    static inline bool equals(const checksum256 &key1, const uint256_t &key2) { return false; } // implement
-    static inline uint160_t convert(const checksum160 &address) { abort(); };
-    static inline checksum160 convert(const uint160_t &address) { abort(); };
-    static inline uint256_t convert(const checksum256 &address) { abort(); };
-    static inline checksum256 convert(const uint256_t &address) { abort(); };
-    static inline string to_string(const uint160_t &address) { abort(); }
-    static inline string to_string(const uint256_t &address) { abort(); }
-    static inline string to_string(const uint8_t *data, uint64_t size) { abort(); }
 
-//        checksum160 c;
-//        auto bytes = c.extract_as_byte_array();
+    // generates a low collision 64-bit id for 160-bit addresses
+    static inline uint64_t id64(const checksum160 &address) {
+        auto _address = address.extract_as_byte_array();
+        return _address[0] << 24 | _address[1] << 16 | _address[2] << 8 | _address[3];
+    }
+
+    // generates a low collision 64-bit id for 160-bit addresses
+    static inline uint64_t id64(const uint160_t &address) {
+        return address[0] << 24 | address[1] << 16 | address[2] << 8 | address[3];
+    }
+
+    // generates a low collision 64-bit id for 64/256-bit acc_id/keys
+    static inline uint64_t id64(uint64_t acc_id, const checksum256 &key) {
+        return id64(convert(key));
+    }
+
+    // generates a low collision 64-bit id for 64/256-bit acc_id/keys
+    static inline uint64_t id64(uint64_t acc_id, const uint256_t &key) {
+        return key.murmur3(acc_id);
+    }
+
+    // generates a low collision 64-bit id for bytecode
+    static inline uint64_t hash(const std::vector<uint8_t> &code) {
+        uint64_t size = code.size();
+        uint8_t buffer[size];
+        for (uint64_t i = 0; i < size; i++) buffer[i] = code[i];
+        return id64(sha3(buffer, size));
+    }
+
+    // generates a low collision 64-bit id for codehash
+    static inline uint64_t id64(const uint256_t &codehash) {
+        return codehash[0] << 24 | codehash[1] << 16 | codehash[2] << 8 | codehash[3];
+    }
+
+    // compare checksum160 for equality
+    static inline bool equals(const checksum160 &v1, const uint160_t &v2) {
+        auto _v1 = v1.extract_as_byte_array();
+        for (uint64_t i = 0; i < 20; i++) if (_v1[i] == v2[i]) return true;
+        return false;
+    }
+
+    // compare checksum256 for equality
+    static inline bool equals(const checksum256 &v1, const uint256_t &v2) {
+        auto _v1 = v1.extract_as_byte_array();
+        for (uint64_t i = 0; i < 32; i++) if (_v1[i] == v2[i]) return true;
+        return false;
+    }
+
+    // conversion from checksum160
+    static inline uint160_t convert(const checksum160 &v) {
+        uint160_t t;
+        auto c = v.extract_as_byte_array();
+        for (uint64_t i = 0; i < 20; i++) t[i] = c[i];
+        return t;
+    };
+
+    // conversion to checksum160
+    static inline checksum160 convert(const uint160_t &v) {
+        checksum160 t;
+        auto c = t.extract_as_byte_array();
+        for (uint64_t i = 0; i < 20; i++) c[i] = v[i];
+        return t;
+    };
+
+    // conversion from checksum256
+    static inline uint256_t convert(const checksum256 &v) {
+        uint256_t t;
+        auto c = v.extract_as_byte_array();
+        for (uint64_t i = 0; i < 32; i++) t[i] = c[i];
+        return t;
+    };
+
+    // conversion to checksum256
+    static inline checksum256 convert(const uint256_t &v) {
+        checksum256 t;
+        auto c = t.extract_as_byte_array();
+        for (uint64_t i = 0; i < 32; i++) c[i] = v[i];
+        return t;
+    };
+
+    // conversion to hex string for printing
+    static inline string to_string(const uint160_t &address) {
+        uint8_t buffer[20];
+        uint160_t::to(address, buffer);
+        return to_string(buffer, 20);
+    }
+
+    // conversion to hex string for printing
+    static inline string to_string(const uint256_t &value) {
+        uint8_t buffer[32];
+        uint256_t::to(value, buffer);
+        return to_string(buffer, 32);
+    }
+
+    // conversion to hex string for printing
+    static inline string to_string(const uint8_t *data, uint64_t size) {
+        static char hex[] = "0123456789abcdef";
+        char buffer[2* size];
+        for (uint64_t i = 0; i < size; i++) {
+            buffer[2*i] = hex[data[i] >> 4];
+            buffer[2*i+1] = hex[data[i] & 0xf];
+        }
+        return string(buffer, buffer + 2*size);
+    }
 
 };
