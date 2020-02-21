@@ -176,7 +176,8 @@ public:
             require_auth(account);
         }
         _try({
-            _catches(vm_txn)(*this, *this, buffer, size, sender, false);
+            bool pays_gas = false;
+            _catches(vm_txn)(*this, *this, buffer, size, sender, pays_gas);
         }, Error e, {
             check(false, "execution failure: " + string(errors[e]));
         })
@@ -195,10 +196,8 @@ public:
     void create(const name& account, const string& _data) {
         require_auth(account);
         uint64_t user_id = account.value;
-        {
-            uint64_t acc_id = get_account(user_id);
-            check(acc_id == 0, "account already exists");
-        }
+        uint64_t acc_id = get_account(user_id);
+        check(acc_id == 0, "account already exists");
         string _name = account.to_string();
         const uint8_t *name = (const uint8_t*)_name.c_str();
         const uint8_t *data = (const uint8_t*)_data.c_str();
@@ -225,10 +224,8 @@ public:
             free_rlp(rlp);
             check(false, "execution failure: " + string(errors[e]));
         })
-        {
-            uint64_t acc_id = get_account(address);
-            check(acc_id == 0, "account already exists");
-        }
+        uint64_t _acc_id = get_account(address);
+        check(_acc_id == 0, "account already exists");
         insert_account(address, 1, 0, user_id);
     }
 
@@ -276,30 +273,39 @@ private:
     static constexpr uint64_t _gaslimit = 10000000; // sufficiently large supply
     static constexpr uint64_t _difficulty = 17179869184; // aleatory, from genesis
 
+    // vm call back to obtain the current block timestamp
     inline uint64_t timestamp() {
         return eosio::current_block_time().to_time_point().sec_since_epoch();
     }
 
+    // vm call back to obtain the current block number
     inline uint64_t number() {
         return 0; // implement
     }
 
+    // vm callback to obtain the current ETH mainnet block number
+    // based on this number the vm realizes the current release
+    // and may run in compatibility mode
     inline uint64_t forknumber() {
         return 0; //implement
     }
 
+    // vm callback to obtain the current block gas limit
     inline uint64_t gaslimit() {
         return _gaslimit;
     }
 
+    // vm callback to obtain the current block difficulty
     inline uint64_t difficulty() {
         return _difficulty;
     }
 
+    // vm callback to obtain the current block coinbase
     inline const uint160_t coinbase() {
         return 0; // could be something else
     }
 
+    // vm callback to obtain the hash of a block
     inline uint256_t hash(const uint256_t &number) {
         uint8_t buffer[32];
         uint256_t::to(number, buffer);
@@ -307,6 +313,7 @@ private:
     }
 
 private:
+    // vm callback to read the noce
     inline uint64_t get_nonce(const uint160_t &address) const {
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
@@ -316,6 +323,7 @@ private:
         return 0;
     }
 
+    // vm callback to update the noce
     inline void set_nonce(const uint160_t &address, const uint64_t &nonce) {
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
@@ -326,6 +334,7 @@ private:
         if (nonce > 0) insert_account(address, nonce, 0, 0);
     }
 
+    // vm callback to read the balance
     inline uint256_t get_balance(const uint160_t &address) const {
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
@@ -335,6 +344,7 @@ private:
         return 0;
     };
 
+    // vm callback to update the balance
     inline void set_balance(const uint160_t &address, const uint256_t &_balance) {
         check(_balance < ((uint256_t)1 << 64), "illegal state, invalid balance");
         uint64_t balance = _balance.cast64();
@@ -372,6 +382,7 @@ private:
         // implement
     };
 
+    // vm callback to read from the storage
     inline uint256_t load(const uint160_t &address, const uint256_t &key) const {
         uint64_t acc_id = get_account(address);
         uint64_t key_id = hash(acc_id, key);
@@ -383,6 +394,7 @@ private:
         return 0;
     };
 
+    // vm callback to update the storage
     inline void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) {
         uint64_t acc_id = get_account(address);
         uint64_t key_id = hash(acc_id, key);
@@ -408,6 +420,7 @@ private:
         }
     };
 
+    // vm call back to clean up accounts
     inline void remove(const uint160_t &address) {
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
