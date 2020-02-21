@@ -103,13 +103,19 @@ private:
     // add to account balance, assumes account exists
     inline void add_balance(uint64_t acc_id, uint64_t amount) {
         auto itr = _account.find(acc_id);
-        _account.modify(itr, _self, [&](auto& row) { row.balance += amount; });
+        _account.modify(itr, _self, [&](auto& row) {
+            check(row.balance + amount > row.balance, "account balance overflows");
+            row.balance += amount;
+        });
     }
 
-    // sub from account balance, assumes account exists and has enough balance
+    // sub from account balance, assumes account exists
     inline void sub_balance(uint64_t acc_id, uint64_t amount) {
         auto itr = _account.find(acc_id);
-        _account.modify(itr, _self, [&](auto& row) { row.balance -= amount; });
+        _account.modify(itr, _self, [&](auto& row) {
+            check(amount <= row.balance, "insufficient balance");
+            row.balance -= amount;
+        });
     }
 
     // insert a new account, assumer account does not exist (unique address/user_id)
@@ -252,10 +258,13 @@ public:
     // - Transferred tokens should be added to the Account Table entry’s balance
     [[eosio::on_notify("eosio.token::transfer")]]
     void deposit(const name& account, const name &to, asset &quantity, string memo) {
-        if (to == _self) {
-//            if (quantity.symbol == ) {
-//            add_balance(quantity.amount);
-//            }
+        if (to == _self && quantity.symbol == eosio::symbol("SYS", 4)) {
+            uint64_t user_id = account.value;
+            uint64_t acc_id = get_account(user_id);
+            if (acc_id > 0) {
+                uint64_t amount = quantity.amount;
+                add_balance(acc_id, amount);
+            }
         }
     }
 
