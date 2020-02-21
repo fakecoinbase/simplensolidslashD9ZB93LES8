@@ -412,7 +412,7 @@ private:
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto itr = _account.find(acc_id);
-            _account.erase(itr);
+            if (itr->user_id == 0) _account.erase(itr);
         }
     }
 
