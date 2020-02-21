@@ -92,7 +92,7 @@ public:
     void raw(const string& data, const checksum160 &sender) {
 //        require_auth(account);
         _try({
-            _catches(vm_txn)(*this, *this, nullptr, 0, 0);
+            _catches(vm_txn)(*this, *this, nullptr, 0, 0, false);
         }, Error e, {
 //            print("error");
         })

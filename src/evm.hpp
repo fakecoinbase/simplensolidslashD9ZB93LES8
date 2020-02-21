@@ -104,10 +104,10 @@ private:
             W = size;
             return;
         }
-        uint32_t *new_data = new uint32_t[size];
+        uint32_t *new_data = _new<uint32_t>(size);
         for (uint64_t i = 0; i < W; i++) new_data[i] = data[i];
         for (uint64_t i = W; i < size; i++) new_data[i] = 0;
-        delete data;
+        _delete(data);
         data = new_data;
         capacity = size;
         W = size;
@@ -129,7 +129,7 @@ private:
     }
 public:
     inline bigint() {}
-    inline ~bigint() { delete data; }
+    inline ~bigint() { _delete(data); }
     inline bigint(uint64_t v) { ensure(2); data[0] = v; data[1] = v >> 32; }
     inline bigint(const bigint &v) {
         ensure(v.W);
@@ -2987,6 +2987,17 @@ static inline uint64_t _gas(Release release, GasType type)
     return is_gas_table[is_gas_index[release]][type];
 }
 
+static inline uint64_t _gas_intrinsic(Release release, bool is_message_call, const uint8_t *data, uint64_t data_size)
+{
+    // check for overflow
+    uint64_t gas = _gas(release, is_message_call ? GasTxMessageCall : GasTxContractCreation);
+    uint64_t zero_count = 0;
+    for (uint64_t i = 0; i < data_size; i++) if (data[i] == 0) zero_count++;
+    gas += zero_count * _gas(release, GasTxDataZero);
+    gas += (data_size - zero_count) * _gas(release, GasTxDataNonZero);
+    return gas;
+}
+
 static inline uint64_t _gas_memory(Release release, uint64_t size1, uint64_t size2)
 {
     // check for overflow
@@ -4730,67 +4741,68 @@ static inline uint256_t _throws(_txn_hash)(struct txn &txn)
     return h;
 }
 
-void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, uint64_t size, uint160_t sender)
+void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, uint64_t size, uint160_t sender, bool pays_gas)
 {
+    Release release = get_release(block.forknumber());
     Storage storage(&state);
 
-    Release release = get_release(block.forknumber());
-
-    struct txn txn = { 0, 0, 0, false, 0, 0, nullptr, 0, false, 0, 0, 0 };
+    struct txn txn;
     _handles(decode_txn)(buffer, size, txn);
     _handles(_verify_txn)(release, txn);
-    uint256_t h = _handles(_txn_hash)(txn);
 
-    // check for overflow
-    uint64_t intrinsic_gas = _gas(release, txn.has_to ? GasTxMessageCall : GasTxContractCreation);
-    uint64_t zero_count = 0;
-    for (uint64_t i = 0; i < txn.data_size; i++) if (txn.data[i] == 0) zero_count++;
-    intrinsic_gas += zero_count * _gas(release, GasTxDataZero);
-    intrinsic_gas += (txn.data_size - zero_count) * _gas(release, GasTxDataNonZero);
-    if (txn.gaslimit < intrinsic_gas) _throw(INVALID_TRANSACTION);
-    uint64_t gas = txn.gaslimit.cast64() - intrinsic_gas;
-
-    uint160_t from = _handles(ecrecover)(h, txn.v, txn.r, txn.s);
-    uint160_t to = txn.to;
-    if (!txn.has_to) to = _handles(gen_address)(from, storage.get_nonce(from));
-
+    uint160_t from = sender;
+    if (txn.r != 0 || txn.s != 0 || sender == 0) {
+        uint256_t h = _handles(_txn_hash)(txn);
+        from = _handles(ecrecover)(h, txn.v, txn.r, txn.s);
+    }
     if (txn.nonce != storage.get_nonce(from)) _throw(NONCE_MISMATCH);
     storage.increment_nonce(from);
+    uint160_t to = txn.has_to ? txn.to : _handles(gen_address)(from, storage.get_nonce(from));
 
-    if (storage.get_balance(from) < txn.gaslimit * txn.gasprice + txn.value) _throw(INSUFFICIENT_BALANCE);
-    storage.sub_balance(from, txn.gaslimit * txn.gasprice);
-
-    // NO TRANSACTION FAILURE FROM HERE
-    uint64_t snapshot = storage.begin();
-
-    storage.sub_balance(from, txn.value);
-    storage.add_balance(to, txn.value);
+    // check for overflow
+    uint64_t gas = txn.gaslimit.cast64();
+    _handles(_consume_gas)(gas, _gas_intrinsic(release, txn.has_to, txn.data, txn.data_size));
+    uint256_t gas_cost = txn.gaslimit * txn.gasprice;
+    if (pays_gas) {
+        if (storage.get_balance(from) < gas_cost) _throw(INSUFFICIENT_BALANCE);
+        storage.sub_balance(from, gas_cost);
+    }
 
     bool success = false;
     uint64_t return_size = 0;
     uint64_t return_capacity = 0;
     uint8_t *return_data = nullptr;
 
-    // message call
-    if (txn.has_to) {
-        uint64_t code_size;
-        const uint8_t *code = storage.get_code(to, code_size);
-        _try({
+    uint64_t snapshot = storage.begin();
+    _try({
+        if (storage.get_balance(from) < txn.value) _trythrow(INSUFFICIENT_BALANCE);
+        if (txn.has_to) { // message call
+            uint64_t code_size;
+            const uint8_t *code = storage.get_code(to, code_size);
+            if (!storage.exists(to)) {
+                if (release >= SPURIOUS_DRAGON) {
+                    if (txn.value > 0) {
+                        if ((intptr_t)code > BLAKE2F) {
+                            goto skip;
+                        }
+                    }
+                }
+                storage.create_account(to);
+            }
+            storage.sub_balance(from, txn.value);
+            storage.add_balance(to, txn.value);
             success = _catches(vm_run)(release, block, storage,
                             from, txn.gasprice,
                             to, code, code_size,
                             from, txn.value, txn.data, txn.data_size,
                             return_data, return_size, return_capacity, gas,
                             false, 0);
-        }, Error e, {
-            success = false;
-            gas = 0;
-        })
-    }
-
-    // contract creation
-    if (!txn.has_to) {
-        _try({
+        } else { // contract creation
+            if (storage.has_contract(to)) _trythrow(CODE_CONFLICT);
+            storage.create_account(to);
+            if (release >= SPURIOUS_DRAGON) storage.set_nonce(to, 1);
+            storage.sub_balance(from, txn.value);
+            storage.add_balance(to, txn.value);
             success = _catches(vm_run)(release, block, storage,
                             from, txn.gasprice,
                             to, txn.data, txn.data_size,
@@ -4802,22 +4814,21 @@ void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, uint64_t
                 _catches(_consume_gas)(gas, _gas_create(release, return_size));
                 storage.register_code(to, return_data, return_size);
             }
-        }, Error e, {
-            success = false;
-            gas = 0;
-        })
-    }
+        }
+    }, Error e, {
+        success = false;
+        gas = 0;
+    })
+skip:
+    storage.end(snapshot, success);
 
     _delete(return_data);
-    storage.end(snapshot, success);
 
     uint64_t refund_gas = storage.get_refund();
     uint64_t used_gas = txn.gaslimit.cast64() - gas;
     _refund_gas(gas, _min(refund_gas, used_gas / 2));
-    storage.add_balance(from, gas * txn.gasprice);
+    if (pays_gas) storage.add_balance(from, gas * txn.gasprice);
 
-    // after execution delete self destruct accounts
-    // after execution delete touched accounts that were zeroed
     storage.flush();
 }
 
