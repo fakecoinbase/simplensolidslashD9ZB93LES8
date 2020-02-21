@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <new>
 
 #ifndef EVM_HPP
@@ -355,6 +356,16 @@ public:
     }
 };
 
+static bigint big(const char *s)
+{
+    bigint t = 0;
+    for (uint64_t i = 0; s[i] != '\0'; i++) {
+        assert(s[i] >= '0' && s[i] <= '9');
+        t = 10 * t + (s[i] - '0');
+    }
+    return t;
+}
+
 /* uintX_t */
 
 const uint32_t _WORD = 0xdeadbeef;
@@ -580,12 +591,24 @@ public:
     }
 };
 
+template<int X>
+static inline uintX_t<X> uintX(const char *s)
+{
+    uintX_t<X> t = 0;
+    for (uint64_t i = 0; s[i] != '\0'; i++) {
+        assert(s[i] >= '0' && s[i] <= '9');
+        t = 10 * t + (s[i] - '0');
+    }
+    return t;
+}
+
 class uint160_t : public uintX_t<160> {
 public:
     inline uint160_t() {}
     inline uint160_t(uint64_t v) : uintX_t(v) {}
     inline uint160_t(const uintX_t& v) : uintX_t(v) {}
 };
+static inline uint160_t uint160(const char *s) { return uintX<160>(s); }
 
 class uint256_t : public uintX_t<256> {
 public:
@@ -593,6 +616,7 @@ public:
     inline uint256_t(uint64_t v) : uintX_t(v) {}
     inline uint256_t(const uintX_t& v) : uintX_t(v) {}
 };
+static inline uint256_t uint256(const char *s) { return uintX<256>(s); }
 
 class uint416_t : public uintX_t<416> {
 public:
@@ -600,6 +624,7 @@ public:
     inline uint416_t(uint64_t v) : uintX_t(v) {}
     inline uint416_t(const uintX_t& v) : uintX_t(v) {}
 };
+static inline uint416_t uint416(const char *s) { return uintX<416>(s); }
 
 class uint512_t : public uintX_t<512> {
 public:
@@ -607,6 +632,7 @@ public:
     inline uint512_t(uint64_t v) : uintX_t(v) {}
     inline uint512_t(const uintX_t& v) : uintX_t(v) {}
 };
+static inline uint512_t uint512(const char *s) { return uintX<512>(s); }
 
 /* crypto */
 
@@ -1066,16 +1092,6 @@ static void blake2f(const uint32_t ROUNDS,
 }
 
 /* bn256 */
-
-static bigint big(const char *s)
-{
-    bigint t = 0;
-    for (uint64_t i = 0; s[i] != '\0'; i++) {
-        assert(s[i] >= '0' && s[i] <= '9');
-        t = 10 * t + (s[i] - '0');
-    }
-    return t;
-}
 
 static const bigint P = big("21888242871839275222246405745257275088696311157297823662689037894645226208583");
 static const bigint Q = big("21888242871839275222246405745257275088548364400416034343698204186575808495617");
