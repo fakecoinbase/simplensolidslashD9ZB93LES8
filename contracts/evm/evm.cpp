@@ -59,7 +59,7 @@ private:
 
         uint64_t primary_key() const { return code_id; }
         uint64_t secondary_key() const { return acc_id; }
-        uint64_t tertiary_key() const { return hash(code); }
+        uint64_t tertiary_key() const { return id64(code); }
     };
     typedef eosio::indexed_by<"code3"_n, eosio::const_mem_fun<code_table, uint64_t, &code_table::tertiary_key>> code_tertiary;
     typedef eosio::indexed_by<"code2"_n, eosio::const_mem_fun<code_table, uint64_t, &code_table::secondary_key>> code_secondary;
@@ -372,7 +372,7 @@ private:
         if (acc_id > 0) {
             auto idx = _code.get_index<"code2"_n>();
             auto itr = idx.find(acc_id);
-            if (itr != idx.end()) return hash(itr->code);
+            if (itr != idx.end()) return id64(itr->code);
         }
         return 0;
     };
@@ -384,7 +384,7 @@ private:
             auto idx = _code.get_index<"code2"_n>();
             auto itr = idx.find(acc_id);
             if (itr != idx.end()) {
-                if (hash(itr->code) == codehash) return;
+                if (id64(itr->code) == codehash) return;
                 idx.erase(itr);
             }
         }
@@ -394,7 +394,7 @@ private:
             auto idx = _code.get_index<"code3"_n>();
             auto itr = idx.find(hash_id);
             while (itr != idx.end()) {
-                if (itr->acc_id == 0 && hash(itr->code) == codehash) {
+                if (itr->acc_id == 0 && id64(itr->code) == codehash) {
                     idx.modify(itr, _self, [&](auto& row) { row.acc_id = acc_id; });
                     return;
                 }
@@ -408,7 +408,7 @@ private:
         auto idx = _code.get_index<"code3"_n>();
         auto itr = idx.find(hash_id);
         while (itr != idx.end()) {
-            if (hash(itr->code) == codehash) {
+            if (id64(itr->code) == codehash) {
                 code_size = itr->code.size();
                 uint8_t *code = _new<uint8_t>(code_size);
                 for (uint64_t i = 0; i < code_size; i++) code[i] = itr->code[i];
@@ -425,7 +425,7 @@ private:
         auto idx = _code.get_index<"code3"_n>();
         auto itr = idx.find(hash_id);
         while (itr != idx.end()) {
-            if (hash(itr->code) == codehash) return;
+            if (id64(itr->code) == codehash) return;
         }
         _code.emplace(_self, [&](auto& row) {
             row.code_id = _account.available_primary_key();
@@ -541,7 +541,7 @@ private:
     }
 
     // generates a low collision 64-bit id for bytecode
-    static inline uint64_t hash(const std::vector<uint8_t> &code) {
+    static inline uint64_t id64(const std::vector<uint8_t> &code) {
         uint64_t size = code.size();
         uint8_t buffer[size];
         for (uint64_t i = 0; i < size; i++) buffer[i] = code[i];
