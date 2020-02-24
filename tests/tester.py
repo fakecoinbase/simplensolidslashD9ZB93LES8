@@ -57,6 +57,7 @@ def compileFile(fnamein, fnameout):
         "-Wno-vla",
         "-Wno-unused-variable",
         "-Wno-unused-but-set-variable",
+        "-Wno-unused-function",
         "-Os",
         "-o",
         fnameout,
@@ -83,21 +84,16 @@ def hexToBin(s):
 
 def intToU256(v):
     if v < 0 or v > 2**256-1: _die("Not U256:", v)
-    hexv = ""
-    hexs = "%064x" % v
-    for i in range(0, 32):
-        hexv += "\\x" + hexs[:2]
-        hexs = hexs[2:]
-    return hexv    
+    return "%064x" % v
 
 def codeInitExec(origin, gasprice, address, caller, value, gas, code, data):
     return """
-    uint160_t origin = (uint160_t)uint256_t::from(\"""" + intToU256(origin) + """\");
-    uint256_t gasprice = uint256_t::from(\"""" + intToU256(gasprice) + """\");
-    uint160_t address = (uint160_t)uint256_t::from(\"""" + intToU256(address) + """\");
-    uint160_t caller = (uint160_t)uint256_t::from(\"""" + intToU256(caller) + """\");
-    uint256_t value = uint256_t::from(\"""" + intToU256(value) + """\");
-    uint256_t _gas = uint256_t::from(\"""" + intToU256(gas) + """\");
+    uint160_t origin = (uint160_t)uhex256(\"""" + intToU256(origin) + """\");
+    uint256_t gasprice = uhex256(\"""" + intToU256(gasprice) + """\");
+    uint160_t address = (uint160_t)uhex256(\"""" + intToU256(address) + """\");
+    uint160_t caller = (uint160_t)uhex256(\"""" + intToU256(caller) + """\");
+    uint256_t value = uhex256(\"""" + intToU256(value) + """\");
+    uint256_t _gas = uhex256(\"""" + intToU256(gas) + """\");
 
     uint64_t gas = _gas.cast64(); // fix
 
@@ -109,18 +105,18 @@ def codeInitExec(origin, gasprice, address, caller, value, gas, code, data):
 
 def codeInitEnv(timestamp, number, coinbase, gaslimit, difficulty):
     return """
-    uint64_t timestamp = uint256_t::from(\"""" + intToU256(timestamp) + """\").cast64();
-    uint256_t number = uint256_t::from(\"""" + intToU256(number) + """\");
-    uint160_t coinbase = (uint160_t)uint256_t::from(\"""" + intToU256(coinbase) + """\");
-    uint64_t gaslimit = uint256_t::from(\"""" + intToU256(gaslimit) + """\").cast64();
-    uint256_t difficulty = uint256_t::from(\"""" + intToU256(difficulty) + """\");
+    uint64_t timestamp = uhex256(\"""" + intToU256(timestamp) + """\").cast64();
+    uint64_t number = uhex256(\"""" + intToU256(number) + """\").cast64();
+    uint160_t coinbase = (uint160_t)uhex256(\"""" + intToU256(coinbase) + """\");
+    uint64_t gaslimit = uhex256(\"""" + intToU256(gaslimit) + """\").cast64();
+    uint64_t difficulty = uhex256(\"""" + intToU256(difficulty) + """\").cast64();
 """
 
 def codeInitLocation(location, number):
     return """
         {
-            uint256_t location = uint256_t::from(\"""" + intToU256(location) + """\");
-            uint256_t number = uint256_t::from(\"""" + intToU256(number) + """\");
+            uint256_t location = uhex256(\"""" + intToU256(location) + """\");
+            uint256_t number = uhex256(\"""" + intToU256(number) + """\");
             state.store(account, location, number);
         }
 """
@@ -134,8 +130,8 @@ def codeInitRlp(rlp):
 def codeDoneLocation(location, number):
     return """
         {
-            uint256_t location = uint256_t::from(\"""" + intToU256(location) + """\");
-            uint256_t number = uint256_t::from(\"""" + intToU256(number) + """\");
+            uint256_t location = uhex256(\"""" + intToU256(location) + """\");
+            uint256_t number = uhex256(\"""" + intToU256(number) + """\");
             uint256_t _number = state.load(account, location);
             if (number != _number) {
                 std::cerr << "post: invalid storage" << std::endl;
@@ -149,9 +145,9 @@ def codeDoneLocation(location, number):
 def codeInitAccount(account, nonce, balance, code, storage):
     src = """
     {
-        uint160_t account = (uint160_t)uint256_t::from(\"""" + intToU256(account) + """\");
-        uint64_t nonce = uint256_t::from(\"""" + intToU256(nonce) + """\").cast64();
-        uint256_t balance = uint256_t::from(\"""" + intToU256(balance) + """\");
+        uint160_t account = (uint160_t)uhex256(\"""" + intToU256(account) + """\");
+        uint64_t nonce = uhex256(\"""" + intToU256(nonce) + """\").cast64();
+        uint256_t balance = uhex256(\"""" + intToU256(balance) + """\");
         uint8_t *code = (uint8_t*)\"""" + code + """\";
         uint64_t code_size = """ + str(len(code) // 4) + """;
         uint256_t codehash = sha3(code, code_size);
@@ -173,9 +169,9 @@ def codeInitAccount(account, nonce, balance, code, storage):
 def codeDoneAccount(account, nonce, balance, code, storage):
     src = """
     {
-        uint160_t account = (uint160_t)uint256_t::from(\"""" + intToU256(account) + """\");
-        uint256_t nonce = uint256_t::from(\"""" + intToU256(nonce) + """\");
-        uint256_t balance = uint256_t::from(\"""" + intToU256(balance) + """\");
+        uint160_t account = (uint160_t)uhex256(\"""" + intToU256(account) + """\");
+        uint256_t nonce = uhex256(\"""" + intToU256(nonce) + """\");
+        uint256_t balance = uhex256(\"""" + intToU256(balance) + """\");
         uint8_t *code = (uint8_t*)\"""" + code + """\";
         uint64_t code_size = """ + str(len(code) // 4) + """;
 
@@ -239,12 +235,12 @@ def codeDoneReturn(out):
 
 def codeDoneLogs(loghash):
     return """
-    uint256_t loghash = uint256_t::from(\"""" + intToU256(loghash) + """\");
+    uint256_t loghash = uhex256(\"""" + intToU256(loghash) + """\");
 """
 
 def codeDoneGas(fgas):
     return """
-    uint256_t fgas = uint256_t::from(\"""" + intToU256(fgas) + """\");
+    uint256_t fgas = uhex256(\"""" + intToU256(fgas) + """\");
     if (gas != fgas) {
 //        std::cerr << "post: invalid gas " << fgas << " " << gas << std::endl;
 //        return 1;
@@ -253,13 +249,13 @@ def codeDoneGas(fgas):
 
 def codeDoneRlp(sender, _hash):
     return """
-    uint256_t _hash = uint256_t::from(\"""" + intToU256(_hash) + """\");
+    uint256_t _hash = uhex256(\"""" + intToU256(_hash) + """\");
     if (h != _hash) {
         std::cerr << "post: invalid hash " << _hash << std::endl;
         return 1;
     }
 
-    uint160_t sender = (uint160_t)uint256_t::from(\"""" + intToU256(sender) + """\");
+    uint160_t sender = (uint160_t)uhex256(\"""" + intToU256(sender) + """\");
     if (sender != sender) {
         std::cerr << "post: invalid sender " << " " << sender << std::endl;
         return 1;
@@ -285,11 +281,11 @@ int main()
     src += codeInitEnv(timestamp, number, coinbase, gaslimit, difficulty)
 
     src += """
-    _Block block(timestamp, number, coinbase, gaslimit, difficulty);
+    _Block block(timestamp, number, gaslimit, difficulty, coinbase);
     _State state;
     Storage storage(&state);
 
-    Release release = get_release(block.forknumber().cast64());
+    Release release = get_release(block.forknumber());
 """
 
     exec = item["exec"]

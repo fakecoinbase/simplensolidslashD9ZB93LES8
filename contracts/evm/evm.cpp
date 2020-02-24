@@ -527,7 +527,7 @@ private:
 
     // generates a low collision 64-bit id for 160-bit addresses
     static inline uint64_t id64(const uint160_t &address) {
-        return address[0] << 24 | address[1] << 16 | address[2] << 8 | address[3];
+        return address.byte(3) << 24 | address.byte(2) << 16 | address.byte(1) << 8 | address.byte(0);
     }
 
     // generates a low collision 64-bit id for 64/256-bit acc_id/keys
@@ -550,20 +550,20 @@ private:
 
     // generates a low collision 64-bit id for codehash
     static inline uint64_t id64(const uint256_t &codehash) {
-        return codehash[0] << 24 | codehash[1] << 16 | codehash[2] << 8 | codehash[3];
+        return codehash.byte(3) << 24 | codehash.byte(2) << 16 | codehash.byte(1) << 8 | codehash.byte(0);
     }
 
     // compare checksum160 for equality
     static inline bool equals(const checksum160 &v1, const uint160_t &v2) {
         auto _v1 = v1.extract_as_byte_array();
-        for (uint64_t i = 0; i < 20; i++) if (_v1[i] == v2[i]) return true;
+        for (uint64_t i = 0; i < 20; i++) if (_v1[i] == v2.byte(19 - i)) return true;
         return false;
     }
 
     // compare checksum256 for equality
     static inline bool equals(const checksum256 &v1, const uint256_t &v2) {
         auto _v1 = v1.extract_as_byte_array();
-        for (uint64_t i = 0; i < 32; i++) if (_v1[i] == v2[i]) return true;
+        for (uint64_t i = 0; i < 32; i++) if (_v1[i] == v2.byte(31 - i)) return true;
         return false;
     }
 
@@ -571,7 +571,7 @@ private:
     static inline uint160_t convert(const checksum160 &v) {
         uint160_t t;
         auto c = v.extract_as_byte_array();
-        for (uint64_t i = 0; i < 20; i++) t[i] = c[i];
+        for (uint64_t i = 0; i < 20; i++) t.setbyte(19 - i, c[i]);
         return t;
     };
 
@@ -579,7 +579,7 @@ private:
     static inline checksum160 convert(const uint160_t &v) {
         checksum160 t;
         auto c = t.extract_as_byte_array();
-        for (uint64_t i = 0; i < 20; i++) c[i] = v[i];
+        for (uint64_t i = 0; i < 20; i++) c[i] = v.byte(19 - i);
         return t;
     };
 
@@ -587,7 +587,7 @@ private:
     static inline uint256_t convert(const checksum256 &v) {
         uint256_t t;
         auto c = v.extract_as_byte_array();
-        for (uint64_t i = 0; i < 32; i++) t[i] = c[i];
+        for (uint64_t i = 0; i < 32; i++) t.setbyte(31 - i, c[i]);
         return t;
     };
 
@@ -595,7 +595,7 @@ private:
     static inline checksum256 convert(const uint256_t &v) {
         checksum256 t;
         auto c = t.extract_as_byte_array();
-        for (uint64_t i = 0; i < 32; i++) c[i] = v[i];
+        for (uint64_t i = 0; i < 32; i++) c[i] = v.byte(31 - i);
         return t;
     };
 
