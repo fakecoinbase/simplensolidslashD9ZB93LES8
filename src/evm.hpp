@@ -3,10 +3,7 @@
 #include <stdlib.h>
 #include <new>
 
-#define inline
-
 #ifndef NDEBUG
-#define inline inline
 #include <cstdlib>
 #endif // NDEBUG
 
@@ -61,7 +58,7 @@ enum Error {
 };
 
 template<typename T>
-static inline T *_new(uint64_t size)
+static T *_new(uint64_t size)
 {
     if (size == 0) return nullptr;
     T* p = new(std::nothrow) T[size];
@@ -70,7 +67,7 @@ static inline T *_new(uint64_t size)
 }
 
 template<typename T>
-static inline void _delete(T *p)
+static void _delete(T *p)
 {
     if (p != nullptr) delete p;
 }
@@ -105,7 +102,7 @@ private:
     uint64_t W = 0;
     uint64_t capacity = 0;
     uint32_t *data = nullptr;
-    inline void ensure(uint64_t size) {
+    void ensure(uint64_t size) {
         if (W >= size) return;
         if (capacity >= size) {
             for (uint64_t i = W; i < size; i++) data[i] = 0;
@@ -120,8 +117,8 @@ private:
         capacity = size;
         W = size;
     }
-    inline void pack() { while (W > 0 && data[W-1] == 0) W--; }
-    inline int cmp(const bigint& v) const {
+    void pack() { while (W > 0 && data[W-1] == 0) W--; }
+    int cmp(const bigint& v) const {
         uint64_t _W = W < v.W ? W : v.W;
         for (uint64_t i = v.W; i > _W; i--) {
             if (0 < v.data[i-1]) return -1;
@@ -136,47 +133,47 @@ private:
         return 0;
     }
 public:
-    inline bigint() {}
-    inline ~bigint() { _delete(data); }
-    inline bigint(uint64_t v) { ensure(2); data[0] = v; data[1] = v >> 32; }
-    inline bigint(const bigint &v) {
+    bigint() {}
+    ~bigint() { _delete(data); }
+    bigint(uint64_t v) { ensure(2); data[0] = v; data[1] = v >> 32; }
+    bigint(const bigint &v) {
         ensure(v.W);
         for (uint64_t i = 0; i < v.W; i++) data[i] = v.data[i];
     }
-    inline bigint& operator=(const bigint& v) {
+    bigint& operator=(const bigint& v) {
         ensure(v.W);
         for (uint64_t i = 0; i < v.W; i++) data[i] = v.data[i];
         for (uint64_t i = v.W; i < W; i++) data[i] = 0;
         return *this;
     }
-    inline uint64_t bitlen() const {
+    uint64_t bitlen() const {
         for (uint64_t i = 32 * W; i > 0; i--) {
             if (bit(i - 1)) return i;
         }
         return 0;
     }
-    inline bool bit(uint64_t index) const {
+    bool bit(uint64_t index) const {
         uint64_t i = index / 32;
         uint64_t j = index % 32;
         return (data[i] & (1 << j)) > 0;
     }
-    inline bigint& operator++() {
+    bigint& operator++() {
         ensure(data[W-1] == 0xffffffff ? W+1 : W);
         for (uint64_t i = 0; i < W; i++) {
             if (++data[i] != 0) break;
         }
         return *this;
     }
-    inline bigint& operator--() {
+    bigint& operator--() {
         assert(*this > 0);
         for (uint64_t i = 0; i < W; i++) {
             if (data[i]-- != 0) break;
         }
         return *this;
     }
-    inline const bigint operator++(int) { const bigint v = *this; ++(*this); return v; }
-    inline const bigint operator--(int) { const bigint v = *this; --(*this); return v; }
-    inline bigint& operator+=(const bigint& v)
+    const bigint operator++(int) { const bigint v = *this; ++(*this); return v; }
+    const bigint operator--(int) { const bigint v = *this; --(*this); return v; }
+    bigint& operator+=(const bigint& v)
     {
         ensure(W > v.W ? W + 1 : v.W + 1);
         uint64_t carry = 0;
@@ -194,7 +191,7 @@ public:
         pack();
         return *this;
     }
-    inline bigint& operator-=(const bigint& v) {
+    bigint& operator-=(const bigint& v) {
         assert(*this >= v);
         bigint t = v;
         t.ensure(W);
@@ -206,7 +203,7 @@ public:
         pack();
         return *this;
     }
-    inline bigint& operator*=(const bigint& v) {
+    bigint& operator*=(const bigint& v) {
         uint64_t _W = W + v.W;
         ensure(_W);
         bigint t = *this;
@@ -224,9 +221,9 @@ public:
         pack();
         return *this;
     }
-    inline bigint& operator/=(const bigint& v) { bigint t1 = *this, t2; divmod(t1, v, *this, t2); return *this; }
-    inline bigint& operator%=(const bigint& v) { bigint t1 = *this, t2; divmod(t1, v, t2, *this); return *this; }
-    inline bigint& operator&=(const bigint& v) {
+    bigint& operator/=(const bigint& v) { bigint t1 = *this, t2; divmod(t1, v, *this, t2); return *this; }
+    bigint& operator%=(const bigint& v) { bigint t1 = *this, t2; divmod(t1, v, t2, *this); return *this; }
+    bigint& operator&=(const bigint& v) {
         ensure(v.W);
         for (uint64_t i = 0; i < v.W; i++) data[i] &= v.data[i];
         for (uint64_t i = v.W; i < W; i++) data[i] = 0;
@@ -234,9 +231,9 @@ public:
         pack();
         return *this;
     }
-    inline bigint& operator|=(const bigint& v) { ensure(v.W); for (uint64_t i = 0; i < v.W; i++) data[i] |= v.data[i]; pack(); return *this; }
-    inline bigint& operator^=(const bigint& v) { ensure(v.W); for (uint64_t i = 0; i < v.W; i++) data[i] ^= v.data[i]; pack(); return *this; }
-    inline bigint& operator<<=(uint64_t n) {
+    bigint& operator|=(const bigint& v) { ensure(v.W); for (uint64_t i = 0; i < v.W; i++) data[i] |= v.data[i]; pack(); return *this; }
+    bigint& operator^=(const bigint& v) { ensure(v.W); for (uint64_t i = 0; i < v.W; i++) data[i] ^= v.data[i]; pack(); return *this; }
+    bigint& operator<<=(uint64_t n) {
         if (n == 0) return *this;
         ensure(W + (n + 31) / 32);
         uint64_t index = n / 32;
@@ -250,7 +247,7 @@ public:
         pack();
         return *this;
     }
-    inline bigint& operator>>=(uint64_t n) {
+    bigint& operator>>=(uint64_t n) {
         if (n == 0) return *this;
         uint64_t index = n / 32;
         uint64_t shift = n % 32;
@@ -263,7 +260,7 @@ public:
         pack();
         return *this;
     }
-    static inline void divmod(const bigint &num, const bigint &div, bigint &quo, bigint &rem) {
+    static void divmod(const bigint &num, const bigint &div, bigint &quo, bigint &rem) {
         assert(div > 0);
         quo = 0;
         rem = num;
@@ -291,7 +288,7 @@ public:
         quo.pack();
         rem.pack();
     }
-    static inline const bigint pow(const bigint &v1, const bigint &v2) {
+    static const bigint pow(const bigint &v1, const bigint &v2) {
         bigint v0 = v2;
         v0.pack();
         bigint x1 = 1;
@@ -305,7 +302,7 @@ public:
         }
         return x1;
     }
-    static inline const bigint powmod(const bigint &v1, const bigint &v2, const bigint &v3) {
+    static const bigint powmod(const bigint &v1, const bigint &v2, const bigint &v3) {
         bigint v0 = v2;
         v0.pack();
         bigint x1 = 1;
@@ -319,26 +316,26 @@ public:
         }
         return x1;
     }
-    static inline const bigint addmod(const bigint &v1, const bigint &v2, const bigint &v3) { return (v1 + v2) % v3; }
-    static inline const bigint mulmod(const bigint &v1, const bigint &v2, const bigint &v3) { return (v1 * v2) % v3; }
-    friend inline const bigint operator+(const bigint& v1, const bigint& v2) { return bigint(v1) += v2; }
-    friend inline const bigint operator-(const bigint& v1, const bigint& v2) { return bigint(v1) -= v2; }
-    friend inline const bigint operator*(const bigint& v1, const bigint& v2) { return bigint(v1) *= v2; }
-    friend inline const bigint operator/(const bigint& v1, const bigint& v2) { return bigint(v1) /= v2; }
-    friend inline const bigint operator%(const bigint& v1, const bigint& v2) { return bigint(v1) %= v2; }
-    friend inline const bigint operator&(const bigint& v1, const bigint& v2) { return bigint(v1) &= v2; }
-    friend inline const bigint operator|(const bigint& v1, const bigint& v2) { return bigint(v1) |= v2; }
-    friend inline const bigint operator^(const bigint& v1, const bigint& v2) { return bigint(v1) ^= v2; }
-    friend inline const bigint operator<<(const bigint& v, int n) { return bigint(v) <<= n; }
-    friend inline const bigint operator>>(const bigint& v, int n) { return bigint(v) >>= n; }
-    friend inline bool operator==(const bigint& v1, const bigint& v2) { return v1.cmp(v2) == 0; }
-    friend inline bool operator!=(const bigint& v1, const bigint& v2) { return v1.cmp(v2) != 0; }
-    friend inline bool operator<(const bigint& v1, const bigint& v2) { return v1.cmp(v2) < 0; }
-    friend inline bool operator>(const bigint& v1, const bigint& v2) { return v1.cmp(v2) > 0; }
-    friend inline bool operator<=(const bigint& v1, const bigint& v2) { return v1.cmp(v2) <= 0; }
-    friend inline bool operator>=(const bigint& v1, const bigint& v2) { return v1.cmp(v2) >= 0; }
-    static inline const bigint from(const char *buffer, uint64_t size) { return from((const uint8_t*)buffer, size); }
-    static inline const bigint from(const uint8_t *buffer, uint64_t size) {
+    static const bigint addmod(const bigint &v1, const bigint &v2, const bigint &v3) { return (v1 + v2) % v3; }
+    static const bigint mulmod(const bigint &v1, const bigint &v2, const bigint &v3) { return (v1 * v2) % v3; }
+    friend const bigint operator+(const bigint& v1, const bigint& v2) { return bigint(v1) += v2; }
+    friend const bigint operator-(const bigint& v1, const bigint& v2) { return bigint(v1) -= v2; }
+    friend const bigint operator*(const bigint& v1, const bigint& v2) { return bigint(v1) *= v2; }
+    friend const bigint operator/(const bigint& v1, const bigint& v2) { return bigint(v1) /= v2; }
+    friend const bigint operator%(const bigint& v1, const bigint& v2) { return bigint(v1) %= v2; }
+    friend const bigint operator&(const bigint& v1, const bigint& v2) { return bigint(v1) &= v2; }
+    friend const bigint operator|(const bigint& v1, const bigint& v2) { return bigint(v1) |= v2; }
+    friend const bigint operator^(const bigint& v1, const bigint& v2) { return bigint(v1) ^= v2; }
+    friend const bigint operator<<(const bigint& v, int n) { return bigint(v) <<= n; }
+    friend const bigint operator>>(const bigint& v, int n) { return bigint(v) >>= n; }
+    friend bool operator==(const bigint& v1, const bigint& v2) { return v1.cmp(v2) == 0; }
+    friend bool operator!=(const bigint& v1, const bigint& v2) { return v1.cmp(v2) != 0; }
+    friend bool operator<(const bigint& v1, const bigint& v2) { return v1.cmp(v2) < 0; }
+    friend bool operator>(const bigint& v1, const bigint& v2) { return v1.cmp(v2) > 0; }
+    friend bool operator<=(const bigint& v1, const bigint& v2) { return v1.cmp(v2) <= 0; }
+    friend bool operator>=(const bigint& v1, const bigint& v2) { return v1.cmp(v2) >= 0; }
+    static const bigint from(const char *buffer, uint64_t size) { return from((const uint8_t*)buffer, size); }
+    static const bigint from(const uint8_t *buffer, uint64_t size) {
         bigint v = 0;
         v.ensure((size + 3) / 4);
         for (uint64_t j = 0; j < size; j++) {
@@ -349,7 +346,7 @@ public:
         }
         return v;
     }
-    static inline void to(const bigint &v, uint8_t *buffer, uint64_t size) {
+    static  void to(const bigint &v, uint8_t *buffer, uint64_t size) {
         uint64_t B = size < 4*v.W ? size : 4*v.W;
         for (uint64_t j = 0; j < size-B; j++) {
             buffer[j] = 0;
@@ -382,10 +379,10 @@ struct U {
     U<L> lo;
     U<H> hi;
     inline U() {}
-    inline U(uint64_t v) : lo(v), hi(0) {}
-    inline U(const U<L>& _lo, const U<H>& _hi) : lo(_lo), hi(_hi) {}
-    template<int M> inline U(const U<M>& v) : U<N>(v, 0) {}
-    template<int M> inline U(const U<M>& v, uint64_t base) : lo(v, base), hi(v, base + L/32) {}
+    U(uint64_t v) : lo(v), hi(0) {}
+    U(const U<L>& _lo, const U<H>& _hi) : lo(_lo), hi(_hi) {}
+    template<int M> U(const U<M>& v) : U<N>(v, 0) {}
+    template<int M> U(const U<M>& v, uint64_t base) : lo(v, base), hi(v, base + L/32) {}
 
     inline U operator-() const { return U<N>::neg(*this); }
     inline U operator~() const { return U<N>::lno(*this); }
@@ -472,14 +469,14 @@ struct U {
     friend inline U operator<<(const U& v, uint64_t k) { return U<N>::shl(v, k); }
     friend inline U operator>>(const U& v, uint64_t k) { return U<N>::shr(v, k); }
 
-    static inline U neg(const U& v) { U<N> t(U<N>::lno(v)); U<N>::_pic(t); return t; }
-    static inline U lno(const U& v) { return U<N>{U<L>::lno(v.lo), U<H>::lno(v.hi)}; }
+    static U neg(const U& v) { U<N> t(U<N>::lno(v)); U<N>::_pic(t); return t; }
+    static U lno(const U& v) { return U<N>{U<L>::lno(v.lo), U<H>::lno(v.hi)}; }
 
-    static inline U icp(U& v) { U<N> t(v); U<N>::_pic(v); return t; }
-    static inline U dcp(U& v) { U<N> t(v); U<N>::_pdc(v); return t; }
+    static U icp(U& v) { U<N> t(v); U<N>::_pic(v); return t; }
+    static U dcp(U& v) { U<N> t(v); U<N>::_pdc(v); return t; }
 
-    static inline U& _pic(U& v) { U<L>::_pic(v.lo); if (U<L>::equ(v.lo, 0)) U<H>::_pic(v.hi); return v; }
-    static inline U& _pdc(U& v) { if (U<L>::equ(v.lo, 0)) U<H>::_pdc(v.hi); U<L>::_pdc(v.lo); return v; }
+    static U& _pic(U& v) { U<L>::_pic(v.lo); if (U<L>::equ(v.lo, 0)) U<H>::_pic(v.hi); return v; }
+    static U& _pdc(U& v) { if (U<L>::equ(v.lo, 0)) U<H>::_pdc(v.hi); U<L>::_pdc(v.lo); return v; }
 
     static U& _cpy(U& v1, const U& v2) { U<L>::_cpy(v1.lo, v2.lo); U<H>::_cpy(v1.hi, v2.hi); return v1; }
 
@@ -506,69 +503,69 @@ struct U {
     static U& _shl(U& v, uint64_t k) { v = U<N>::shl(v, k); return v; }
     static U& _shr(U& v, uint64_t k) { v = U<N>::shr(v, k); return v; }
 
-    static inline bool equ(const U& v1, const U& v2) { return U<L>::equ(v1.lo, v2.lo) && U<H>::equ(v1.hi, v2.hi); }
-    static inline bool neq(const U& v1, const U& v2) { return U<L>::neq(v1.lo, v2.lo) || U<H>::neq(v1.hi, v2.hi); }
-    static inline bool ltn(const U& v1, const U& v2) { return U<H>::ltn(v1.hi, v2.hi) || (U<H>::equ(v1.hi, v2.hi) && U<L>::ltn(v1.lo, v2.lo)); }
-    static inline bool lte(const U& v1, const U& v2) { return U<H>::ltn(v1.hi, v2.hi) || (U<H>::equ(v1.hi, v2.hi) && U<L>::lte(v1.lo, v2.lo)); }
-    static inline bool gtn(const U& v1, const U& v2) { return U<H>::gtn(v1.hi, v2.hi) || (U<H>::equ(v1.hi, v2.hi) && U<L>::gtn(v1.lo, v2.lo)); }
-    static inline bool gte(const U& v1, const U& v2) { return U<H>::gtn(v1.hi, v2.hi) || (U<H>::equ(v1.hi, v2.hi) && U<L>::gte(v1.lo, v2.lo)); }
+    static bool equ(const U& v1, const U& v2) { return U<L>::equ(v1.lo, v2.lo) && U<H>::equ(v1.hi, v2.hi); }
+    static bool neq(const U& v1, const U& v2) { return U<L>::neq(v1.lo, v2.lo) || U<H>::neq(v1.hi, v2.hi); }
+    static bool ltn(const U& v1, const U& v2) { return U<H>::ltn(v1.hi, v2.hi) || (U<H>::equ(v1.hi, v2.hi) && U<L>::ltn(v1.lo, v2.lo)); }
+    static bool lte(const U& v1, const U& v2) { return U<H>::ltn(v1.hi, v2.hi) || (U<H>::equ(v1.hi, v2.hi) && U<L>::lte(v1.lo, v2.lo)); }
+    static bool gtn(const U& v1, const U& v2) { return U<H>::gtn(v1.hi, v2.hi) || (U<H>::equ(v1.hi, v2.hi) && U<L>::gtn(v1.lo, v2.lo)); }
+    static bool gte(const U& v1, const U& v2) { return U<H>::gtn(v1.hi, v2.hi) || (U<H>::equ(v1.hi, v2.hi) && U<L>::gte(v1.lo, v2.lo)); }
 
-    static inline U add(const U& v1, const U& v2) { U<L> lo = U<L>::add(v1.lo, v2.lo); U<H> hi = U<H>::add(v1.hi, v2.hi); if (U<L>::ltn(lo, v1.lo)) U<H>::_pic(hi); return U<N>{lo, hi}; }
-    static inline U sub(const U& v1, const U& v2) { U<L> lo = U<L>::sub(v1.lo, v2.lo); U<H> hi = U<H>::sub(v1.hi, v2.hi); if (U<L>::gtn(lo, v1.lo)) U<H>::_pdc(hi); return U<N>{lo, hi}; }
-    static inline U mul(const U& v1, const U& v2) { return U<N>::mul_(v1, v2); }
-    static inline U div(const U& v1, const U& v2) { U<N> quo, rem; quorem(v1, v2, quo, rem); return quo; }
-    static inline U mod(const U& v1, const U& v2) { U<N> quo, rem; quorem(v1, v2, quo, rem); return rem; }
-    static inline U lan(const U& v1, const U& v2) { return U<N>{U<L>::lan(v1.lo, v2.lo), U<H>::lan(v1.hi, v2.hi)}; }
-    static inline U lor(const U& v1, const U& v2) { return U<N>{U<L>::lor(v1.lo, v2.lo), U<H>::lor(v1.hi, v2.hi)}; }
-    static inline U lxr(const U& v1, const U& v2) { return U<N>{U<L>::lxr(v1.lo, v2.lo), U<H>::lxr(v1.hi, v2.hi)}; }
+    static U add(const U& v1, const U& v2) { U<L> lo = U<L>::add(v1.lo, v2.lo); U<H> hi = U<H>::add(v1.hi, v2.hi); if (U<L>::ltn(lo, v1.lo)) U<H>::_pic(hi); return U<N>{lo, hi}; }
+    static U sub(const U& v1, const U& v2) { U<L> lo = U<L>::sub(v1.lo, v2.lo); U<H> hi = U<H>::sub(v1.hi, v2.hi); if (U<L>::gtn(lo, v1.lo)) U<H>::_pdc(hi); return U<N>{lo, hi}; }
+    static U mul(const U& v1, const U& v2) { return U<N>::mul_(v1, v2); }
+    static U div(const U& v1, const U& v2) { U<N> quo, rem; quorem(v1, v2, quo, rem); return quo; }
+    static U mod(const U& v1, const U& v2) { U<N> quo, rem; quorem(v1, v2, quo, rem); return rem; }
+    static U lan(const U& v1, const U& v2) { return U<N>{U<L>::lan(v1.lo, v2.lo), U<H>::lan(v1.hi, v2.hi)}; }
+    static U lor(const U& v1, const U& v2) { return U<N>{U<L>::lor(v1.lo, v2.lo), U<H>::lor(v1.hi, v2.hi)}; }
+    static U lxr(const U& v1, const U& v2) { return U<N>{U<L>::lxr(v1.lo, v2.lo), U<H>::lxr(v1.hi, v2.hi)}; }
 
-    static inline bool equ(uint64_t v1, const U& v2) { return U<L>::equ(v1, v2.lo) && U<H>::equ(0, v2.hi); }
-    static inline bool neq(uint64_t v1, const U& v2) { return U<L>::neq(v1, v2.lo) || U<H>::neq(0, v2.hi); }
-    static inline bool ltn(uint64_t v1, const U& v2) { return U<H>::neq(0, v2.hi) || U<L>::ltn(v1, v2.lo); }
-    static inline bool lte(uint64_t v1, const U& v2) { return U<H>::neq(0, v2.hi) || U<L>::lte(v1, v2.lo); }
-    static inline bool gtn(uint64_t v1, const U& v2) { return U<H>::equ(0, v2.hi) && U<L>::gtn(v1, v2.lo); }
-    static inline bool gte(uint64_t v1, const U& v2) { return U<H>::equ(0, v2.hi) && U<L>::gte(v1, v2.lo); }
+    static bool equ(uint64_t v1, const U& v2) { return U<L>::equ(v1, v2.lo) && U<H>::equ(0, v2.hi); }
+    static bool neq(uint64_t v1, const U& v2) { return U<L>::neq(v1, v2.lo) || U<H>::neq(0, v2.hi); }
+    static bool ltn(uint64_t v1, const U& v2) { return U<H>::neq(0, v2.hi) || U<L>::ltn(v1, v2.lo); }
+    static bool lte(uint64_t v1, const U& v2) { return U<H>::neq(0, v2.hi) || U<L>::lte(v1, v2.lo); }
+    static bool gtn(uint64_t v1, const U& v2) { return U<H>::equ(0, v2.hi) && U<L>::gtn(v1, v2.lo); }
+    static bool gte(uint64_t v1, const U& v2) { return U<H>::equ(0, v2.hi) && U<L>::gte(v1, v2.lo); }
 
-    static inline U add(uint64_t v1, const U& v2) { U<L> lo = U<L>::add(v1, v2.lo); U<H> hi = v2.hi; if (U<L>::ltn(lo, v1)) U<H>::_pic(hi); return U<N>{lo, hi}; }
-    static inline U sub(uint64_t v1, const U& v2) { U<L> lo = U<L>::sub(v1, v2.lo); U<H> hi = v2.hi; if (U<L>::gtn(lo, v1)) U<H>::_pdc(hi); return U<N>{lo, hi}; }
-    static inline U mul(uint64_t v1, const U& v2) { return U<N>::mul_(v1, v2); }
-    static inline U div(uint64_t v1, const U& v2) { U<N> quo, rem, v = v1; quorem(v, v2, quo, rem); return quo; }
-    static inline U mod(uint64_t v1, const U& v2) { U<N> quo, rem, v = v1; quorem(v, v2, quo, rem); return rem; }
-    static inline U lan(uint64_t v1, const U& v2) { return U<N>{U<L>::lan(v1, v2.lo), U<H>(0)}; }
-    static inline U lor(uint64_t v1, const U& v2) { return U<N>{U<L>::lor(v1, v2.lo), v2.hi}; }
-    static inline U lxr(uint64_t v1, const U& v2) { return U<N>{U<L>::lxr(v1, v2.lo), v2.hi}; }
+    static U add(uint64_t v1, const U& v2) { U<L> lo = U<L>::add(v1, v2.lo); U<H> hi = v2.hi; if (U<L>::ltn(lo, v1)) U<H>::_pic(hi); return U<N>{lo, hi}; }
+    static U sub(uint64_t v1, const U& v2) { U<L> lo = U<L>::sub(v1, v2.lo); U<H> hi = v2.hi; if (U<L>::gtn(lo, v1)) U<H>::_pdc(hi); return U<N>{lo, hi}; }
+    static U mul(uint64_t v1, const U& v2) { return U<N>::mul_(v1, v2); }
+    static U div(uint64_t v1, const U& v2) { U<N> quo, rem, v = v1; quorem(v, v2, quo, rem); return quo; }
+    static U mod(uint64_t v1, const U& v2) { U<N> quo, rem, v = v1; quorem(v, v2, quo, rem); return rem; }
+    static U lan(uint64_t v1, const U& v2) { return U<N>{U<L>::lan(v1, v2.lo), U<H>(0)}; }
+    static U lor(uint64_t v1, const U& v2) { return U<N>{U<L>::lor(v1, v2.lo), v2.hi}; }
+    static U lxr(uint64_t v1, const U& v2) { return U<N>{U<L>::lxr(v1, v2.lo), v2.hi}; }
 
-    static inline bool equ(const U& v1, uint64_t v2) { return U<L>::equ(v1.lo, v2) && U<H>::equ(v1.hi, 0); }
-    static inline bool neq(const U& v1, uint64_t v2) { return U<L>::neq(v1.lo, v2) || U<H>::neq(v1.hi, 0); }
-    static inline bool ltn(const U& v1, uint64_t v2) { return U<H>::equ(v1.hi, 0) && U<L>::ltn(v1.lo, v2); }
-    static inline bool lte(const U& v1, uint64_t v2) { return U<H>::equ(v1.hi, 0) && U<L>::lte(v1.lo, v2); }
-    static inline bool gtn(const U& v1, uint64_t v2) { return U<H>::neq(v1.hi, 0) || U<L>::gtn(v1.lo, v2); }
-    static inline bool gte(const U& v1, uint64_t v2) { return U<H>::neq(v1.hi, 0) || U<L>::gte(v1.lo, v2); }
+    static bool equ(const U& v1, uint64_t v2) { return U<L>::equ(v1.lo, v2) && U<H>::equ(v1.hi, 0); }
+    static bool neq(const U& v1, uint64_t v2) { return U<L>::neq(v1.lo, v2) || U<H>::neq(v1.hi, 0); }
+    static bool ltn(const U& v1, uint64_t v2) { return U<H>::equ(v1.hi, 0) && U<L>::ltn(v1.lo, v2); }
+    static bool lte(const U& v1, uint64_t v2) { return U<H>::equ(v1.hi, 0) && U<L>::lte(v1.lo, v2); }
+    static bool gtn(const U& v1, uint64_t v2) { return U<H>::neq(v1.hi, 0) || U<L>::gtn(v1.lo, v2); }
+    static bool gte(const U& v1, uint64_t v2) { return U<H>::neq(v1.hi, 0) || U<L>::gte(v1.lo, v2); }
 
-    static inline U add(const U& v1, uint64_t v2) { U<L> lo = U<L>::add(v1.lo, v2); U<H> hi = v1.hi; if (U<L>::ltn(lo, v1.lo)) U<H>::_pic(hi); return U<N>{lo, hi}; }
-    static inline U sub(const U& v1, uint64_t v2) { U<L> lo = U<L>::sub(v1.lo, v2); U<H> hi = v1.hi; if (U<L>::gtn(lo, v1.lo)) U<H>::_pdc(hi); return U<N>{lo, hi}; }
-    static inline U mul(const U& v1, uint64_t v2) { return U<N>::mul_(v1, v2); }
-    static inline U div(const U& v1, uint64_t v2) { U<N> quo, rem, v = v2; quorem(v1, v, quo, rem); return quo; }
-    static inline U mod(const U& v1, uint64_t v2) { U<N> quo, rem, v = v2; quorem(v1, v, quo, rem); return rem; }
-    static inline U lan(const U& v1, uint64_t v2) { return U<N>{U<L>::lan(v1.lo, v2), U<H>(0)}; }
-    static inline U lor(const U& v1, uint64_t v2) { return U<N>{U<L>::lor(v1.lo, v2), v1.hi}; }
-    static inline U lxr(const U& v1, uint64_t v2) { return U<N>{U<L>::lxr(v1.lo, v2), v1.hi}; }
+    static U add(const U& v1, uint64_t v2) { U<L> lo = U<L>::add(v1.lo, v2); U<H> hi = v1.hi; if (U<L>::ltn(lo, v1.lo)) U<H>::_pic(hi); return U<N>{lo, hi}; }
+    static U sub(const U& v1, uint64_t v2) { U<L> lo = U<L>::sub(v1.lo, v2); U<H> hi = v1.hi; if (U<L>::gtn(lo, v1.lo)) U<H>::_pdc(hi); return U<N>{lo, hi}; }
+    static U mul(const U& v1, uint64_t v2) { return U<N>::mul_(v1, v2); }
+    static U div(const U& v1, uint64_t v2) { U<N> quo, rem, v = v2; quorem(v1, v, quo, rem); return quo; }
+    static U mod(const U& v1, uint64_t v2) { U<N> quo, rem, v = v2; quorem(v1, v, quo, rem); return rem; }
+    static U lan(const U& v1, uint64_t v2) { return U<N>{U<L>::lan(v1.lo, v2), U<H>(0)}; }
+    static U lor(const U& v1, uint64_t v2) { return U<N>{U<L>::lor(v1.lo, v2), v1.hi}; }
+    static U lxr(const U& v1, uint64_t v2) { return U<N>{U<L>::lxr(v1.lo, v2), v1.hi}; }
 
-    static inline U shl(const U& v, uint64_t k) {
+    static U shl(const U& v, uint64_t k) {
         assert(k < N);
         if (k == 0) return v;
         if (k < L) return U<N>{U<L>::shl(v.lo, k), U<H>::lor(U<H>::shl(v.hi, k), U<H>(U<L>::shr(v.lo, L - k)))};
         if (k < H) return U<N>{U<L>(0), U<H>::lor(U<H>::shl(v.hi, k), U<H>::shl(U<H>(v.lo), k - L))};
         return U<N>{0, U<H>::shl(U<H>(v.lo), k - L)};
     }
-    static inline U shr(const U& v, uint64_t k) {
+    static U shr(const U& v, uint64_t k) {
         assert(k < N);
         if (k == 0) return v;
         if (k < L) return U<N>{U<L>::lor(U<L>::shr(v.lo, k), U<L>::shl(U<L>(v.hi), L - k)), U<H>::shr(v.hi, k)};
         if (k < H) return U<N>{U<L>(U<H>::shr(v.hi, k - L)), U<H>::shr(v.hi, k)};
         return U<N>{U<L>(U<H>::shr(v.hi, k - L)), U<H>(0)};
     }
-    static inline U sar(const U& v, uint64_t k) {
+    static U sar(const U& v, uint64_t k) {
         assert(k < N);
         if (k == 0) return v;
         if (k < L) return U<N>{U<L>::lor(U<L>::shr(v.lo, k), U<L>::shl(U<L>(v.hi), L - k)), U<H>::sar(v.hi, k)};
@@ -576,7 +573,7 @@ struct U {
         return U<N>{U<L>(U<H>::sar(v.hi, k - L)), v.hi.bit(H - 1) ? ~U<H>(0) : U<H>(0)};
     }
 
-    static inline U muc(const U& v1, const U& v2, U& v3) {
+    static U muc(const U& v1, const U& v2, U& v3) {
         U<L> z0_hi;
         U<L> z0_lo = U<L>::muc(v1.lo, v2.lo, z0_hi);
         U<H> z1_hi, z2_hi, z3_hi;
@@ -590,7 +587,7 @@ struct U {
         return t0.lo;
     }
 
-    static inline U muc(uint64_t v1, const U& v2, U& v3) {
+    static U muc(uint64_t v1, const U& v2, U& v3) {
         U<L> z0_hi, z1_hi;
         U<L> z0_lo = U<L>::muc(v1, v2.lo, z0_hi);
         U<H> z1_lo = U<L>::muc(v1, v2.hi, z1_hi);
@@ -600,7 +597,7 @@ struct U {
         return t0.lo;
     }
 
-    static inline U muc(const U& v1, uint64_t v2, U& v3) {
+    static U muc(const U& v1, uint64_t v2, U& v3) {
         U<L> z0_hi;
         U<L> z0_lo = U<L>::muc(v1.lo, v2, z0_hi);
         U<H> z2_hi;
@@ -611,7 +608,7 @@ struct U {
         return t0.lo;
     }
 
-    static inline U mul_(const U& v1, const U& v2) {
+    static U mul_(const U& v1, const U& v2) {
         U<L> z0_hi;
         U<L> z0_lo = U<L>::muc(v1.lo, v2.lo, z0_hi);
         U<H> z0_hi_(z0_hi);
@@ -620,7 +617,7 @@ struct U {
         return U<N>{z0_lo, z0_hi_};
     }
 
-    static inline U mul_(uint64_t v1, const U& v2) {
+    static U mul_(uint64_t v1, const U& v2) {
         U<L> z0_hi;
         U<L> z0_lo = U<L>::muc(v1, v2.lo, z0_hi);
         U<H> z0_hi_(z0_hi);
@@ -628,7 +625,7 @@ struct U {
         return U<N>{z0_lo, z0_hi_};
     }
 
-    static inline U mul_(const U& v1, uint64_t v2) {
+    static U mul_(const U& v1, uint64_t v2) {
         U<L> z0_hi;
         U<L> z0_lo = U<L>::muc(v1.lo, v2, z0_hi);
         U<H> z0_hi_(z0_hi);
@@ -636,7 +633,7 @@ struct U {
         return U<N>{z0_lo, z0_hi_};
     }
 
-    static inline const U pow(const U& v1, const U& v2) {
+    static const U pow(const U& v1, const U& v2) {
         U<N> x1 = 1;
         U<N> x2 = v1;
         for (uint64_t i = v2.bitlen(); i > 0; i--) {
@@ -647,7 +644,7 @@ struct U {
         return x1;
     }
 
-    static inline void quorem(const U &num, const U &div, U &quo, U &rem) {
+    static void quorem(const U &num, const U &div, U &quo, U &rem) {
         assert(div > 0);
         quo = 0;
         rem = num;
@@ -666,15 +663,15 @@ struct U {
         }
     }
 
-    static inline U addmod(const U& v1, const U& v2, const U& v3) {
+    static U addmod(const U& v1, const U& v2, const U& v3) {
         return U<N>(U<N+32>::mod(U<N+32>::add(U<N+32>(v1), U<N+32>(v2)), U<N+32>(v3)));
     }
 
-    static inline U mulmod(const U& v1, const U& v2, const U& v3) {
+    static U mulmod(const U& v1, const U& v2, const U& v3) {
         return U<N>(U<2*N>::mod(U<2*N>::mul(U<2*N>(v1), U<2*N>(v2)), U<2*N>(v3)));
     }
 
-    static inline U powmod(const U& v1, const U& v2, const U& v3) {
+    static U powmod(const U& v1, const U& v2, const U& v3) {
         U<2*N> x1 = 1;
         U<2*N> x2 = v1;
         U<2*N> x3 = v3;
@@ -686,25 +683,25 @@ struct U {
         return U<N>(x1);
     }
 
-    inline uint64_t cast64() const { assert(U<H>::equ(hi, 0)); return lo.cast64(); } // does not deal with N = 96
+    uint64_t cast64() const { assert(U<H>::equ(hi, 0)); return lo.cast64(); } // does not deal with N = 96
 
-    inline bool bit(uint64_t k) const { assert(k < N); return k < L ? lo.bit(k) : hi.bit(k - L); }
-    inline void setbit(uint64_t k) { assert(k < N); k < L ? lo.setbit(k) : hi.setbit(k - L); }
-    inline void clrbit(uint64_t k) { assert(k < N); k < L ? lo.clrbit(k) : hi.clrbit(k - L); }
+    bool bit(uint64_t k) const { assert(k < N); return k < L ? lo.bit(k) : hi.bit(k - L); }
+    void setbit(uint64_t k) { assert(k < N); k < L ? lo.setbit(k) : hi.setbit(k - L); }
+    void clrbit(uint64_t k) { assert(k < N); k < L ? lo.clrbit(k) : hi.clrbit(k - L); }
 
-    inline uint8_t byte(uint64_t k) const { assert(k < N/8); return k < L/8 ? lo.byte(k) : hi.byte(k - L/8); }
-    inline void setbyte(uint64_t k, uint8_t v) { assert(k < N/8); k < L/8 ? lo.setbyte(k, v) : hi.setbyte(k - L/8, v); }
+    uint8_t byte(uint64_t k) const { assert(k < N/8); return k < L/8 ? lo.byte(k) : hi.byte(k - L/8); }
+    void setbyte(uint64_t k, uint8_t v) { assert(k < N/8); k < L/8 ? lo.setbyte(k, v) : hi.setbyte(k - L/8, v); }
 
-    inline uint32_t word(uint64_t k) const { assert(k < N/32); return k < L/32 ? lo.word(k) : hi.word(k - L/32); }
-    inline void setword(uint64_t k, uint32_t v) { assert(k < N/32); k < L/32 ? lo.setword(k, v) : hi.setword(k - L/32, v); }
+    uint32_t word(uint64_t k) const { assert(k < N/32); return k < L/32 ? lo.word(k) : hi.word(k - L/32); }
+    void setword(uint64_t k, uint32_t v) { assert(k < N/32); k < L/32 ? lo.setword(k, v) : hi.setword(k - L/32, v); }
 
-    inline uint64_t bitlen() const { uint64_t len = hi.bitlen(); return len > 0 ? len + L : lo.bitlen(); }
-    inline uint64_t bytelen() const { uint64_t len = hi.bytelen(); return len > 0 ? len + (L/8) : lo.bytelen(); }
-    inline uint64_t wordlen() const { uint64_t len = hi.wordlen(); return len > 0 ? len + (L/32) : lo.wordlen(); }
+    uint64_t bitlen() const { uint64_t len = hi.bitlen(); return len > 0 ? len + L : lo.bitlen(); }
+    uint64_t bytelen() const { uint64_t len = hi.bytelen(); return len > 0 ? len + (L/8) : lo.bytelen(); }
+    uint64_t wordlen() const { uint64_t len = hi.wordlen(); return len > 0 ? len + (L/32) : lo.wordlen(); }
 
-    inline U signflip() { return U{lo, hi.signflip()}; }
+    U signflip() { return U{lo, hi.signflip()}; }
 
-    inline U signext(uint64_t k) const {
+    U signext(uint64_t k) const {
         assert(k < N/8);
         if (k < L/8) {
             U<L> _lo = lo.signext(k);
@@ -714,8 +711,8 @@ struct U {
         return U<N>{lo, hi.signext(k - L/8)};
     }
 
-    static inline const U from(const uint8_t *buffer) { return U<N>::from(buffer, N/8); }
-    static inline const U from(const uint8_t *buffer, uint64_t size) {
+    static const U from(const uint8_t *buffer) { return U<N>::from(buffer, N/8); }
+    static const U from(const uint8_t *buffer, uint64_t size) {
         U<N> v = U<N>{0, 0};
         if (size > L/8) {
             uint64_t _size = size > N/8 ? N/8 : size;
@@ -728,8 +725,8 @@ struct U {
         return v;
     }
 
-    static inline void to(const U& v, uint8_t *buffer) { U<N>::to(v, buffer, N/8); }
-    static inline void to(const U& v, uint8_t *buffer, uint64_t size) {
+    static void to(const U& v, uint8_t *buffer) { U<N>::to(v, buffer, N/8); }
+    static void to(const U& v, uint8_t *buffer, uint64_t size) {
         if (size > N/8) {
             for (uint64_t i = 0; i < size - N/8; i++) buffer[i] = 0;
         }
@@ -743,8 +740,8 @@ struct U {
         }
     }
 
-    inline uint32_t murmur3_(uint32_t seed) const { return lo.murmur3_(hi.murmur3_(seed)); }
-    inline uint32_t murmur3(uint32_t seed) const {
+    uint32_t murmur3_(uint32_t seed) const { return lo.murmur3_(hi.murmur3_(seed)); }
+    uint32_t murmur3(uint32_t seed) const {
         uint32_t h = lo.murmur3_(hi.murmur3_(seed));
         h ^= N/32;
         h ^= h >> 16;
@@ -850,40 +847,40 @@ struct U<64> {
     friend inline U operator<<(U v, uint64_t k) { assert(k < 64); return U{v.n << k}; }
     friend inline U operator>>(U v, uint64_t k) { assert(k < 64); return U{v.n >> k}; }
 
-    static U neg(U v) { return U{-v.n}; }
-    static U lno(U v) { return U{~v.n}; }
+    static inline U neg(U v) { return U{-v.n}; }
+    static inline U lno(U v) { return U{~v.n}; }
 
-    static U icp(U& v) { return U{v.n++}; }
-    static U dcp(U& v) { return U{v.n--}; }
+    static inline U icp(U& v) { return U{v.n++}; }
+    static inline U dcp(U& v) { return U{v.n--}; }
 
     static inline U& _pic(U& v) { ++v.n; return v; }
     static inline U& _pdc(U& v) { --v.n; return v; }
 
-    static U& _cpy(U& v1, U v2) { v1.n = v2.n; return v1; }
+    static inline U& _cpy(U& v1, U v2) { v1.n = v2.n; return v1; }
 
-    static U& _add(U& v1, U v2) { v1.n += v2.n; return v1; }
-    static U& _sub(U& v1, U v2) { v1.n -= v2.n; return v1; }
-    static U& _mul(U& v1, U v2) { v1.n *= v2.n; return v1; }
-    static U& _div(U& v1, U v2) { assert(v2.n > 0); v1.n /= v2.n; return v1; }
-    static U& _mod(U& v1, U v2) { assert(v2.n > 0); v1.n %= v2.n; return v1; }
-    static U& _lan(U& v1, U v2) { v1.n &= v2.n; return v1; }
-    static U& _lor(U& v1, U v2) { v1.n |= v2.n; return v1; }
-    static U& _lxr(U& v1, U v2) { v1.n ^= v2.n; return v1; }
+    static inline U& _add(U& v1, U v2) { v1.n += v2.n; return v1; }
+    static inline U& _sub(U& v1, U v2) { v1.n -= v2.n; return v1; }
+    static inline U& _mul(U& v1, U v2) { v1.n *= v2.n; return v1; }
+    static inline U& _div(U& v1, U v2) { assert(v2.n > 0); v1.n /= v2.n; return v1; }
+    static inline U& _mod(U& v1, U v2) { assert(v2.n > 0); v1.n %= v2.n; return v1; }
+    static inline U& _lan(U& v1, U v2) { v1.n &= v2.n; return v1; }
+    static inline U& _lor(U& v1, U v2) { v1.n |= v2.n; return v1; }
+    static inline U& _lxr(U& v1, U v2) { v1.n ^= v2.n; return v1; }
 
-    static U& _cpy(U& v1, uint64_t v2) { v1.n = v2; return v1; }
+    static inline U& _cpy(U& v1, uint64_t v2) { v1.n = v2; return v1; }
 
-    static U& _add(U& v1, uint64_t v2) { v1.n += v2; return v1; }
-    static U& _sub(U& v1, uint64_t v2) { v1.n -= v2; return v1; }
-    static U& _mul(U& v1, uint64_t v2) { v1.n *= v2; return v1; }
-    static U& _div(U& v1, uint64_t v2) { assert(v2 > 0); v1.n /= v2; return v1; }
-    static U& _mod(U& v1, uint64_t v2) { assert(v2 > 0); v1.n %= v2; return v1; }
-    static U& _lan(U& v1, uint64_t v2) { v1.n &= v2; return v1; }
-    static U& _lor(U& v1, uint64_t v2) { v1.n |= v2; return v1; }
-    static U& _lxr(U& v1, uint64_t v2) { v1.n ^= v2; return v1; }
+    static inline U& _add(U& v1, uint64_t v2) { v1.n += v2; return v1; }
+    static inline U& _sub(U& v1, uint64_t v2) { v1.n -= v2; return v1; }
+    static inline U& _mul(U& v1, uint64_t v2) { v1.n *= v2; return v1; }
+    static inline U& _div(U& v1, uint64_t v2) { assert(v2 > 0); v1.n /= v2; return v1; }
+    static inline U& _mod(U& v1, uint64_t v2) { assert(v2 > 0); v1.n %= v2; return v1; }
+    static inline U& _lan(U& v1, uint64_t v2) { v1.n &= v2; return v1; }
+    static inline U& _lor(U& v1, uint64_t v2) { v1.n |= v2; return v1; }
+    static inline U& _lxr(U& v1, uint64_t v2) { v1.n ^= v2; return v1; }
 
-    static U& _shl(U& v, uint64_t k) { assert(k < 64); v.n <<= k; return v; }
-    static U& _shr(U& v, uint64_t k) { assert(k < 64); v.n >>= k; return v; }
-    static U& _sar(U& v, uint64_t k) { assert(k < 64); v.n = (v.n >> 63) > 0 ? ~(~v.n >> k) : v.n >> k; return v; }
+    static inline U& _shl(U& v, uint64_t k) { assert(k < 64); v.n <<= k; return v; }
+    static inline U& _shr(U& v, uint64_t k) { assert(k < 64); v.n >>= k; return v; }
+    static inline U& _sar(U& v, uint64_t k) { assert(k < 64); v.n = (v.n >> 63) > 0 ? ~(~v.n >> k) : v.n >> k; return v; }
 
     static inline bool equ(U v1, U v2) { return v1.n == v2.n; }
     static inline bool neq(U v1, U v2) { return v1.n != v2.n; }
@@ -937,7 +934,7 @@ struct U<64> {
     static inline U shr(U v, uint64_t k) { assert(k < 64); return U{v.n >> k}; }
     static inline U sar(U v, uint64_t k) { assert(k < 64); return U{(v.n >> 63) > 0 ? ~(~v.n >> k) : v.n >> k}; }
 
-    static inline U muc(U v1, U v2, U& v3) {
+    static U muc(U v1, U v2, U& v3) {
         uint64_t v1_hi = v1.n >> 32;
         uint64_t v1_lo = v1.n & 0xffffffff;
         uint64_t v2_hi = v2.n >> 32;
@@ -969,14 +966,14 @@ struct U<64> {
         v3 = U<64>{t2_lo, t3_lo};
         return U<64>{t0_lo, t1_lo};
     }
-    static inline U muc(uint64_t v1, U v2, U& v3) { return U<64>::muc(U<64>{v1}, v2, v3); }
-    static inline U muc(U v1, uint64_t v2, U& v3) { return U<64>::muc(v1, U<64>{v2}, v3); }
+    static U muc(uint64_t v1, U v2, U& v3) { return U<64>::muc(U<64>{v1}, v2, v3); }
+    static U muc(U v1, uint64_t v2, U& v3) { return U<64>::muc(v1, U<64>{v2}, v3); }
 
     static inline U mul_(U v1, U v2) { return U{v1.n * v2.n}; }
     static inline U mul_(uint64_t v1, U v2) { return U{v1 * v2.n}; }
     static inline U mul_(U v1, uint64_t v2) { return U{v1.n * v2}; }
 
-    static inline const U pow(U v1, U v2) {
+    static const U pow(U v1, U v2) {
         uint64_t x1 = 1;
         uint64_t x2 = v1.n;
         for (uint64_t i = 32; i > 0; i--) {
@@ -993,17 +990,17 @@ struct U<64> {
         rem = U{num.n % div.n};
     }
 
-    static inline U addmod(U v1, U v2, U v3) {
+    static U addmod(U v1, U v2, U v3) {
         assert(v3.n > 0);
         return U<64>(U<128>::mod(U<128>::add(U<128>(v1), U<128>(v2)), U<128>(v3)));
     }
 
-    static inline U mulmod(U v1, U v2, U v3) {
+    static U mulmod(U v1, U v2, U v3) {
         assert(v3.n > 0);
         return U<64>(U<128>::mod(U<128>::mul(U<128>(v1), U<128>(v2)), U<128>(v3)));
     }
 
-    static inline U powmod(U v1, U v2, U v3) {
+    static U powmod(U v1, U v2, U v3) {
         U<128> x1 = 1;
         U<128> x2 = v1;
         U<128> x3 = v3;
@@ -1033,9 +1030,9 @@ struct U<64> {
         n = (n & ~((uint64_t)0xffffffff << (k << 5))) | ((uint64_t)v << (k << 5));
     }
 
-    inline uint64_t bitlen() const { for (uint64_t k = 64; k > 0; k--) if (bit(k - 1)) return k; return 0; }
-    inline uint64_t bytelen() const { for (uint64_t k = 8; k > 0; k--) if (byte(k - 1) > 0) return k; return 0; }
-    inline uint64_t wordlen() const { for (uint64_t k = 2; k > 0; k--) if (word(k - 1) > 0) return k; return 0; }
+    uint64_t bitlen() const { for (uint64_t k = 64; k > 0; k--) if (bit(k - 1)) return k; return 0; }
+    uint64_t bytelen() const { for (uint64_t k = 8; k > 0; k--) if (byte(k - 1) > 0) return k; return 0; }
+    uint64_t wordlen() const { for (uint64_t k = 2; k > 0; k--) if (word(k - 1) > 0) return k; return 0; }
 
     inline U signflip() { return U{n ^ ((uint64_t)1 << 63)}; }
 
@@ -1059,8 +1056,8 @@ struct U<64> {
         };
     }
 
-    static inline void to(const U& v, uint8_t *buffer) { U<64>::to(v, buffer, 8); }
-    static inline void to(const U& v, uint8_t *buffer, uint64_t size) {
+    static void to(const U& v, uint8_t *buffer) { U<64>::to(v, buffer, 8); }
+    static void to(const U& v, uint8_t *buffer, uint64_t size) {
         if (size > 8) {
             for (uint64_t i = 0; i < size - 8; i++) buffer[i] = 0;
         }
@@ -1074,7 +1071,7 @@ struct U<64> {
         if (size > 0) buffer[size - 1] = (uint8_t)v.n;
     }
 
-    inline uint32_t murmur3_(uint32_t seed) const {
+    uint32_t murmur3_(uint32_t seed) const {
         uint32_t h = seed;
         uint32_t k = (uint32_t)(n >> 32);
         k *= 0xcc9e2d51;
@@ -1092,7 +1089,7 @@ struct U<64> {
         h = h * 5 + 0xe6546b64;
         return h;
     }
-    inline uint64_t murmur3(uint32_t seed) const {
+    uint64_t murmur3(uint32_t seed) const {
         uint32_t h = murmur3_(seed);
         h ^= 2;
         h ^= h >> 16;
@@ -1195,40 +1192,40 @@ struct U<32> {
     friend inline U operator<<(U v, uint64_t k) { assert(k < 32); return U{v.n << k}; }
     friend inline U operator>>(U v, uint64_t k) { assert(k < 32); return U{v.n >> k}; }
 
-    static U neg(U v) { return U{-v.n}; }
-    static U lno(U v) { return U{~v.n}; }
+    static inline U neg(U v) { return U{-v.n}; }
+    static inline U lno(U v) { return U{~v.n}; }
 
-    static U icp(U& v) { return U{v.n++}; }
-    static U dcp(U& v) { return U{v.n--}; }
+    static inline U icp(U& v) { return U{v.n++}; }
+    static inline U dcp(U& v) { return U{v.n--}; }
 
     static inline U& _pic(U& v) { ++v.n; return v; }
     static inline U& _pdc(U& v) { --v.n; return v; }
 
-    static U& _cpy(U& v1, U v2) { v1.n = v2.n; return v1; }
+    static inline U& _cpy(U& v1, U v2) { v1.n = v2.n; return v1; }
 
-    static U& _add(U& v1, U v2) { v1.n += v2.n; return v1; }
-    static U& _sub(U& v1, U v2) { v1.n -= v2.n; return v1; }
-    static U& _mul(U& v1, U v2) { v1.n *= v2.n; return v1; }
-    static U& _div(U& v1, U v2) { assert(v2.n > 0); v1.n /= v2.n; return v1; }
-    static U& _mod(U& v1, U v2) { assert(v2.n > 0); v1.n %= v2.n; return v1; }
-    static U& _lan(U& v1, U v2) { v1.n &= v2.n; return v1; }
-    static U& _lor(U& v1, U v2) { v1.n |= v2.n; return v1; }
-    static U& _lxr(U& v1, U v2) { v1.n ^= v2.n; return v1; }
+    static inline U& _add(U& v1, U v2) { v1.n += v2.n; return v1; }
+    static inline U& _sub(U& v1, U v2) { v1.n -= v2.n; return v1; }
+    static inline U& _mul(U& v1, U v2) { v1.n *= v2.n; return v1; }
+    static inline U& _div(U& v1, U v2) { assert(v2.n > 0); v1.n /= v2.n; return v1; }
+    static inline U& _mod(U& v1, U v2) { assert(v2.n > 0); v1.n %= v2.n; return v1; }
+    static inline U& _lan(U& v1, U v2) { v1.n &= v2.n; return v1; }
+    static inline U& _lor(U& v1, U v2) { v1.n |= v2.n; return v1; }
+    static inline U& _lxr(U& v1, U v2) { v1.n ^= v2.n; return v1; }
 
-    static U& _cpy(U& v1, uint64_t v2) { v1.n = v2; return v1; }
+    static inline U& _cpy(U& v1, uint64_t v2) { v1.n = v2; return v1; }
 
-    static U& _add(U& v1, uint64_t v2) { v1.n += v2; return v1; }
-    static U& _sub(U& v1, uint64_t v2) { v1.n -= v2; return v1; }
-    static U& _mul(U& v1, uint64_t v2) { v1.n *= v2; return v1; }
-    static U& _div(U& v1, uint64_t v2) { assert(v2 > 0); v1.n /= v2; return v1; }
-    static U& _mod(U& v1, uint64_t v2) { assert(v2 > 0); v1.n %= v2; return v1; }
-    static U& _lan(U& v1, uint64_t v2) { v1.n &= v2; return v1; }
-    static U& _lor(U& v1, uint64_t v2) { v1.n |= v2; return v1; }
-    static U& _lxr(U& v1, uint64_t v2) { v1.n ^= v2; return v1; }
+    static inline U& _add(U& v1, uint64_t v2) { v1.n += v2; return v1; }
+    static inline U& _sub(U& v1, uint64_t v2) { v1.n -= v2; return v1; }
+    static inline U& _mul(U& v1, uint64_t v2) { v1.n *= v2; return v1; }
+    static inline U& _div(U& v1, uint64_t v2) { assert(v2 > 0); v1.n /= v2; return v1; }
+    static inline U& _mod(U& v1, uint64_t v2) { assert(v2 > 0); v1.n %= v2; return v1; }
+    static inline U& _lan(U& v1, uint64_t v2) { v1.n &= v2; return v1; }
+    static inline U& _lor(U& v1, uint64_t v2) { v1.n |= v2; return v1; }
+    static inline U& _lxr(U& v1, uint64_t v2) { v1.n ^= v2; return v1; }
 
-    static U& _shl(U& v, uint64_t k) { assert(k < 32); v.n <<= k; return v; }
-    static U& _shr(U& v, uint64_t k) { assert(k < 32); v.n >>= k; return v; }
-    static U& _sar(U& v, uint64_t k) { assert(k < 32); v.n = (v.n >> 31) > 0 ? ~(~v.n >> k) : v.n >> k; return v; }
+    static inline U& _shl(U& v, uint64_t k) { assert(k < 32); v.n <<= k; return v; }
+    static inline U& _shr(U& v, uint64_t k) { assert(k < 32); v.n >>= k; return v; }
+    static inline U& _sar(U& v, uint64_t k) { assert(k < 32); v.n = (v.n >> 31) > 0 ? ~(~v.n >> k) : v.n >> k; return v; }
 
     static inline bool equ(U v1, U v2) { return v1.n == v2.n; }
     static inline bool neq(U v1, U v2) { return v1.n != v2.n; }
@@ -1304,7 +1301,7 @@ struct U<32> {
     static inline U mul_(uint64_t v1, U v2) { return U{(uint32_t)v1 * v2.n}; }
     static inline U mul_(U v1, uint64_t v2) { return U{v1.n * (uint32_t)v2}; }
 
-    static inline const U pow(U v1, U v2) {
+    static const U pow(U v1, U v2) {
         uint32_t x1 = 1;
         uint32_t x2 = v1.n;
         for (uint64_t i = 32; i > 0; i--) {
@@ -1331,7 +1328,7 @@ struct U<32> {
         return U<32>{(uint32_t)(((uint64_t)v1.n * (uint64_t)v2.n) % (uint64_t)v3.n)};
     }
 
-    static inline U powmod(U v1, U v2, U v3) {
+    static U powmod(U v1, U v2, U v3) {
         uint64_t x1 = 1;
         uint64_t x2 = (uint64_t)v1.n;
         uint64_t x3 = (uint64_t)v3.n;
@@ -1358,9 +1355,9 @@ struct U<32> {
     inline uint32_t word(uint64_t k) const { assert(k < 1); return n; }
     inline void setword(uint64_t k, uint32_t v) { assert(k < 1); n = v; }
 
-    inline uint64_t bitlen() const { for (uint64_t k = 32; k > 0; k--) if (bit(k - 1)) return k; return 0; }
-    inline uint64_t bytelen() const { for (uint64_t k = 4; k > 0; k--) if (byte(k - 1) > 0) return k; return 0; }
-    inline uint64_t wordlen() const { for (uint64_t k = 1; k > 0; k--) if (word(k - 1) > 0) return k; return 0; }
+    uint64_t bitlen() const { for (uint64_t k = 32; k > 0; k--) if (bit(k - 1)) return k; return 0; }
+    uint64_t bytelen() const { for (uint64_t k = 4; k > 0; k--) if (byte(k - 1) > 0) return k; return 0; }
+    uint64_t wordlen() const { for (uint64_t k = 1; k > 0; k--) if (word(k - 1) > 0) return k; return 0; }
 
     inline U signflip() { return U{n ^ ((uint32_t)1 << 31)}; }
 
@@ -1370,8 +1367,8 @@ struct U<32> {
         return U<32>{(n & ((uint32_t)1 << (((k + 1) << 3) - 1))) > 0 ? n | mask : n & ~mask};
     }
 
-    static inline const U from(const uint8_t *buffer) { return U<32>::from(buffer, 4); }
-    static inline const U from(const uint8_t *buffer, uint64_t size) {
+    static const U from(const uint8_t *buffer) { return U<32>::from(buffer, 4); }
+    static const U from(const uint8_t *buffer, uint64_t size) {
         return U<32>{0
             | (size > 3 ? (uint32_t)buffer[size-4] << 24 : 0)
             | (size > 2 ? (uint32_t)buffer[size-3] << 16 : 0)
@@ -1380,8 +1377,8 @@ struct U<32> {
         };
     }
 
-    static inline void to(const U& v, uint8_t *buffer) { U<32>::to(v, buffer, 4); }
-    static inline void to(const U& v, uint8_t *buffer, uint64_t size) {
+    static void to(const U& v, uint8_t *buffer) { U<32>::to(v, buffer, 4); }
+    static void to(const U& v, uint8_t *buffer, uint64_t size) {
         if (size > 4) {
             for (uint64_t i = 0; i < size - 4; i++) buffer[i] = 0;
         }
@@ -1391,7 +1388,7 @@ struct U<32> {
         if (size > 0) buffer[size - 1] = (uint8_t)v.n;
     }
 
-    inline uint32_t murmur3_(uint32_t seed) const {
+    uint32_t murmur3_(uint32_t seed) const {
         uint32_t h = seed;
         uint32_t k = n;
         k *= 0xcc9e2d51;
@@ -1402,7 +1399,7 @@ struct U<32> {
         h = h * 5 + 0xe6546b64;
         return h;
     }
-    inline uint64_t murmur3(uint32_t seed) const {
+    uint64_t murmur3(uint32_t seed) const {
         uint32_t h = murmur3_(seed);
         h ^= 1;
         h ^= h >> 16;
@@ -1415,7 +1412,7 @@ struct U<32> {
 };
 
 template<int N>
-static inline U<N> udec(const char *s)
+static U<N> udec(const char *s)
 {
     U<N> t = 0;
     for (uint64_t i = 0; s[i] != '\0'; i++) {
@@ -1426,7 +1423,7 @@ static inline U<N> udec(const char *s)
 }
 
 template<int N>
-static inline U<N> uhex(const char *s)
+static U<N> uhex(const char *s)
 {
     U<N> t = 0;
     for (uint64_t i = 0; s[i] != '\0'; i++) {
@@ -1938,35 +1935,35 @@ static const bigint Q = big("218882428718392752222464057452572750885483644004160
 
 class Gen2 {
 private:
-    static inline bigint neg(const bigint &v) { return P - (v % P); }
+    static bigint neg(const bigint &v) { return P - (v % P); }
 public:
     bigint x, y;
-    inline Gen2() {}
-    inline Gen2(const bigint &_x, const bigint &_y) : x(_x), y(_y) {}
-    inline bool is_zero() const { return x == 0 && y == 0; }
-    inline bool is_one() const { return x == 0 && y == 1; }
-    inline Gen2 conj() const { return Gen2(neg(x), y); }
-    inline Gen2 twice() const { return Gen2(x << 1, y << 1); }
-    inline Gen2 mulxi() const { return Gen2((x << 3) + x + y, (y << 3) + neg(x) + y); }
-    inline Gen2 sqr() const { return Gen2(((x * y) << 1) % P, ((y + neg(x)) * (y + x)) % P); }
-    inline Gen2 inv() const { bigint inv = bigint::powmod(x * x + y * y, P - 2, P); return Gen2((neg(x) * inv) % P, (y * inv) % P); }
-    inline Gen2 canon() const { return Gen2(x % P, y % P); }
-    inline Gen2& operator=(const bigint& v) { x = 0; y = v; return *this; }
-    inline Gen2& operator=(const Gen2& v) { x = v.x; y = v.y; return *this; }
-    inline const Gen2 operator-() const { Gen2 v = *this; v.x = neg(x); v.y = neg(y); return v; }
-    inline Gen2& operator+=(const Gen2& v) { x += v.x; y += v.y; return *this; }
-    inline Gen2& operator-=(const Gen2& v) { x += neg(v.x); y += neg(v.y); return *this; }
-    inline Gen2& operator*=(const bigint& v) { x *= v; y *= v; return *this; }
-    inline Gen2& operator*=(const Gen2& v2) {
+    Gen2() {}
+    Gen2(const bigint &_x, const bigint &_y) : x(_x), y(_y) {}
+    bool is_zero() const { return x == 0 && y == 0; }
+    bool is_one() const { return x == 0 && y == 1; }
+    Gen2 conj() const { return Gen2(neg(x), y); }
+    Gen2 twice() const { return Gen2(x << 1, y << 1); }
+    Gen2 mulxi() const { return Gen2((x << 3) + x + y, (y << 3) + neg(x) + y); }
+    Gen2 sqr() const { return Gen2(((x * y) << 1) % P, ((y + neg(x)) * (y + x)) % P); }
+    Gen2 inv() const { bigint inv = bigint::powmod(x * x + y * y, P - 2, P); return Gen2((neg(x) * inv) % P, (y * inv) % P); }
+    Gen2 canon() const { return Gen2(x % P, y % P); }
+    Gen2& operator=(const bigint& v) { x = 0; y = v; return *this; }
+    Gen2& operator=(const Gen2& v) { x = v.x; y = v.y; return *this; }
+    const Gen2 operator-() const { Gen2 v = *this; v.x = neg(x); v.y = neg(y); return v; }
+    Gen2& operator+=(const Gen2& v) { x += v.x; y += v.y; return *this; }
+    Gen2& operator-=(const Gen2& v) { x += neg(v.x); y += neg(v.y); return *this; }
+    Gen2& operator*=(const bigint& v) { x *= v; y *= v; return *this; }
+    Gen2& operator*=(const Gen2& v2) {
         Gen2 v1 = *this;
         x = (v1.x * v2.y + v1.y * v2.x) % P;
         y = (v1.y * v2.y + neg(v1.x * v2.x)) % P;
         return *this;
     }
-    friend inline const Gen2 operator+(const Gen2& v1, const Gen2& v2) { return Gen2(v1) += v2; }
-    friend inline const Gen2 operator-(const Gen2& v1, const Gen2& v2) { return Gen2(v1) -= v2; }
-    friend inline const Gen2 operator*(const Gen2& v1, const Gen2& v2) { return Gen2(v1) *= v2; }
-    friend inline const Gen2 operator*(const Gen2& v1, const bigint& v2) { return Gen2(v1) *= v2; }
+    friend const Gen2 operator+(const Gen2& v1, const Gen2& v2) { return Gen2(v1) += v2; }
+    friend const Gen2 operator-(const Gen2& v1, const Gen2& v2) { return Gen2(v1) -= v2; }
+    friend const Gen2 operator*(const Gen2& v1, const Gen2& v2) { return Gen2(v1) *= v2; }
+    friend const Gen2 operator*(const Gen2& v1, const bigint& v2) { return Gen2(v1) *= v2; }
 };
 
 static const bigint XI_P2_1_3 = big("21888242871839275220042445260109153167277707414472061641714758635765020556616");
@@ -1978,31 +1975,31 @@ static const Gen2 XI_P_1_3(
 class Gen6 {
 public:
     Gen2 x, y, z;
-    inline Gen6() {}
-    inline Gen6(const Gen2 &_x, const Gen2 &_y, const Gen2 &_z) : x(_x), y(_y), z(_z) {}
-    inline bool is_zero() const { return x.is_zero() && y.is_zero() && z.is_zero(); }
-    inline bool is_one() const { return x.is_zero() && y.is_zero() && z.is_one(); }
-    inline Gen6 twice() const { return Gen6(x.twice(), y.twice(), z.twice()); }
-    inline Gen6 frob() const {
+    Gen6() {}
+    Gen6(const Gen2 &_x, const Gen2 &_y, const Gen2 &_z) : x(_x), y(_y), z(_z) {}
+    bool is_zero() const { return x.is_zero() && y.is_zero() && z.is_zero(); }
+    bool is_one() const { return x.is_zero() && y.is_zero() && z.is_one(); }
+    Gen6 twice() const { return Gen6(x.twice(), y.twice(), z.twice()); }
+    Gen6 frob() const {
         static const Gen2 XI_2_P_2_3(
             big("19937756971775647987995932169929341994314640652964949448313374472400716661030"),
             big("2581911344467009335267311115468803099551665605076196740867805258568234346338")
         );
         return Gen6(x.conj() * XI_2_P_2_3, y.conj() * XI_P_1_3, z.conj());
     }
-    inline Gen6 frob2() const {
+    Gen6 frob2() const {
         static const bigint XI_2_P2_2_3 = big("2203960485148121921418603742825762020974279258880205651966");
         return Gen6(x * XI_2_P2_2_3, y * XI_P2_1_3, z);
     }
-    inline Gen6 inv() const {
+    Gen6 inv() const {
         Gen2 t0 = x.sqr().mulxi() - (y * z);
         Gen2 t1 = y.sqr() - (x * z);
         Gen2 t2 = z.sqr() - (x * y).mulxi();
         Gen2 t3 = ((t1 * y).mulxi() + t2 * z + (t0 * x).mulxi()).inv();
         return Gen6(t1 * t3, t0 * t3, t2 * t3);
     }
-    inline Gen6 multau() const { return Gen6(y, z, x.mulxi()); }
-    inline Gen6 sqr() const {
+    Gen6 multau() const { return Gen6(y, z, x.mulxi()); }
+    Gen6 sqr() const {
         Gen2 t0 = x.sqr();
         Gen2 t1 = y.sqr();
         Gen2 t2 = z.sqr();
@@ -2011,12 +2008,12 @@ public:
         Gen2 t5 = ((x + y).sqr() - (t1 + t0)).mulxi() + t2;
         return Gen6(t3, t4, t5);
     }
-    inline Gen6 canon() const { return Gen6(x.canon(), y.canon(), z.canon()); }
-    inline Gen6& operator=(const bigint& v) { x = 0; y = 0; z = v; return *this; }
-    inline const Gen6 operator-() const { return Gen6(-x, -y, -z); }
-    inline Gen6& operator+=(const Gen6& v) { x += v.x; y += v.y; z += v.z; return *this; }
-    inline Gen6& operator-=(const Gen6& v) { x -= v.x; y -= v.y; z -= v.z; return *this; }
-    inline Gen6& operator*=(const Gen6& v2) {
+    Gen6 canon() const { return Gen6(x.canon(), y.canon(), z.canon()); }
+    Gen6& operator=(const bigint& v) { x = 0; y = 0; z = v; return *this; }
+    const Gen6 operator-() const { return Gen6(-x, -y, -z); }
+    Gen6& operator+=(const Gen6& v) { x += v.x; y += v.y; z += v.z; return *this; }
+    Gen6& operator-=(const Gen6& v) { x -= v.x; y -= v.y; z -= v.z; return *this; }
+    Gen6& operator*=(const Gen6& v2) {
         Gen6 v1 = *this;
         Gen2 t0 = v1.x * v2.x;
         Gen2 t1 = v1.y * v2.y;
@@ -2026,22 +2023,22 @@ public:
         z = (((v1.x + v1.y) * (v2.x + v2.y)) - (t1 + t0)).mulxi() + t2;
         return *this;
     }
-    inline Gen6& operator*=(const Gen2& v) { x *= v; y *= v; z *= v; return *this; }
-    inline Gen6& operator*=(const bigint &v) { x *= v; y *= v; z *= v; return *this; }
-    friend inline const Gen6 operator+(const Gen6& v1, const Gen6& v2) { return Gen6(v1) += v2; }
-    friend inline const Gen6 operator-(const Gen6& v1, const Gen6& v2) { return Gen6(v1) -= v2; }
-    friend inline const Gen6 operator*(const Gen6& v1, const Gen6& v2) { return Gen6(v1) *= v2; }
-    friend inline const Gen6 operator*(const Gen6& v1, const Gen2& v2) { return Gen6(v1) *= v2; }
-    friend inline const Gen6 operator*(const Gen6& v1, const bigint& v2) { return Gen6(v1) *= v2; }
+    Gen6& operator*=(const Gen2& v) { x *= v; y *= v; z *= v; return *this; }
+    Gen6& operator*=(const bigint &v) { x *= v; y *= v; z *= v; return *this; }
+    friend const Gen6 operator+(const Gen6& v1, const Gen6& v2) { return Gen6(v1) += v2; }
+    friend const Gen6 operator-(const Gen6& v1, const Gen6& v2) { return Gen6(v1) -= v2; }
+    friend const Gen6 operator*(const Gen6& v1, const Gen6& v2) { return Gen6(v1) *= v2; }
+    friend const Gen6 operator*(const Gen6& v1, const Gen2& v2) { return Gen6(v1) *= v2; }
+    friend const Gen6 operator*(const Gen6& v1, const bigint& v2) { return Gen6(v1) *= v2; }
 };
 
 class Gen12 {
 public:
     Gen6 x, y;
-    inline Gen12() {}
-    inline Gen12(const Gen6 &_x, const Gen6 &_y) : x(_x), y(_y) {}
-    inline Gen12 conj() const { return Gen12(-x, y); }
-    inline Gen12 pow(const bigint &power) const {
+    Gen12() {}
+    Gen12(const Gen6 &_x, const Gen6 &_y) : x(_x), y(_y) {}
+    Gen12 conj() const { return Gen12(-x, y); }
+    Gen12 pow(const bigint &power) const {
         const Gen12 &a = *this;
         Gen12 sum; sum = 1;
         for (uint64_t i = power.bitlen(); i > 0; i--) {
@@ -2050,55 +2047,55 @@ public:
         }
         return sum;
     }
-    inline Gen12 frob() const {
+    Gen12 frob() const {
         static const Gen2 XI_P_1_6(
             big("16469823323077808223889137241176536799009286646108169935659301613961712198316"),
             big("8376118865763821496583973867626364092589906065868298776909617916018768340080")
         );
         return Gen12(x.frob() * XI_P_1_6, y.frob());
     }
-    inline Gen12 frob2() const {
+    Gen12 frob2() const {
         static const bigint XI_P2_1_6 = big("21888242871839275220042445260109153167277707414472061641714758635765020556617");
         return Gen12(x.frob2() * XI_P2_1_6, y.frob2());
     }
-    inline Gen12 inv() const { return Gen12(-x, y) * (y.sqr() - x.sqr().multau()).inv(); }
-    inline Gen12 sqr() const {
+    Gen12 inv() const { return Gen12(-x, y) * (y.sqr() - x.sqr().multau()).inv(); }
+    Gen12 sqr() const {
         Gen6 t0 = x * y;
         Gen6 t1 = (x + y) * (x.multau() + y) - (t0 + t0.multau());
         return Gen12(t0.twice(), t1);
     }
-    inline bool is_one() const { Gen12 t = *this; t.canon(); return t.x.is_zero() && t.y.is_one(); }
-    inline Gen12 canon() const { return Gen12(x.canon(), y.canon()); }
-    inline Gen12& operator=(const bigint& v) { x = 0; y = v; return *this; }
-    inline Gen12& operator*=(const Gen12& v2) {
+    bool is_one() const { Gen12 t = *this; t.canon(); return t.x.is_zero() && t.y.is_one(); }
+    Gen12 canon() const { return Gen12(x.canon(), y.canon()); }
+    Gen12& operator=(const bigint& v) { x = 0; y = v; return *this; }
+    Gen12& operator*=(const Gen12& v2) {
         Gen12 v1 = *this;
         x = v1.x * v2.y + v1.y * v2.x;
         y = (v1.y * v2.y) + (v1.x * v2.x).multau();
         return *this;
     }
-    inline Gen12& operator*=(const Gen6& v) { x *= v; y *= v; return *this; }
-    friend inline const Gen12 operator*(const Gen12& v1, const Gen12& v2) { return Gen12(v1) *= v2; }
-    friend inline const Gen12 operator*(const Gen12& v1, const Gen6& v2) { return Gen12(v1) *= v2; }
+    Gen12& operator*=(const Gen6& v) { x *= v; y *= v; return *this; }
+    friend const Gen12 operator*(const Gen12& v1, const Gen12& v2) { return Gen12(v1) *= v2; }
+    friend const Gen12 operator*(const Gen12& v1, const Gen6& v2) { return Gen12(v1) *= v2; }
 };
 
 class CurvePoint {
 private:
     static constexpr uint64_t b = 3;
-    static inline bigint neg(const bigint &v) { return P - (v % P); }
+    static bigint neg(const bigint &v) { return P - (v % P); }
 public:
     bigint x, y, z, t;
-    inline CurvePoint() {}
-    inline CurvePoint(const bigint &_x, const bigint &_y) : x(_x), y(_y) {
+    CurvePoint() {}
+    CurvePoint(const bigint &_x, const bigint &_y) : x(_x), y(_y) {
         if (x == 0 && y == 0) { y = 1; z = 0; t = 0; } else { z = 1; t = 1; }
     }
-    inline CurvePoint(const bigint &_x, const bigint &_y, const bigint &_z, const bigint &_t) : x(_x), y(_y), z(_z), t(_t) {}
-    inline bool is_inf() const { return z == 0; }
-    inline bool is_valid() const {
+    CurvePoint(const bigint &_x, const bigint &_y, const bigint &_z, const bigint &_t) : x(_x), y(_y), z(_z), t(_t) {}
+    bool is_inf() const { return z == 0; }
+    bool is_valid() const {
         bigint t = y * y + neg(x * x * x + b);
         if (t >= P) t %= P;
         return t == 0;
     }
-    inline CurvePoint twice() const {
+    CurvePoint twice() const {
         bigint a = (x * x) % P;
         bigint b = (y * y) % P;
         bigint c = (b * b) % P;
@@ -2115,7 +2112,7 @@ public:
         bigint _t = t; // check
         return CurvePoint(_x, _y, _z, _t);
     }
-    inline CurvePoint affine() const {
+    CurvePoint affine() const {
         if (z == 1) return *this;
         if (is_inf()) { return CurvePoint(0, 1, 0, 0); }
         bigint zinv = bigint::powmod(z, P - 2, P);
@@ -2124,9 +2121,9 @@ public:
         bigint _y = (((y * zinv2) % P) * zinv) % P;
         return CurvePoint(_x, _y, 1, 1);
     }
-    inline void inf() { z = 0; }
-    inline const CurvePoint operator-() const { return CurvePoint(x, neg(y), z, 0); }
-    inline CurvePoint& operator+=(const CurvePoint& b) {
+    void inf() { z = 0; }
+    const CurvePoint operator-() const { return CurvePoint(x, neg(y), z, 0); }
+    CurvePoint& operator+=(const CurvePoint& b) {
         CurvePoint a = *this;
         if (a.is_inf()) { *this = b; return *this; }
         if (b.is_inf()) { *this = a; return *this; }
@@ -2152,7 +2149,7 @@ public:
         // check t
         return *this;
     }
-    inline CurvePoint& operator*=(const bigint& scalar) {
+    CurvePoint& operator*=(const bigint& scalar) {
         CurvePoint a = *this;
         CurvePoint sum; sum.inf();
         for (uint64_t i = scalar.bitlen() + 1; i > 0; i--) {
@@ -2162,20 +2159,20 @@ public:
         *this = sum;
         return *this;
     }
-    friend inline const CurvePoint operator+(const CurvePoint& v1, const CurvePoint& v2) { return CurvePoint(v1) += v2; }
-    friend inline const CurvePoint operator*(const CurvePoint& v1, const bigint& v2) { return CurvePoint(v1) *= v2; }
+    friend const CurvePoint operator+(const CurvePoint& v1, const CurvePoint& v2) { return CurvePoint(v1) += v2; }
+    friend const CurvePoint operator*(const CurvePoint& v1, const bigint& v2) { return CurvePoint(v1) *= v2; }
 };
 
 class TwistPoint {
 public:
     Gen2 x, y, z, t;
-    inline TwistPoint() {}
-    inline TwistPoint(const Gen2 &_x, const Gen2 &_y) : x(_x), y(_y) {
+    TwistPoint() {}
+    TwistPoint(const Gen2 &_x, const Gen2 &_y) : x(_x), y(_y) {
         if (x.is_zero() && y.is_zero()) { y = 1; z = 0; t = 0; } else { z = 1; t = 1; }
     }
-    inline TwistPoint(const Gen2 &_x, const Gen2 &_y, const Gen2 &_z, const Gen2 &_t) : x(_x), y(_y), z(_z), t(_t) {}
-    inline bool is_inf() const { return z.is_zero(); }
-    inline bool is_valid() const {
+    TwistPoint(const Gen2 &_x, const Gen2 &_y, const Gen2 &_z, const Gen2 &_t) : x(_x), y(_y), z(_z), t(_t) {}
+    bool is_inf() const { return z.is_zero(); }
+    bool is_valid() const {
         static const Gen2 twistB(
             big("266929791119991161246907387137283842545076965332900288569378510910307636690"),
             big("19485874751759354771024239261021720505790618469301721065564631296452457478373")
@@ -2186,7 +2183,7 @@ public:
         TwistPoint p = *this * Q;
         return p.z.is_zero();
     }
-    inline TwistPoint twice() const {
+    TwistPoint twice() const {
         Gen2 a = x.sqr();
         Gen2 b = y.sqr();
         Gen2 c = b.sqr();
@@ -2202,7 +2199,7 @@ public:
         Gen2 _t; _t = 0; // check
         return TwistPoint(_x, _y, _z, _t);
     }
-    inline TwistPoint affine() const {
+    TwistPoint affine() const {
         if (z.is_one()) return *this;
         if (is_inf()) { Gen2 _x, _y, _z, _t; _x = 0; _y = 1; _z = 0; _t = 0; return TwistPoint(_x, _y, _z, _t); }
         Gen2 zinv = z.inv();
@@ -2213,9 +2210,9 @@ public:
         Gen2 _t; _t = 1;
         return TwistPoint(_x, _y, _z, _t);
     }
-    inline void inf() { z = 0; }
-    inline const TwistPoint operator-() const { Gen2 t; t = 0; return TwistPoint(x, -y, z, t); }
-    inline TwistPoint& operator+=(const TwistPoint& b) {
+    void inf() { z = 0; }
+    const TwistPoint operator-() const { Gen2 t; t = 0; return TwistPoint(x, -y, z, t); }
+    TwistPoint& operator+=(const TwistPoint& b) {
         TwistPoint a = *this;
         if (a.is_inf()) { *this = b; return *this; }
         if (b.is_inf()) { *this = a; return *this; }
@@ -2239,7 +2236,7 @@ public:
         // check t
         return *this;
     }
-    inline TwistPoint& operator*=(const bigint& scalar) {
+    TwistPoint& operator*=(const bigint& scalar) {
         TwistPoint a = *this;
         TwistPoint sum; sum.inf();
         for (uint64_t i = scalar.bitlen() + 1; i > 0; i--) {
@@ -2249,23 +2246,23 @@ public:
         *this = sum;
         return *this;
     }
-    friend inline const TwistPoint operator+(const TwistPoint& v1, const TwistPoint& v2) { return TwistPoint(v1) += v2; }
-    friend inline const TwistPoint operator*(const TwistPoint& v1, const bigint& v2) { return TwistPoint(v1) *= v2; }
+    friend const TwistPoint operator+(const TwistPoint& v1, const TwistPoint& v2) { return TwistPoint(v1) += v2; }
+    friend const TwistPoint operator*(const TwistPoint& v1, const bigint& v2) { return TwistPoint(v1) *= v2; }
 };
 
 class G1 : public CurvePoint {
 public:
-    inline G1() {}
-    inline G1(const bigint &_x, const bigint &_y) : CurvePoint(_x, _y) {}
+    G1() {}
+    G1(const bigint &_x, const bigint &_y) : CurvePoint(_x, _y) {}
 };
 
 class G2 : public TwistPoint {
 public:
-    inline G2() {}
-    inline G2(const Gen2 &_x, const Gen2 &_y) : TwistPoint(_x, _y) {}
+    G2() {}
+    G2(const Gen2 &_x, const Gen2 &_y) : TwistPoint(_x, _y) {}
 };
 
-static inline void mul_line(const Gen2 &a, const Gen2 &b, const Gen2 &c, Gen12 &inout)
+static void mul_line(const Gen2 &a, const Gen2 &b, const Gen2 &c, Gen12 &inout)
 {
     Gen2 _0; _0 = 0;
     Gen6 t1 = inout.x * Gen6(_0, a, b);
@@ -2274,7 +2271,7 @@ static inline void mul_line(const Gen2 &a, const Gen2 &b, const Gen2 &c, Gen12 &
     inout.y = t1.multau() + t2;
 }
 
-static inline TwistPoint line_func_twice(const CurvePoint &q, const TwistPoint &r, Gen2 &a, Gen2 &b, Gen2 &c)
+static TwistPoint line_func_twice(const CurvePoint &q, const TwistPoint &r, Gen2 &a, Gen2 &b, Gen2 &c)
 {
     Gen2 A = r.x.sqr();
     Gen2 B = r.y.sqr();
@@ -2296,7 +2293,7 @@ static inline TwistPoint line_func_twice(const CurvePoint &q, const TwistPoint &
     return TwistPoint(H, (E - H) * F - (J + J), K, K.sqr());
 }
 
-static inline TwistPoint line_func_add(const CurvePoint &q, const TwistPoint &r, const TwistPoint &p, const Gen2 &r2, Gen2 &a, Gen2&b, Gen2&c)
+static TwistPoint line_func_add(const CurvePoint &q, const TwistPoint &r, const TwistPoint &p, const Gen2 &r2, Gen2 &a, Gen2&b, Gen2&c)
 {
     Gen2 A = ((p.y + r.z).sqr() - (r2 + r.t)) * r.t - (r.y + r.y);
     Gen2 B = p.x * r.t;
@@ -2319,7 +2316,7 @@ static inline TwistPoint line_func_add(const CurvePoint &q, const TwistPoint &r,
     return TwistPoint(I, (H - I) * A - (J + J), K, L);
 }
 
-static inline Gen12 miller(const CurvePoint &_A, const TwistPoint &_B)
+static Gen12 miller(const CurvePoint &_A, const TwistPoint &_B)
 {
     static const int8_t sixuPlus2NAF[] = {
         1, 0, 1, 0, 0, -1, 0, 1, 1, 0, 0, 0, -1, 0, 0, 1,
@@ -2359,7 +2356,7 @@ static inline Gen12 miller(const CurvePoint &_A, const TwistPoint &_B)
     return ret;
 }
 
-static inline Gen12 bn256check(const Gen12 &v)
+static Gen12 bn256check(const Gen12 &v)
 {
     static const bigint U = big("4965661367192848881");
     Gen12 t0 = Gen12(-v.x, v.y) * v.inv();
@@ -2374,7 +2371,7 @@ static inline Gen12 bn256check(const Gen12 &v)
     return (t8 * t1.conj()).sqr() * t8 * t1.frob() * t2 * t2.frob();
 }
 
-static inline bool bn256pairing(G1 *a, G2 *b, uint64_t count)
+static bool bn256pairing(G1 *a, G2 *b, uint64_t count)
 {
     Gen12 prod; prod = 1;
     for (uint64_t i = 0; i < count; i++) {
@@ -2403,7 +2400,7 @@ static const uint256_t _N[8] = {
 template<int N>
 class modN_t {
 private:
-    static inline const uint256_t &n() { return _N[N]; }
+    static const uint256_t &n() { return _N[N]; }
     uint256_t u;
 public:
     inline const uint256_t &as256() const { return u; }
@@ -2440,23 +2437,23 @@ private:
     modN_t<N> x;
     modN_t<N> y;
 public:
-    static inline const pointN_t inf() { pointN_t p(0, 0); p.is_inf = true; return p; }
-    inline bool belongs() {
+    static const pointN_t inf() { pointN_t p(0, 0); p.is_inf = true; return p; }
+    bool belongs() {
         if (is_inf) return false;
         return y * y - (x * x * x + a() * x + b()) == 0;
     }
-    inline uint512_t as512() const {
+    uint512_t as512() const {
         uint8_t buffer[64];
         uint256_t::to(x.as256(), buffer);
         uint256_t::to(y.as256(), &buffer[32]);
         return uint512_t::from(buffer);
     }
-    inline pointN_t() {}
-    inline pointN_t(const modN_t<N> &_x, const modN_t<N> &_y): is_inf(false), x(_x), y(_y) {}
-    inline pointN_t(const pointN_t &p) : is_inf(p.is_inf), x(p.x), y(p.y) {}
-    inline pointN_t& operator=(const pointN_t& p) { is_inf = p.is_inf; x = p.x; y = p.y; return *this; }
-    inline pointN_t& operator+=(const pointN_t& p) { *this = *this + p; return *this; }
-    friend inline const pointN_t operator+(const pointN_t& p1, const pointN_t& p2) {
+    pointN_t() {}
+    pointN_t(const modN_t<N> &_x, const modN_t<N> &_y): is_inf(false), x(_x), y(_y) {}
+    pointN_t(const pointN_t &p) : is_inf(p.is_inf), x(p.x), y(p.y) {}
+    pointN_t& operator=(const pointN_t& p) { is_inf = p.is_inf; x = p.x; y = p.y; return *this; }
+    pointN_t& operator+=(const pointN_t& p) { *this = *this + p; return *this; }
+    friend const pointN_t operator+(const pointN_t& p1, const pointN_t& p2) {
         if (p1.is_inf) return p2;
         if (p2.is_inf) return p1;
         modN_t<N> x1 = p1.x, y1 = p1.y;
@@ -2473,7 +2470,7 @@ public:
         modN_t<N> y3 = l * (x1 - x3) - y1;
         return pointN_t(x3, y3);
     }
-    friend inline const pointN_t operator*(const pointN_t& _p, const uint256_t& e) {
+    friend const pointN_t operator*(const pointN_t& _p, const uint256_t& e) {
         pointN_t p = _p;
         pointN_t q = inf();
         for (int n = 0; n < 256; n++) {
@@ -2484,8 +2481,8 @@ public:
         }
         return q;
     }
-    friend inline bool operator==(const pointN_t& p1, const pointN_t& p2) { return p1.is_inf == p2.is_inf && p1.x == p2.x && p1.y == p2.y; }
-    friend inline bool operator!=(const pointN_t& p1, const pointN_t& p2) { return !(p1 == p2); }
+    friend bool operator==(const pointN_t& p1, const pointN_t& p2) { return p1.is_inf == p2.is_inf && p1.x == p2.x && p1.y == p2.y; }
+    friend bool operator!=(const pointN_t& p1, const pointN_t& p2) { return !(p1 == p2); }
     static pointN_t gen(const uint256_t &u) { return  g() * u; }
     static pointN_t find(const modN_t<N> &x, bool is_odd) {
         modN_t<N> poly = x * x * x + a() * x + b();
@@ -3466,7 +3463,7 @@ static const uint32_t releaseforkblock[ISTANBUL+1] = {
     9069000, // 2019-12-08 ISTANBUL
 };
 
-static inline Release get_release(uint64_t number)
+static Release get_release(uint64_t number)
 {
     for (uint64_t i = ISTANBUL+1; i > 0; i--) {
         Release release = (Release)(i - 1);
@@ -3911,7 +3908,7 @@ static inline uint64_t _gas(Release release, GasType type)
     return is_gas_table[is_gas_index[release]][type];
 }
 
-static inline uint64_t _gas_intrinsic(Release release, bool is_message_call, const uint8_t *data, uint64_t data_size)
+static uint64_t _gas_intrinsic(Release release, bool is_message_call, const uint8_t *data, uint64_t data_size)
 {
     // check for overflow
     uint64_t gas = _gas(release, is_message_call ? GasTxMessageCall : GasTxContractCreation);
@@ -3960,7 +3957,7 @@ static inline uint64_t _gas_exp(Release release, uint64_t size)
     return size * _gas(release, GasExpByte);
 }
 
-static inline uint64_t _gas_call(Release release, bool funds, bool empty, bool exists)
+static uint64_t _gas_call(Release release, bool funds, bool empty, bool exists)
 {
     uint32_t used_gas = 0;
     bool is_legacy = release < SPURIOUS_DRAGON;
@@ -3970,14 +3967,14 @@ static inline uint64_t _gas_call(Release release, bool funds, bool empty, bool e
     return used_gas;
 }
 
-static inline uint64_t _stipend_call(Release release, bool funds)
+static uint64_t _stipend_call(Release release, bool funds)
 {
     uint32_t stipend_gas = 0;
     if (funds) stipend_gas += _gas(release, GasCallValueTransferStipend);
     return stipend_gas;
 }
 
-static inline uint64_t _gas_callcap(Release release, uint64_t gas, uint64_t reserved_gas)
+static uint64_t _gas_callcap(Release release, uint64_t gas, uint64_t reserved_gas)
 {
     if (release >= TANGERINE_WHISTLE) {
         uint64_t capped_gas = gas - (gas / 64);
@@ -3986,13 +3983,13 @@ static inline uint64_t _gas_callcap(Release release, uint64_t gas, uint64_t rese
     return reserved_gas;
 }
 
-static inline uint64_t _gas_create(Release release, uint64_t size)
+static uint64_t _gas_create(Release release, uint64_t size)
 {
     // check for overflow
     return size * _gas(release, GasCreateData);
 }
 
-static inline uint64_t _gas_selfdestruct(Release release, bool funds, bool empty, bool exists)
+static uint64_t _gas_selfdestruct(Release release, bool funds, bool empty, bool exists)
 {
     if (release >= TANGERINE_WHISTLE) {
         uint64_t used_gas = _gas(release, GasSelfDestruct);
@@ -4004,12 +4001,12 @@ static inline uint64_t _gas_selfdestruct(Release release, bool funds, bool empty
     return 0;
 }
 
-static inline uint64_t _refund_selfdestruct(Release release)
+static uint64_t _refund_selfdestruct(Release release)
 {
     return _gas(release, GasSelfDestructRefund);
 }
 
-static inline uint64_t _gas_sstore(Release release, uint64_t gas,
+static uint64_t _gas_sstore(Release release, uint64_t gas,
     bool set, bool clear, bool noop, bool dirty, bool init)
 {
     if (gas <= _gas(release, GasSstoreSentry)) return gas + 1;
@@ -4024,7 +4021,7 @@ static inline uint64_t _gas_sstore(Release release, uint64_t gas,
     return _gas(release, GasSstoreClean);
 }
 
-static inline void _refund_sstore()
+static void _refund_sstore()
 {
 }
 
@@ -4033,33 +4030,33 @@ static inline uint64_t opcode_gas(Release release, uint8_t opc)
     return _gas(release, constgas[opc]);
 }
 
-static inline uint64_t _gas_ecrecover(Release release)
+static uint64_t _gas_ecrecover(Release release)
 {
     return _gas(release, GasEcRecover);
 }
 
-static inline uint64_t _gas_sha256(Release release, uint64_t size)
+static uint64_t _gas_sha256(Release release, uint64_t size)
 {
     // check for overflow
     uint64_t words = (size + 31) / 32;
     return _gas(release, GasSha256) + words * _gas(release, GasSha256Word);
 }
 
-static inline uint64_t _gas_ripemd160(Release release, uint64_t size)
+static uint64_t _gas_ripemd160(Release release, uint64_t size)
 {
     // check for overflow
     uint64_t words = (size + 31) / 32;
     return _gas(release, GasRipemd160) + words * _gas(release, GasRipemd160Word);
 }
 
-static inline uint64_t _gas_datacopy(Release release, uint64_t size)
+static uint64_t _gas_datacopy(Release release, uint64_t size)
 {
     // check for overflow
     uint64_t words = (size + 31) / 32;
     return _gas(release, GasDataCopy) + words * _gas(release, GasDataCopyWord);
 }
 
-static inline uint64_t _gas_bigmodexp(Release release, uint64_t base_len, uint64_t exp_len, uint64_t mod_len, const bigint &exp)
+static uint64_t _gas_bigmodexp(Release release, uint64_t base_len, uint64_t exp_len, uint64_t mod_len, const bigint &exp)
 {
     // check for overflow, max out in case
     uint64_t max_len = _max(base_len, mod_len);
@@ -4075,22 +4072,22 @@ static inline uint64_t _gas_bigmodexp(Release release, uint64_t base_len, uint64
     return (base_gas * _max(exp_gas, 1)) / _gas(release, GasBigModExpDiv);
 }
 
-static inline uint64_t _gas_bn256add(Release release)
+static uint64_t _gas_bn256add(Release release)
 {
     return _gas(release, GasBn256Add);
 }
 
-static inline uint64_t _gas_bn256scalarmul(Release release)
+static uint64_t _gas_bn256scalarmul(Release release)
 {
     return _gas(release, GasBn256ScalarMul);
 }
 
-static inline uint64_t _gas_bn256pairing(Release release, uint64_t points)
+static uint64_t _gas_bn256pairing(Release release, uint64_t points)
 {
     return _gas(release, GasBn256Pairing) + points * _gas(release, GasBn256PairingPoint);
 }
 
-static inline uint64_t _gas_blake2f(Release release, uint64_t rounds)
+static uint64_t _gas_blake2f(Release release, uint64_t rounds)
 {
     return _gas(release, GasBlake2f) + rounds * _gas(release, GasBlake2fRound);
 }
@@ -4114,13 +4111,13 @@ private:
     uint64_t limit = 0; // 256 bit aligned, except when overflow
     uint64_t page_count = 0;
     uint8_t **pages = nullptr;
-    inline void mark(uint64_t end) {
+    void mark(uint64_t end) {
         if (end > limit) {
             limit = ((end + 31) / 32) * 32;
             if (limit == 0) limit--; // special case, overflow
         }
     }
-    inline void expand(uint64_t end) {
+    void expand(uint64_t end) {
         if (end == 0) return;
         uint64_t i = end - 1;
         uint64_t page_index = i / P;
@@ -4139,14 +4136,14 @@ private:
         }
         mark(end);
     }
-    inline uint8_t get(uint64_t i) const {
+    uint8_t get(uint64_t i) const {
         uint64_t page_index = i / P;
         uint64_t byte_index = i % P;
         if (page_index >= page_count) return 0;
         if (pages[page_index] == nullptr) return 0;
         return pages[page_index][byte_index];
     }
-    inline void set(uint64_t i, uint8_t v) {
+    void set(uint64_t i, uint8_t v) {
         uint64_t page_index = i / P;
         uint64_t byte_index = i % P;
         assert(page_index < page_count);
@@ -4159,22 +4156,22 @@ public:
         _delete(pages);
     }
     inline uint64_t size() const { return limit; }
-    inline uint256_t load(uint64_t offset) {
+    uint256_t load(uint64_t offset) {
         uint8_t buffer[32];
         dump(offset, 32, buffer);
         return uint256_t::from(buffer);
     }
-    inline void store(uint64_t offset, const uint256_t& v) {
+    void store(uint64_t offset, const uint256_t& v) {
         uint8_t buffer[32];
         uint256_t::to(v, buffer);
         burn(offset, 32, buffer, 32);
     }
-    inline void dump(uint64_t offset, uint64_t size, uint8_t *buffer) {
+    void dump(uint64_t offset, uint64_t size, uint8_t *buffer) {
         assert(offset + size >= offset);
         if (size > 0) mark(offset + size);
         for (uint64_t i = 0; i < size; i++) buffer[i] = get(offset+i);
     }
-    inline void burn(uint64_t offset, uint64_t size, const uint8_t *buffer, uint64_t burnsize) {
+    void burn(uint64_t offset, uint64_t size, const uint8_t *buffer, uint64_t burnsize) {
         assert(offset + size >= offset);
         if (size > 0) expand(offset + size);
         if (burnsize > size) burnsize = size;
@@ -4231,8 +4228,8 @@ private:
     struct key_list **table = nullptr;
     uint64_t key_count = 0;
     uint64_t serial = 1;
-    inline uint64_t find_index(const K &key) const { return (key % size).cast64(); }
-    inline void grow(uint64_t increment) {
+    uint64_t find_index(const K &key) const { return (key % size).cast64(); }
+    void grow(uint64_t increment) {
         uint64_t new_size = size + increment;
         struct key_list **new_table = _new<struct key_list*>(new_size);
         for (uint64_t i = 0; i < new_size; i++) new_table[i] = nullptr;
@@ -4253,7 +4250,7 @@ private:
     }
 public:
     ~Store() { rollback(0); _delete(table); }
-    inline const V &get(const K &key, const V &default_value) const {
+    const V &get(const K &key, const V &default_value) const {
         if (size == 0) return default_value;
         uint64_t i = find_index(key);
         for (struct key_list *keys = table[i]; keys != nullptr; keys = keys->next) {
@@ -4264,7 +4261,7 @@ public:
         }
         return default_value;
     }
-    inline void set(const K &key, const V &value, const V &default_value) {
+    void set(const K &key, const V &value, const V &default_value) {
         if (key_count >= size / avgmaxperslot) grow(_max(minsize, size / growthdiv));
         uint64_t i = find_index(key);
         struct key_list *prev = nullptr;
@@ -4297,7 +4294,7 @@ public:
         keys->values->value = value;
     }
     inline uint64_t snapshot() { return serial++; }
-    inline void commit(uint64_t snapshot) {
+    void commit(uint64_t snapshot) {
         for (uint64_t i = 0; i < size; i++) {
             struct key_list *prev = nullptr;
             struct key_list *keys = table[i];
@@ -4324,7 +4321,7 @@ public:
             }
         }
     }
-    inline void rollback(uint64_t snapshot) {
+    void rollback(uint64_t snapshot) {
         for (uint64_t i = 0; i < size; i++) {
             struct key_list *prev = nullptr;
             struct key_list *keys = table[i];
@@ -4362,7 +4359,7 @@ protected:
     uint64_t capacity = 0;
     uint64_t count = 0;
     struct log *entries = nullptr;
-    inline log &new_entry(int topic_count, uint64_t data_size) {
+    log &new_entry(int topic_count, uint64_t data_size) {
         assert(topic_count >= 0);
         if (count == capacity) {
             uint64_t new_capacity = capacity + capacity_increment;
@@ -4382,7 +4379,7 @@ protected:
         return entries[index];
     }
 public:
-    inline ~Log() {
+    ~Log() {
         for (uint64_t i = 0; i < count; i++) {
             _delete(entries[i].topics);
             _delete(entries[i].data);
@@ -4390,14 +4387,14 @@ public:
         _delete(entries);
     }
     inline uint64_t size() { return count; }
-    inline void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) {
+    void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) {
         struct log &log = new_entry(0, data_size);
         log.address = address;
         log.topic_count = 0;
         for (uint64_t i = 0; i < data_size; i++) log.data[i] = data[i];
         log.data_size = data_size;
     }
-    inline void log1(const uint160_t &address, const uint256_t &v1, const uint8_t *data, uint64_t data_size) {
+    void log1(const uint160_t &address, const uint256_t &v1, const uint8_t *data, uint64_t data_size) {
         struct log &log = new_entry(1, data_size);
         log.address = address;
         log.topic_count = 1;
@@ -4405,7 +4402,7 @@ public:
         for (uint64_t i = 0; i < data_size; i++) log.data[i] = data[i];
         log.data_size = data_size;
     }
-    inline void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) {
+    void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) {
         struct log &log = new_entry(2, data_size);
         log.address = address;
         log.topic_count = 2;
@@ -4414,7 +4411,7 @@ public:
         for (uint64_t i = 0; i < data_size; i++) log.data[i] = data[i];
         log.data_size = data_size;
     }
-    inline void log3(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *data, uint64_t data_size) {
+    void log3(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *data, uint64_t data_size) {
         struct log &log = new_entry(3, data_size);
         log.address = address;
         log.topic_count = 3;
@@ -4424,7 +4421,7 @@ public:
         for (uint64_t i = 0; i < data_size; i++) log.data[i] = data[i];
         log.data_size = data_size;
     }
-    inline void log4(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *data, uint64_t data_size) {
+    void log4(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *data, uint64_t data_size) {
         struct log &log = new_entry(4, data_size);
         log.address = address;
         log.topic_count = 4;
@@ -4437,7 +4434,7 @@ public:
     }
     inline uint64_t snapshot() { return count; }
     inline void commit(uint64_t snapshot) {}
-    inline void rollback(uint64_t snapshot) {
+    void rollback(uint64_t snapshot) {
         for (uint64_t i = snapshot; i < count; i++) {
             _delete(entries[i].topics);
             _delete(entries[i].data);
@@ -4459,70 +4456,70 @@ protected:
     Log logs;
     uint64_t refund_gas = 0;
 public:
-    inline Storage(State *_underlying) : underlying(_underlying) {
+    Storage(State *_underlying) : underlying(_underlying) {
         for (uint8_t i = ECRECOVER; i <= BLAKE2F; i++) register_code(i, (uint8_t*)(intptr_t)i, 0);
     }
-    inline uint64_t get_nonce(const uint160_t &address) const {
+    uint64_t get_nonce(const uint160_t &address) const {
         return nonces.get(address, underlying->get_nonce(address));
     }
-    inline void set_nonce(const uint160_t &address, const uint64_t &nonce) {
+    void set_nonce(const uint160_t &address, const uint64_t &nonce) {
         nonces.set(address, nonce, underlying->get_nonce(address));
     }
-    inline void increment_nonce(const uint160_t &address) {
+    void increment_nonce(const uint160_t &address) {
         set_nonce(address, get_nonce(address) + 1);
     }
 
-    inline uint256_t get_balance(const uint160_t &address) const {
+    uint256_t get_balance(const uint160_t &address) const {
         return balances.get(address, underlying->get_balance(address));
     }
-    inline void set_balance(const uint160_t &address, const uint256_t &balance) {
+    void set_balance(const uint160_t &address, const uint256_t &balance) {
         balances.set(address, balance, underlying->get_balance(address));
     }
-    inline void add_balance(const uint160_t &address, uint256_t amount) {
+    void add_balance(const uint160_t &address, uint256_t amount) {
         set_balance(address, get_balance(address) + amount);
     }
-    inline void sub_balance(const uint160_t &address, uint256_t amount) {
+    void sub_balance(const uint160_t &address, uint256_t amount) {
         set_balance(address, get_balance(address) - amount);
     }
 
-    inline uint256_t get_codehash(const uint160_t &address) const {
+    uint256_t get_codehash(const uint160_t &address) const {
         return contracts.get(address, underlying->get_codehash(address));
     }
-    inline void set_codehash(const uint160_t &address, const uint256_t &codehash) {
+    void set_codehash(const uint160_t &address, const uint256_t &codehash) {
         contracts.set(address, codehash, underlying->get_codehash(address));
     }
 
-    inline uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
+    uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
         return underlying->load_code(codehash, code_size);
     }
-    inline void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) {
+    void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) {
         underlying->store_code(codehash, code, code_size);
     }
 
-    inline uint8_t *get_code(const uint160_t &address, uint64_t &code_size) const {
+    uint8_t *get_code(const uint160_t &address, uint64_t &code_size) const {
         return load_code(get_codehash(address), code_size);
     }
-    inline uint64_t get_codesize(const uint160_t &address) const {
+    uint64_t get_codesize(const uint160_t &address) const {
         uint64_t code_size;
         const uint8_t *code = load_code(get_codehash(address), code_size);
         _delete(code);
         return code_size;
     }
-    inline void register_code(const uint160_t &account, const uint8_t *code, uint64_t code_size) {
+    void register_code(const uint160_t &account, const uint8_t *code, uint64_t code_size) {
         uint256_t codehash = sha3(code, code_size);
         store_code(codehash, code, code_size);
         set_codehash(account, codehash);
     }
 
-    inline uint256_t load(const uint160_t &address, const uint256_t &key) const {
+    uint256_t load(const uint160_t &address, const uint256_t &key) const {
         uint416_t extkey = ((uint416_t)address << 256) | (uint416_t)key;
         return data.get(extkey, underlying->load(address, key));
     }
-    inline void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) {
+    void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) {
         uint416_t extkey = ((uint416_t)address << 256) | (uint416_t)key;
         data.set(extkey, value, underlying->load(address, key));
     }
-    inline uint256_t _load(const uint160_t &address, const uint256_t &key) {
+    uint256_t _load(const uint160_t &address, const uint256_t &key) {
         return underlying->load(address, key);
     }
 
@@ -4530,14 +4527,14 @@ public:
         underlying->remove(address);
     }
 
-    inline uint64_t get_refund() {
+    uint64_t get_refund() {
         return refund_gas;
     }
-    inline void add_refund(uint64_t cost) {
+    void add_refund(uint64_t cost) {
         assert(refund_gas + cost > refund_gas);
         refund_gas += cost;
     }
-    inline void sub_refund(uint64_t cost) {
+    void sub_refund(uint64_t cost) {
         assert(refund_gas >= cost);
         refund_gas -= cost;
     }
@@ -4558,7 +4555,7 @@ public:
         logs.log4(address, v1, v2, v3, v4, data, data_size);
     }
 
-    inline uint64_t snapshot() {
+    uint64_t snapshot() {
         uint64_t serial1 = nonces.snapshot();
         uint64_t serial2 = balances.snapshot();
         uint64_t serial3 = contracts.snapshot();
@@ -4570,7 +4567,7 @@ public:
         uint64_t serial = serial1 << 32 | serial5;
         return serial;
     }
-    inline void commit(uint64_t serial) {
+    void commit(uint64_t serial) {
         uint64_t serial1 = serial >> 32;
         uint64_t serial2 = serial & 0xffffffff;
         nonces.commit(serial1);
@@ -4579,7 +4576,7 @@ public:
         data.commit(serial1);
         logs.commit(serial2);
     }
-    inline void rollback(uint64_t serial) {
+    void rollback(uint64_t serial) {
         uint64_t serial1 = serial >> 32;
         uint64_t serial2 = serial & 0xffffffff;
         nonces.rollback(serial1);
@@ -4591,7 +4588,7 @@ public:
     inline uint64_t begin() {
         return snapshot();
     }
-    inline void end(uint64_t snapshot, bool success) {
+    void end(uint64_t snapshot, bool success) {
         success ? commit(snapshot) : rollback(snapshot);
     }
     void flush() {
@@ -4655,35 +4652,35 @@ public:
         }
     }
 
-    inline void create_account(const uint160_t &address) {
+    void create_account(const uint160_t &address) {
         set_codehash(address, EMPTY_CODEHASH);
     }
 
-    inline bool exists(const uint160_t &address) {
+    bool exists(const uint160_t &address) {
         uint64_t nonce = get_nonce(address);
         uint256_t balance = get_balance(address);
         uint256_t codehash = get_codehash(address);
         return nonce == 0 && balance == 0 && codehash == 0;
     }
 
-    inline bool is_empty(const uint160_t &address) {
+    bool is_empty(const uint160_t &address) {
         uint64_t nonce = get_nonce(address);
         uint256_t balance = get_balance(address);
         uint256_t codehash = get_codehash(address);
         return nonce == 0 && balance == 0 && codehash == EMPTY_CODEHASH;
     }
 
-    inline bool has_contract(const uint160_t &address) {
+    bool has_contract(const uint160_t &address) {
         uint64_t nonce = get_nonce(address);
         uint256_t codehash = get_codehash(address);
         return nonce > 0 || (codehash != 0 && codehash != EMPTY_CODEHASH);
     }
 
-    inline void destruct_account(const uint160_t &address) {
+    void destruct_account(const uint160_t &address) {
         destructed.set(address, true, false);
     }
 
-    inline bool is_destructed(const uint160_t &address) {
+    bool is_destructed(const uint160_t &address) {
         return destructed.get(address, false);
     }
 };
@@ -4699,7 +4696,7 @@ public:
     virtual uint256_t hash(const uint256_t &number) = 0;
 };
 
-static inline uint160_t _throws(gen_address)(const uint160_t &from, const uint256_t &nonce)
+static uint160_t _throws(gen_address)(const uint160_t &from, const uint256_t &nonce)
 {
     uint64_t size = _handles0(encode_cid)((uint256_t)from, nonce);
     uint8_t buffer[size];
@@ -4707,7 +4704,7 @@ static inline uint160_t _throws(gen_address)(const uint160_t &from, const uint25
     return (uint160_t)sha3(buffer, size);
 }
 
-static inline uint160_t gen_address(const uint160_t &from, const uint256_t &salt, const uint256_t &hash)
+static uint160_t gen_address(const uint160_t &from, const uint256_t &salt, const uint256_t &hash)
 {
     uint64_t size = 1 + 20 + 32 + 32;
     uint8_t buffer[size];
@@ -4751,7 +4748,7 @@ static inline void _throws(_code_size_check)(Release release, const uint64_t cod
     }
 }
 
-static inline void _throws(_jumpdest_check)(const uint8_t *code, uint64_t code_size, uint64_t pc, uint8_t *pc_valid, uint64_t &pc_limit)
+static void _throws(_jumpdest_check)(const uint8_t *code, uint64_t code_size, uint64_t pc, uint8_t *pc_valid, uint64_t &pc_limit)
 {
     assert(pc < code_size);
     uint8_t opc = code[pc];
@@ -5715,7 +5712,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
     }
 }
 
-static inline void _throws(_verify_txn)(Release release, struct txn &txn)
+static void _throws(_verify_txn)(Release release, struct txn &txn)
 {
     if (!txn.is_signed) _throw(INVALID_TRANSACTION);
     if (txn.v != 27 && txn.v != 28) {
@@ -5729,7 +5726,7 @@ static inline void _throws(_verify_txn)(Release release, struct txn &txn)
     }
 }
 
-static inline uint256_t _throws(_txn_hash)(struct txn &txn)
+static uint256_t _throws(_txn_hash)(struct txn &txn)
 {
     assert(txn.is_signed);
     assert(txn.v == 27 || txn.v == 28 || txn.v == 35 + 2 * CHAIN_ID || txn.v == 36 + 2 * CHAIN_ID);
