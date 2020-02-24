@@ -5724,12 +5724,11 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
 static inline void _throws(_verify_txn)(Release release, struct txn &txn)
 {
     if (!txn.is_signed) _throw(INVALID_TRANSACTION);
-    if (release >= SPURIOUS_DRAGON) {
-        if (txn.v != 27 && txn.v != 28) {
-            if (txn.v < 35) _throw(INVALID_TRANSACTION); // assumes CHAIN_ID >= 0
-            uint256_t chainid = (txn.v - 35) / 2;
-            if (chainid != CHAIN_ID) _throw(INVALID_TRANSACTION);
-        }
+    if (txn.v != 27 && txn.v != 28) {
+        if (release < SPURIOUS_DRAGON) _throw(INVALID_TRANSACTION);
+        if (txn.v < 35) _throw(INVALID_TRANSACTION); // assumes CHAIN_ID >= 0
+        uint256_t chainid = (txn.v - 35) / 2;
+        if (chainid != CHAIN_ID) _throw(INVALID_TRANSACTION);
     }
     if (release >= HOMESTEAD) {
         if (txn.s == 0 || 2*txn.s < txn.s || mod_t(2*txn.s - 1).as256() != 2*txn.s - 1) _throw(INVALID_TRANSACTION);
