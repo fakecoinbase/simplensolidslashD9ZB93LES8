@@ -1,8 +1,12 @@
 #pip install ecdsa --user
 import ecdsa, json, os, subprocess, sys
 
-#signing_key = ecdsa.SigningKey.from_secret_exponent(e, curve=ecdsa.SECP256k1)
-#return (signing_key.verifying_key.pubkey.point.x(), signing_key.verifying_key.pubkey.point.y())
+
+def derive_pk(e):
+    signing_key = ecdsa.SigningKey.from_secret_exponent(e, curve=ecdsa.SECP256k1)
+    x = signing_key.verifying_key.pubkey.point.x()
+    y = signing_key.verifying_key.pubkey.point.y()
+    return "%064x%064x" % (x, y)
 
 def _report(*msg):
     print("== " + sys.argv[0] + ":", *msg, file=sys.stderr)
@@ -77,8 +81,7 @@ def hexToInt(s):
     return int(s, 16)
 
 def hexToBin(s):
-    if s[:2] != "0x": _die("Not hex:", s)
-    s = s[2:]
+    if s[:2] == "0x": s = s[2:]
     hexv = ""
     hexs = ("0" if len(s) % 2 != 0 else "") + s
     for i in range(0, len(s) // 2):
@@ -89,6 +92,29 @@ def hexToBin(s):
 def intToU256(v):
     if v < 0 or v > 2**256-1: _die("Not U256:", v)
     return "%064x" % v
+
+def codeInitExec2(nonce, gasprice, gas, address, value, data, publickey):
+    return """
+    struct txn txn;
+
+    txn.nonce = uhex256(\"""" + intToU256(nonce) + """\").cast64();
+    txn.gasprice = uhex256(\"""" + intToU256(gasprice) + """\");
+    txn.gaslimit = uhex256(\"""" + intToU256(gas) + """\").cast64();
+    txn.has_to = true;
+    txn.to = (uint160_t)uhex256(\"""" + intToU256(address) + """\");
+    txn.value = uhex256(\"""" + intToU256(value) + """\");
+    txn.data = (uint8_t*)\"""" + data + """\";
+    txn.data_size = """ + str(len(data) // 4) + """;
+    txn.is_signed = false;
+    txn.v = 0;
+    txn.r = 0;
+    txn.s = 0;
+
+    uint8_t *publickey = (uint8_t*)\"""" + publickey + """\";
+    uint64_t publickey_size = """ + str(len(publickey) // 4) + """;
+
+    uint160_t from = (uint160_t)sha3(publickey, publickey_size);
+"""
 
 def codeInitExec(origin, gasprice, address, caller, value, gas, code, data):
     return """
@@ -484,8 +510,158 @@ def gsTest(name, item, path):
     hdr = readFile("../src/evm.hpp")
     src = src.replace("#include \"evm.hpp\"", hdr)
 
-    # implement
-    print(json.dumps(item, indent=2))
+#    print(json.dumps(item, indent=2))
+    src += """
+int main()
+{
+"""
+
+    env = item["env"]
+    timestamp = hexToInt(env["currentTimestamp"])
+    number = hexToInt(env["currentNumber"])
+    gaslimit = hexToInt(env["currentGasLimit"])
+    difficulty = hexToInt(env["currentDifficulty"])
+    coinbase = hexToInt(env["currentCoinbase"])
+    src += codeInitEnv(timestamp, number, gaslimit, difficulty, coinbase)
+
+    src += """
+    _Block block(timestamp, number, gaslimit, difficulty, coinbase);
+    _State state;
+    Storage storage(&state);
+
+    Release release = ISTANBUL; // get_release(block.forknumber());
+"""
+
+    txn = item["transaction"]
+    sk = hexToInt(txn['secretKey'])
+    pk = derive_pk(sk);
+
+    nonce = hexToInt(txn["nonce"])
+    gasprice = hexToInt(txn["gasPrice"])
+    gas = hexToInt(txn["gasLimit"][0])
+    address = hexToInt(txn["to"])
+    value = hexToInt(txn["value"][0])
+    data = hexToBin(txn['data'][0])
+    publickey = hexToBin(pk)
+    src += codeInitExec2(nonce, gasprice, gas, address, value, data, publickey)
+
+    pre = item["pre"]
+    for key, values in pre.items():
+        account = hexToInt(key)
+        nonce = hexToInt(values["nonce"])
+        balance = hexToInt(values["balance"])
+        code = hexToBin(values['code']);
+        storage = values["storage"];
+        src += codeInitAccount(account, nonce, balance, code, storage)
+
+    src += """
+    bool pays_gas = true;
+    bool success = false;
+    _try({
+        if (txn.nonce != storage.get_nonce(from)) _trythrow(NONCE_MISMATCH);
+        storage.increment_nonce(from);
+        uint160_t to = txn.has_to ? txn.to : _catches(gen_address)(from, storage.get_nonce(from));
+
+        // check for overflow
+        uint64_t gas = txn.gaslimit.cast64();
+        _catches(_consume_gas)(gas, _gas_intrinsic(release, txn.has_to, txn.data, txn.data_size));
+        uint256_t gas_cost = txn.gaslimit * txn.gasprice;
+        if (pays_gas) {
+            if (storage.get_balance(from) < gas_cost) _trythrow(INSUFFICIENT_BALANCE);
+            storage.sub_balance(from, gas_cost);
+        }
+
+        uint64_t return_size = 0;
+        uint64_t return_capacity = 0;
+        uint8_t *return_data = nullptr;
+
+        uint64_t snapshot = storage.begin();
+        _try({
+            if (storage.get_balance(from) < txn.value) _trythrow(INSUFFICIENT_BALANCE);
+            if (txn.has_to) { // message call
+                uint64_t code_size;
+                const uint8_t *code = storage.get_code(to, code_size);
+                if (!storage.exists(to)) {
+                    if (release >= SPURIOUS_DRAGON) {
+                        if (txn.value > 0) {
+                            if ((intptr_t)code > BLAKE2F) {
+                                goto skip;
+                            }
+                        }
+                    }
+                    storage.create_account(to);
+                }
+                storage.sub_balance(from, txn.value);
+                storage.add_balance(to, txn.value);
+                success = _catches(vm_run)(release, block, storage,
+                                from, txn.gasprice,
+                                to, code, code_size,
+                                from, txn.value, txn.data, txn.data_size,
+                                return_data, return_size, return_capacity, gas,
+                                false, 0);
+                _delete(code);
+            } else { // contract creation
+                if (storage.has_contract(to)) _trythrow(CODE_CONFLICT);
+                storage.create_account(to);
+                if (release >= SPURIOUS_DRAGON) storage.set_nonce(to, 1);
+                storage.sub_balance(from, txn.value);
+                storage.add_balance(to, txn.value);
+                success = _catches(vm_run)(release, block, storage,
+                                from, txn.gasprice,
+                                to, txn.data, txn.data_size,
+                                from, txn.value, nullptr, 0,
+                                return_data, return_size, return_capacity, gas,
+                                false, 0);
+                if (success) {
+                    _catches(_code_size_check)(release, return_size);
+                    _catches(_consume_gas)(gas, _gas_create(release, return_size));
+                    storage.register_code(to, return_data, return_size);
+                }
+            }
+        }, Error e, {
+            success = false;
+            gas = 0;
+            if (std::getenv("EVM_DEBUG")) std::cerr << "vm exception " << errors[e] << std::endl;
+        })
+    skip:
+        storage.end(snapshot, success);
+
+        _delete(return_data);
+
+        uint64_t refund_gas = storage.get_refund();
+        uint64_t used_gas = txn.gaslimit.cast64() - gas;
+        _refund_gas(gas, _min(refund_gas, used_gas / 2));
+        if (pays_gas) storage.add_balance(from, gas * txn.gasprice);
+
+        storage.flush();
+    }, Error e, {
+        success = false;
+        if (std::getenv("EVM_DEBUG")) std::cerr << "vm exception " << errors[e] << std::endl;
+    })
+"""
+
+    if not "post" in item:
+
+        src += """
+    if (success) {
+//        std::cerr << "post: invalid success on failure" << std::endl;
+//        return 1;
+    }
+"""
+
+    else:
+
+        src += """
+    if (!success) {
+//        std::cerr << "post: invalid failure on success" << std::endl;
+//        return 1;
+    }
+"""
+
+    src += """
+    return 0;
+}
+"""
 
     writeFile("/tmp/" + name + ".cpp", src)
     compileFile("/tmp/" + name + ".cpp", "/tmp/" + name);
@@ -522,7 +698,7 @@ def main():
     except: pass
     try: txTests(filt)
     except: pass
-#    try: gsTests(filt)
-#    except: pass
+    try: gsTests(filt)
+    except: pass
 
 if __name__ == '__main__': main()
