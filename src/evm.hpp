@@ -751,6 +751,13 @@ struct U {
         h ^= h >> 16;
         return h;
     }
+
+#ifndef NDEBUG
+    friend std::ostream& operator<<(std::ostream &os, const U &v) {
+        os << v.hi << ":" << v.lo;
+        return os;
+    }
+#endif // NDEBUG
 };
 
 template <>
@@ -1099,6 +1106,13 @@ struct U<64> {
         h ^= h >> 16;
         return h;
     }
+
+#ifndef NDEBUG
+    friend std::ostream& operator<<(std::ostream &os, U v) {
+        os << std::hex << std::setw(16) << std::setfill('0') << v.n;
+        return os;
+    }
+#endif // NDEBUG
 };
 
 template <>
@@ -1409,6 +1423,13 @@ struct U<32> {
         h ^= h >> 16;
         return h;
     }
+
+#ifndef NDEBUG
+    friend std::ostream& operator<<(std::ostream &os, U v) {
+        os << std::hex << std::setw(8) << std::setfill('0') << v.n;
+        return os;
+    }
+#endif // NDEBUG
 };
 
 template<int N>
