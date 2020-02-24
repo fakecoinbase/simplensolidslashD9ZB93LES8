@@ -31,26 +31,26 @@
     #define _trythrow(E) { _ex = (E); break; }
 #endif
 
-/* error */
+// error
 
 enum Error {
     NONE = 0,
-    CODE_CONFLICT, // VM
-    GAS_EXAUSTED, // VM
-    ILLEGAL_TARGET, // VM
-    ILLEGAL_UPDATE, // VM
+    CODE_CONFLICT,
+    GAS_EXAUSTED,
+    ILLEGAL_TARGET,
+    ILLEGAL_UPDATE,
     INSUFFICIENT_BALANCE,
     INSUFFICIENT_SPACE,
     INVALID_ENCODING,
-    INVALID_OPCODE, // VM
+    INVALID_OPCODE,
     INVALID_SIGNATURE,
     INVALID_SIZE,
     INVALID_TRANSACTION,
     NONCE_MISMATCH,
-    OUTOFBOUND_INDEX, // VM
-    RECURSION_LIMITED, // VM
-    STACK_OVERFLOW, // VM
-    STACK_UNDERFLOW, // VM
+    OUTOFBOUND_INDEX,
+    RECURSION_LIMITED,
+    STACK_OVERFLOW,
+    STACK_UNDERFLOW,
 };
 
 template<typename T>
@@ -91,7 +91,7 @@ static const char *errors[STACK_UNDERFLOW+1] = {
 static inline uint64_t _min(uint64_t v1, uint64_t v2) { return v1 < v2 ? v1 : v2; }
 static inline uint64_t _max(uint64_t v1, uint64_t v2) { return v1 > v2 ? v1 : v2; }
 
-/* bigint */
+// bigint
 
 class bigint {
 private:
@@ -366,7 +366,7 @@ static bigint big(const char *s)
     return t;
 }
 
-/* U<N> */
+// U<N>
 
 template <int N>
 struct U {
@@ -1467,7 +1467,7 @@ public:
 static inline uint512_t udec512(const char *s) { return udec<512>(s); }
 static inline uint512_t uhex512(const char *s) { return uhex<512>(s); }
 
-/* crypto */
+// crypto
 
 static inline uint64_t rot(uint64_t x, int y) { return y > 0 ? (x >> (64 - y)) ^ (x << y) : x; }
 
@@ -1924,7 +1924,7 @@ static void blake2f(const uint32_t ROUNDS,
     h7 ^= v7 ^ v15;
 }
 
-/* bn256 */
+// bn256
 
 static const bigint P = big("21888242871839275222246405745257275088696311157297823662689037894645226208583");
 static const bigint Q = big("21888242871839275222246405745257275088548364400416034343698204186575808495617");
@@ -2378,7 +2378,7 @@ static inline bool bn256pairing(G1 *a, G2 *b, uint64_t count)
     return value.is_one();
 }
 
-/* secp256k1 */
+// secp256k1
 
 static const uint256_t _N[8] = {
     // secp
@@ -2542,7 +2542,7 @@ static uint160_t _throws(ecrecover)(const uint256_t &h, const uint256_t &v, cons
     return a;
 }
 
-/* decoder */
+// decoder
 
 struct txn {
     uint256_t nonce;
@@ -2851,7 +2851,7 @@ static uint64_t _throws(encode_cid)(const uint256_t &from, const uint256_t &nonc
     return _handles0(encode_cid)(from, nonce, nullptr, 0);
 }
 
-/* gas */
+// gas
 
 enum GasType : uint8_t {
     GasNone = 0,
@@ -3012,7 +3012,7 @@ enum GasCost : uint64_t {
     _GasTxDataNonZero_Istanbul = 16,
 };
 
-/* interpreter */
+// interpreter
 
 enum Opcode : uint8_t {
     STOP = 0x00, ADD, MUL, SUB, DIV, SDIV, MOD, SMOD,
@@ -3349,27 +3349,45 @@ static const uint16_t stackbounds[256][2] = {
 };
 
 static const GasType constgas[256] = {
-    /*STOP*/GasNone, /*ADD*/GasFastestStep, /*MUL*/GasFastStep, /*SUB*/GasFastestStep, /*DIV*/GasFastStep, /*SDIV*/GasFastStep, /*MOD*/GasFastStep, /*SMOD*/GasFastStep,
-    /*ADDMOD*/GasMidStep, /*MULMOD*/GasMidStep, /*EXP*/GasExp, /*SIGNEXTEND*/GasFastStep, GasNone, GasNone, GasNone, GasNone,
-    /*LT*/GasFastestStep, /*GT*/GasFastestStep, /*SLT*/GasFastestStep, /*SGT*/GasFastestStep, /*EQ*/GasFastestStep, /*ISZERO*/GasFastestStep, /*AND*/GasFastestStep, /*OR*/GasFastestStep,
-    /*XOR*/GasFastestStep, /*NOT*/GasFastestStep, /*BYTE*/GasFastestStep, /*SHL*/GasFastestStep, /*SHR*/GasFastestStep, /*SAR*/GasFastestStep, GasNone, GasNone,
-    /*SHA3*/GasSha3, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
+    // STOP, ADD, MUL, SUB, DIV, SDIV, MOD, SMOD
+    GasNone, GasFastestStep, GasFastStep, GasFastestStep, GasFastStep, GasFastStep, GasFastStep, GasFastStep,
+    // ADDMOD, MULMOD, EXP, SIGNEXTEND
+    GasMidStep, GasMidStep, GasExp, GasFastStep, GasNone, GasNone, GasNone, GasNone,
+    // LT, GT, SLT, SGT, EQ, ISZERO, AND, OR
+    GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep,
+    // XOR, NOT, BYTE, SHL, SHR, SAR
+    GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasNone, GasNone,
+    // SHA3
+    GasSha3, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
     GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
-    /*ADDRESS*/GasQuickStep, /*BALANCE*/GasBalance, /*ORIGIN*/GasQuickStep, /*CALLER*/GasQuickStep, /*CALLVALUE*/GasQuickStep, /*CALLDATALOAD*/GasFastestStep, /*CALLDATASIZE*/GasQuickStep, /*CALLDATACOPY*/GasFastestStep,
-    /*CODESIZE*/GasQuickStep, /*CODECOPY*/GasFastestStep, /*GASPRICE*/GasQuickStep, /*EXTCODESIZE*/GasExtcodeSize, /*EXTCODECOPY*/GasExtcodeCopy, /*RETURNDATASIZE*/GasQuickStep, /*RETURNDATACOPY*/GasFastestStep, /*EXTCODEHASH*/GasExtcodeHash,
-    /*BLOCKHASH*/GasExtStep, /*COINBASE*/GasQuickStep, /*TIMESTAMP*/GasQuickStep, /*NUMBER*/GasQuickStep, /*DIFFICULTY*/GasQuickStep, /*GASLIMIT*/GasQuickStep, /*CHAINID*/GasQuickStep, /*SELFBALANCE*/GasFastStep,
+    // ADDRESS, BALANCE, ORIGIN, CALLER, CALLVALUE, CALLDATALOAD, CALLDATASIZE. CALLDATACOPY
+    GasQuickStep, GasBalance, GasQuickStep, GasQuickStep, GasQuickStep, GasFastestStep, GasQuickStep, GasFastestStep,
+    // CODESIZE, CODECOPY, GASPRICE, EXTCODESIZE, EXTCODECOPY, RETURNDATASIZE, RETURNDATACOPY, EXTCODEHASH
+    GasQuickStep, GasFastestStep, GasQuickStep, GasExtcodeSize, GasExtcodeCopy, GasQuickStep, GasFastestStep, GasExtcodeHash,
+    // BLOCKHASH, COINBASE, TIMESTAMP, NUMBER, DIFFICULTY, GASLIMIT, CHAINID, SELFBALANCE
+    GasExtStep, GasQuickStep, GasQuickStep, GasQuickStep, GasQuickStep, GasQuickStep, GasQuickStep, GasFastStep,
     GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
-    /*POP*/GasQuickStep, /*MLOAD*/GasFastestStep, /*MSTORE*/GasFastestStep, /*MSTORE8*/GasFastestStep, /*SLOAD*/GasSload, /*SSTORE*/GasNone, /*JUMP*/GasMidStep, /*JUMPI*/GasSlowStep,
-    /*PC*/GasQuickStep, /*MSIZE*/GasQuickStep, /*GAS*/GasQuickStep, /*JUMPDEST*/GasJumpdest, GasNone, GasNone, GasNone, GasNone,
-    /*PUSH1*/GasFastestStep, /*PUSH2*/GasFastestStep, /*PUSH3*/GasFastestStep, /*PUSH4*/GasFastestStep, /*PUSH5*/GasFastestStep, /*PUSH6*/GasFastestStep, /*PUSH7*/GasFastestStep, /*PUSH8*/GasFastestStep,
-    /*PUSH9*/GasFastestStep, /*PUSH10*/GasFastestStep, /*PUSH11*/GasFastestStep, /*PUSH12*/GasFastestStep, /*PUSH13*/GasFastestStep, /*PUSH14*/GasFastestStep, /*PUSH15*/GasFastestStep, /*PUSH16*/GasFastestStep,
-    /*PUSH17*/GasFastestStep, /*PUSH18*/GasFastestStep, /*PUSH19*/GasFastestStep, /*PUSH20*/GasFastestStep, /*PUSH21*/GasFastestStep, /*PUSH22*/GasFastestStep, /*PUSH23*/GasFastestStep, /*PUSH24*/GasFastestStep,
-    /*PUSH25*/GasFastestStep, /*PUSH26*/GasFastestStep, /*PUSH27*/GasFastestStep, /*PUSH28*/GasFastestStep, /*PUSH29*/GasFastestStep, /*PUSH30*/GasFastestStep, /*PUSH31*/GasFastestStep, /*PUSH32*/GasFastestStep,
-    /*DUP1*/GasFastestStep, /*DUP2*/GasFastestStep, /*DUP3*/GasFastestStep, /*DUP4*/GasFastestStep, /*DUP5*/GasFastestStep, /*DUP6*/GasFastestStep, /*DUP7*/GasFastestStep, /*DUP8*/GasFastestStep,
-    /*DUP9*/GasFastestStep, /*DUP10*/GasFastestStep, /*DUP11*/GasFastestStep, /*DUP12*/GasFastestStep, /*DUP13*/GasFastestStep, /*DUP14*/GasFastestStep, /*DUP15*/GasFastestStep, /*DUP16*/GasFastestStep,
-    /*SWAP1*/GasFastestStep, /*SWAP2*/GasFastestStep, /*SWAP3*/GasFastestStep, /*SWAP4*/GasFastestStep, /*SWAP5*/GasFastestStep, /*SWAP6*/GasFastestStep, /*SWAP7*/GasFastestStep, /*SWAP8*/GasFastestStep,
-    /*SWAP9*/GasFastestStep, /*SWAP10*/GasFastestStep, /*SWAP11*/GasFastestStep, /*SWAP12*/GasFastestStep, /*SWAP13*/GasFastestStep, /*SWAP14*/GasFastestStep, /*SWAP15*/GasFastestStep, /*SWAP16*/GasFastestStep,
-    /*LOG0*/GasNone, /*LOG1*/GasNone, /*LOG2*/GasNone, /*LOG3*/GasNone, /*LOG4*/GasNone, GasNone, GasNone, GasNone,
+    // POP, MLOAD, MSTORE, MSTORE8, SLOAD, SSTORE, JUMP, JUMPI
+    GasQuickStep, GasFastestStep, GasFastestStep, GasFastestStep, GasSload, GasNone, GasMidStep, GasSlowStep,
+    // PC, MSIZE, GAS, JUMPDEST
+    GasQuickStep, GasQuickStep, GasQuickStep, GasJumpdest, GasNone, GasNone, GasNone, GasNone,
+    // PUSH1, PUSH2, PUSH3, PUSH4, PUSH5, PUSH6, PUSH7, PUSH8
+    GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep,
+    // PUSH9, PUSH10, PUSH11, PUSH12, PUSH13, PUSH14, PUSH15, PUSH16
+    GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep,
+    // PUSH17, PUSH18, PUSH19, PUSH20, PUSH21, PUSH22, PUSH23, PUSH24
+    GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep,
+    // PUSH25, PUSH26, PUSH27, PUSH28, PUSH29, PUSH30, PUSH31, PUSH32
+    GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep,
+    // DUP1, DUP2, DUP3, DUP4, DUP5, DUP6, DUP7, DUP8
+    GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep,
+    // DUP9, DUP10, DUP11, DUP12, DUP13, DUP14, DUP15, DUP16
+    GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep,
+    // SWAP1, SWAP2, SWAP3, SWAP4, SWAP5, SWAP6, SWAP7, SWAP8
+    GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep,
+    // SWAP9, SWAP10, SWAP11, SWAP12, SWAP13, SWAP14, SWAP15, SWAP16
+    GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep, GasFastestStep,
+    // LOG0, LOG1, LOG2, LOG3, LOG4
     GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
     GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
     GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
@@ -3379,8 +3397,11 @@ static const GasType constgas[256] = {
     GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
     GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
     GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
-    /*CREATE*/GasCreate, /*CALL*/GasCall, /*CALLCODE*/GasCall, /*RETURN*/GasNone, /*DELEGATECALL*/GasCall, /*CREATE2*/GasCreate2, GasNone, GasNone,
-    GasNone, GasNone, /*STATICCALL*/GasCall, GasNone, GasNone, /*REVERT*/GasNone, GasNone, /*SELFDESTRUCT*/GasNone,
+    GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone, GasNone,
+    // CREATE, CALL, CALLCODE, RETURN, DELEGATECALL, CREATE2
+    GasCreate, GasCall, GasCall, GasNone, GasCall, GasCreate2, GasNone, GasNone,
+    // STATICCALL, REVERT, SELFDESTRUCT
+    GasNone, GasNone, GasCall, GasNone, GasNone, GasNone, GasNone, GasNone,
 };
 
 enum Precompiled : uint8_t {
