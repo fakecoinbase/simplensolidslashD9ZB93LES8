@@ -1954,10 +1954,7 @@ static void blake2f(const uint32_t ROUNDS,
 static const bigint P = big("21888242871839275222246405745257275088696311157297823662689037894645226208583");
 static const bigint Q = big("21888242871839275222246405745257275088548364400416034343698204186575808495617");
 
-class Gen2 {
-private:
-    static bigint neg(const bigint &v) { return P - (v % P); }
-public:
+struct Gen2 {
     bigint x, y;
     Gen2() {}
     Gen2(const bigint &_x, const bigint &_y) : x(_x), y(_y) {}
@@ -1985,6 +1982,7 @@ public:
     friend const Gen2 operator-(const Gen2& v1, const Gen2& v2) { return Gen2(v1) -= v2; }
     friend const Gen2 operator*(const Gen2& v1, const Gen2& v2) { return Gen2(v1) *= v2; }
     friend const Gen2 operator*(const Gen2& v1, const bigint& v2) { return Gen2(v1) *= v2; }
+    static bigint neg(const bigint &v) { return P - (v % P); }
 };
 
 static const bigint XI_P2_1_3 = big("21888242871839275220042445260109153167277707414472061641714758635765020556616");
@@ -1993,8 +1991,7 @@ static const Gen2 XI_P_1_3(
     big("21575463638280843010398324269430826099269044274347216827212613867836435027261")
 );
 
-class Gen6 {
-public:
+struct Gen6 {
     Gen2 x, y, z;
     Gen6() {}
     Gen6(const Gen2 &_x, const Gen2 &_y, const Gen2 &_z) : x(_x), y(_y), z(_z) {}
@@ -2053,8 +2050,7 @@ public:
     friend const Gen6 operator*(const Gen6& v1, const bigint& v2) { return Gen6(v1) *= v2; }
 };
 
-class Gen12 {
-public:
+struct Gen12 {
     Gen6 x, y;
     Gen12() {}
     Gen12(const Gen6 &_x, const Gen6 &_y) : x(_x), y(_y) {}
@@ -2099,11 +2095,8 @@ public:
     friend const Gen12 operator*(const Gen12& v1, const Gen6& v2) { return Gen12(v1) *= v2; }
 };
 
-class CurvePoint {
-private:
+struct CurvePoint {
     static constexpr uint64_t b = 3;
-    static bigint neg(const bigint &v) { return P - (v % P); }
-public:
     bigint x, y, z, t;
     CurvePoint() {}
     CurvePoint(const bigint &_x, const bigint &_y) : x(_x), y(_y) {
@@ -2182,10 +2175,10 @@ public:
     }
     friend const CurvePoint operator+(const CurvePoint& v1, const CurvePoint& v2) { return CurvePoint(v1) += v2; }
     friend const CurvePoint operator*(const CurvePoint& v1, const bigint& v2) { return CurvePoint(v1) *= v2; }
+    static bigint neg(const bigint &v) { return P - (v % P); }
 };
 
-class TwistPoint {
-public:
+struct TwistPoint {
     Gen2 x, y, z, t;
     TwistPoint() {}
     TwistPoint(const Gen2 &_x, const Gen2 &_y) : x(_x), y(_y) {
@@ -2269,18 +2262,6 @@ public:
     }
     friend const TwistPoint operator+(const TwistPoint& v1, const TwistPoint& v2) { return TwistPoint(v1) += v2; }
     friend const TwistPoint operator*(const TwistPoint& v1, const bigint& v2) { return TwistPoint(v1) *= v2; }
-};
-
-class G1 : public CurvePoint {
-public:
-    G1() {}
-    G1(const bigint &_x, const bigint &_y) : CurvePoint(_x, _y) {}
-};
-
-class G2 : public TwistPoint {
-public:
-    G2() {}
-    G2(const Gen2 &_x, const Gen2 &_y) : TwistPoint(_x, _y) {}
 };
 
 static void mul_line(const Gen2 &a, const Gen2 &b, const Gen2 &c, Gen12 &inout)
@@ -2392,7 +2373,7 @@ static Gen12 bn256check(const Gen12 &v)
     return (t8 * t1.conj()).sqr() * t8 * t1.frob() * t2 * t2.frob();
 }
 
-static bool bn256pairing(G1 *a, G2 *b, uint64_t count)
+static bool bn256pairing(CurvePoint *a, TwistPoint *b, uint64_t count)
 {
     Gen12 prod; prod = 1;
     for (uint64_t i = 0; i < count; i++) {
@@ -4973,15 +4954,15 @@ static void _throws(vm_bn256pairing)(Release release,
     if (call_size % (2 * 32 + 2 * 2 * 32) != 0) _throw(INVALID_SIZE);
     uint64_t count = call_size / (2 * 32 + 2 * 2 * 32);
     _handles(_consume_gas)(gas, _gas_bn256pairing(release, count));
-    G1 curve_points[count];
-    G2 twist_points[count];
+    CurvePoint curve_points[count];
+    TwistPoint twist_points[count];
     uint64_t call_offset = 0;
     for (uint64_t i = 0; i < count; i++) {
         bigint x1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
         bigint y1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
         if (x1 >= P) _throw(INVALID_ENCODING);
         if (y1 >= P) _throw(INVALID_ENCODING);
-        G1 g1 = G1(x1, y1);
+        CurvePoint g1 = CurvePoint(x1, y1);
         if (!(x1 == 0 && y1 == 0)) {
             if (!g1.is_valid()) _throw(INVALID_ENCODING);
         }
@@ -4994,7 +4975,7 @@ static void _throws(vm_bn256pairing)(Release release,
         if (xy2 >= P) _throw(INVALID_ENCODING);
         if (yx2 >= P) _throw(INVALID_ENCODING);
         if (yy2 >= P) _throw(INVALID_ENCODING);
-        G2 g2 = G2(Gen2(xx2, xy2), Gen2(yx2, yy2));
+        TwistPoint g2 = TwistPoint(Gen2(xx2, xy2), Gen2(yx2, yy2));
         if (!(xx2 == 0 && xy2 == 0 && yx2 == 0 && yy2 == 0)) {
             if (!g2.is_valid()) _throw(INVALID_ENCODING);
         }
