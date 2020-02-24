@@ -4801,6 +4801,228 @@ static inline void _ensure_capacity(uint8_t *&data, uint64_t &size, uint64_t &ca
     }
 }
 
+static bool _throws(vm_ecrecover)(const Release release,
+    const uint8_t *call_data, const uint64_t call_size,
+    uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
+{
+    _handles0(_consume_gas)(gas, _gas_ecrecover(release));
+    uint64_t size = 32 + 32 + 32 + 32;
+    uint8_t buffer[size];
+    uint64_t minsize = _min(size, call_size);
+    for (uint64_t i = 0; i < minsize; i++) buffer[i] = call_data[i];
+    for (uint64_t i = minsize; i < size; i++) buffer[i] = 0;
+    uint64_t offset = 0;
+    uint256_t h = uint256_t::from(&buffer[offset]); offset += 32;
+    uint256_t v = uint256_t::from(&buffer[offset]); offset += 32;
+    uint256_t r = uint256_t::from(&buffer[offset]); offset += 32;
+    uint256_t s = uint256_t::from(&buffer[offset]); offset += 32;
+    uint256_t address = (uint256_t)_handles0(ecrecover)(h, v, r, s);
+    return_size = 32;
+    _ensure_capacity(return_data, return_size, return_capacity);
+    uint256_t::to(address, return_data, return_size);
+    return true;
+}
+
+static bool _throws(vm_sha256)(const Release release,
+    const uint8_t *call_data, const uint64_t call_size,
+    uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
+{
+    _handles0(_consume_gas)(gas, _gas_sha256(release, call_size));
+    uint256_t hash = sha256(call_data, call_size);
+    return_size = 32;
+    _ensure_capacity(return_data, return_size, return_capacity);
+    uint256_t::to(hash, return_data, return_size);
+    return true;
+}
+
+static bool _throws(vm_ripemd160)(const Release release,
+    const uint8_t *call_data, const uint64_t call_size,
+    uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
+{
+    _handles0(_consume_gas)(gas, _gas_ripemd160(release, call_size));
+    uint256_t hash = (uint256_t)ripemd160(call_data, call_size);
+    return_size = 32;
+    _ensure_capacity(return_data, return_size, return_capacity);
+    uint256_t::to(hash, return_data, return_size);
+    return true;
+}
+
+static bool _throws(vm_datacopy)(const Release release,
+    const uint8_t *call_data, const uint64_t call_size,
+    uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
+{
+    _handles0(_consume_gas)(gas, _gas_datacopy(release, call_size));
+    return_size = call_size;
+    _ensure_capacity(return_data, return_size, return_capacity);
+    for (uint64_t i = 0; i < return_size; i++) return_data[i] = call_data[i];
+    return true;
+}
+
+static bool _throws(vm_bigmodexp)(const Release release,
+    const uint8_t *call_data, const uint64_t call_size,
+    uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
+{
+    uint64_t size1 = 3 * 32;
+    uint8_t buffer1[size1];
+    uint64_t minsize1 = _min(size1, call_size);
+    for (uint64_t i = 0; i < minsize1; i++) buffer1[i] = call_data[i];
+    for (uint64_t i = minsize1; i < size1; i++) buffer1[i] = 0;
+    uint64_t offset1 = 0;
+    uint256_t _base_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
+    uint256_t _exp_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
+    uint256_t _mod_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
+    if (((_base_len + _exp_len + _mod_len) >> 64) > 0) _throw0(OUTOFBOUND_INDEX);
+    uint64_t base_len = _base_len.cast64();
+    uint64_t exp_len = _exp_len.cast64();
+    uint64_t mod_len = _mod_len.cast64();
+    uint64_t size2 = base_len + exp_len + mod_len;
+    uint8_t buffer2[size2];
+    uint64_t minsize2 = _min(size2, call_size - minsize1);
+    for (uint64_t i = 0; i < minsize2; i++) buffer2[i] = call_data[minsize1 + i];
+    for (uint64_t i = minsize2; i < size2; i++) buffer2[i] = 0;
+    uint64_t offset2 = 0;
+    bigint base = bigint::from(&buffer2[offset2], base_len); offset2 += base_len;
+    bigint exp = bigint::from(&buffer2[offset2], exp_len); offset2 += exp_len;
+    bigint mod = bigint::from(&buffer2[offset2], mod_len); offset2 += mod_len;
+    _handles0(_consume_gas)(gas, _gas_bigmodexp(release, base_len, exp_len, mod_len, exp));
+    bigint res = mod == 0 ? 0 : bigint::powmod(base, exp, mod);
+    return_size = mod_len;
+    _ensure_capacity(return_data, return_size, return_capacity);
+    bigint::to(res, return_data, return_size);
+    return true;
+}
+
+static bool _throws(vm_bn256add)(const Release release,
+    const uint8_t *call_data, const uint64_t call_size,
+    uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
+{
+    _handles0(_consume_gas)(gas, _gas_bn256add(release));
+    if (call_size != 2 * 2 * 32) _throw0(INVALID_SIZE);
+    uint64_t call_offset = 0;
+    uint256_t x1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
+    uint256_t y1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
+    uint256_t x2 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
+    uint256_t y2 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
+    if (mod_bn_t(x1).as256() != x1) _throw0(INVALID_ENCODING);
+    if (mod_bn_t(y1).as256() != y1) _throw0(INVALID_ENCODING);
+    if (mod_bn_t(x2).as256() != x2) _throw0(INVALID_ENCODING);
+    if (mod_bn_t(y2).as256() != y2) _throw0(INVALID_ENCODING);
+    point_bn_t p1 = point_bn_t(x1, y1);
+    point_bn_t p2 = point_bn_t(x2, y2);
+    if (x1 == 0 && y1 == 0) p1 = point_bn_t::inf();
+    else if (!p1.belongs()) _throw0(INVALID_ENCODING);
+    if (x2 == 0 && y2 == 0) p2 = point_bn_t::inf();
+    else if (!p2.belongs()) _throw0(INVALID_ENCODING);
+    point_bn_t p3 = p1 + p2;
+    return_size = 2 * 32;
+    _ensure_capacity(return_data, return_size, return_capacity);
+    uint512_t::to(p3.as512(), return_data);
+    return true;
+}
+
+static bool _throws(vm_bn256scalarmul)(const Release release,
+    const uint8_t *call_data, const uint64_t call_size,
+    uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
+{
+    _handles0(_consume_gas)(gas, _gas_bn256scalarmul(release));
+    if (call_size != 2 * 32 + 32) _throw0(INVALID_SIZE);
+    uint64_t call_offset = 0;
+    uint256_t x1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
+    uint256_t y1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
+    uint256_t e = uint256_t::from(&call_data[call_offset]); call_offset += 32;
+    if (mod_bn_t(x1).as256() != x1) _throw0(INVALID_ENCODING);
+    if (mod_bn_t(y1).as256() != y1) _throw0(INVALID_ENCODING);
+    point_bn_t p1 = point_bn_t(x1, y1);
+    if (x1 == 0 && y1 == 0) p1 = point_bn_t::inf();
+    else if (!p1.belongs()) _throw0(INVALID_ENCODING);
+    point_bn_t p2 = p1 * e;
+    return_size = 2 * 32;
+    _ensure_capacity(return_data, return_size, return_capacity);
+    uint512_t::to(p2.as512(), return_data);
+    return true;
+}
+
+static bool _throws(vm_bn256pairing)(const Release release,
+    const uint8_t *call_data, const uint64_t call_size,
+    uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
+{
+    if (call_size % (2 * 32 + 2 * 2 * 32) != 0) _throw0(INVALID_SIZE);
+    uint64_t count = call_size / (2 * 32 + 2 * 2 * 32);
+    _handles0(_consume_gas)(gas, _gas_bn256pairing(release, count));
+    G1 curve_points[count];
+    G2 twist_points[count];
+    uint64_t call_offset = 0;
+    for (uint64_t i = 0; i < count; i++) {
+        bigint x1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+        bigint y1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+        if (x1 >= P) _throw0(INVALID_ENCODING);
+        if (y1 >= P) _throw0(INVALID_ENCODING);
+        G1 g1 = G1(x1, y1);
+        if (!(x1 == 0 && y1 == 0)) {
+            if (!g1.is_valid()) _throw0(INVALID_ENCODING);
+        }
+        curve_points[i] = g1;
+        bigint xx2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+        bigint xy2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+        bigint yx2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+        bigint yy2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+        if (xx2 >= P) _throw0(INVALID_ENCODING);
+        if (xy2 >= P) _throw0(INVALID_ENCODING);
+        if (yx2 >= P) _throw0(INVALID_ENCODING);
+        if (yy2 >= P) _throw0(INVALID_ENCODING);
+        G2 g2 = G2(Gen2(xx2, xy2), Gen2(yx2, yy2));
+        if (!(xx2 == 0 && xy2 == 0 && yx2 == 0 && yy2 == 0)) {
+            if (!g2.is_valid()) _throw0(INVALID_ENCODING);
+        }
+        twist_points[i] = g2;
+    }
+    bool pairs = bn256pairing(curve_points, twist_points, count);
+    return_size = 32;
+    _ensure_capacity(return_data, return_size, return_capacity);
+    uint256_t::to(pairs, return_data);
+    return true;
+}
+
+static bool _throws(vm_blake2f)(const Release release,
+    const uint8_t *call_data, const uint64_t call_size,
+    uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
+{
+    if (call_size != 4 + 8 * 8 + 16 * 8 + 2 * 8 + 1) _throw0(INVALID_SIZE);
+    if (call_data[call_size-1] > 1) _throw0(INVALID_ENCODING);
+    uint64_t call_offset = 0;
+    uint32_t rounds = b2w32be(&call_data[call_offset]); call_offset += 4;
+    _handles0(_consume_gas)(gas, _gas_blake2f(release, rounds));
+    uint64_t h0 = b2w64le(&call_data[call_offset]); call_offset += 8;
+    uint64_t h1 = b2w64le(&call_data[call_offset]); call_offset += 8;
+    uint64_t h2 = b2w64le(&call_data[call_offset]); call_offset += 8;
+    uint64_t h3 = b2w64le(&call_data[call_offset]); call_offset += 8;
+    uint64_t h4 = b2w64le(&call_data[call_offset]); call_offset += 8;
+    uint64_t h5 = b2w64le(&call_data[call_offset]); call_offset += 8;
+    uint64_t h6 = b2w64le(&call_data[call_offset]); call_offset += 8;
+    uint64_t h7 = b2w64le(&call_data[call_offset]); call_offset += 8;
+    uint64_t w[16];
+    for (int i = 0; i < 16; i++) { w[i] = b2w64le(&call_data[call_offset]); call_offset += 8; }
+    uint64_t t0 = b2w64le(&call_data[call_offset]); call_offset += 8;
+    uint64_t t1 = b2w64le(&call_data[call_offset]); call_offset += 8;
+    bool last_chunk = call_data[call_size-1] > 0;
+    blake2f(rounds,
+        h0, h1, h2, h3,
+        h4, h5, h6, h7,
+        w, t0, t1, last_chunk);
+    return_size = 8 * 8;
+    _ensure_capacity(return_data, return_size, return_capacity);
+    uint64_t return_offset = 0;
+    w2b64le(h0, &return_data[return_offset]); return_offset += 8;
+    w2b64le(h1, &return_data[return_offset]); return_offset += 8;
+    w2b64le(h2, &return_data[return_offset]); return_offset += 8;
+    w2b64le(h3, &return_data[return_offset]); return_offset += 8;
+    w2b64le(h4, &return_data[return_offset]); return_offset += 8;
+    w2b64le(h5, &return_data[return_offset]); return_offset += 8;
+    w2b64le(h6, &return_data[return_offset]); return_offset += 8;
+    w2b64le(h7, &return_data[return_offset]); return_offset += 8;
+    return true;
+}
+
 static bool _throws(vm_run)(const Release release, Block &block, Storage &storage,
     const uint160_t &origin_address, const uint256_t &gas_price,
     const uint160_t &owner_address, const uint8_t *code, const uint64_t code_size,
@@ -4816,190 +5038,58 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
             if ((pre[release] & (_1 << opc)) == 0) {
                 switch (opc) {
                 case ECRECOVER: {
-                    _handles0(_consume_gas)(gas, _gas_ecrecover(release));
-                    uint64_t size = 32 + 32 + 32 + 32;
-                    uint8_t buffer[size];
-                    uint64_t minsize = _min(size, call_size);
-                    for (uint64_t i = 0; i < minsize; i++) buffer[i] = call_data[i];
-                    for (uint64_t i = minsize; i < size; i++) buffer[i] = 0;
-                    uint64_t offset = 0;
-                    uint256_t h = uint256_t::from(&buffer[offset]); offset += 32;
-                    uint256_t v = uint256_t::from(&buffer[offset]); offset += 32;
-                    uint256_t r = uint256_t::from(&buffer[offset]); offset += 32;
-                    uint256_t s = uint256_t::from(&buffer[offset]); offset += 32;
-                    uint256_t address = (uint256_t)_handles0(ecrecover)(h, v, r, s);
-                    return_size = 32;
-                    _ensure_capacity(return_data, return_size, return_capacity);
-                    uint256_t::to(address, return_data, return_size);
-                    return true;
+                    bool success = _handles0(vm_ecrecover)(release,
+                        call_data, call_size,
+                        return_data, return_size, return_capacity, gas);
+                    return success;
                 }
                 case SHA256: {
-                    _handles0(_consume_gas)(gas, _gas_sha256(release, call_size));
-                    uint256_t hash = sha256(call_data, call_size);
-                    return_size = 32;
-                    _ensure_capacity(return_data, return_size, return_capacity);
-                    uint256_t::to(hash, return_data, return_size);
-                    return true;
+                    bool success = _handles0(vm_sha256)(release,
+                        call_data, call_size,
+                        return_data, return_size, return_capacity, gas);
+                    return success;
                 }
                 case RIPEMD160: {
-                    _handles0(_consume_gas)(gas, _gas_ripemd160(release, call_size));
-                    uint256_t hash = (uint256_t)ripemd160(call_data, call_size);
-                    return_size = 32;
-                    _ensure_capacity(return_data, return_size, return_capacity);
-                    uint256_t::to(hash, return_data, return_size);
-                    return true;
+                    bool success = _handles0(vm_ripemd160)(release,
+                        call_data, call_size,
+                        return_data, return_size, return_capacity, gas);
+                    return success;
                 }
                 case DATACOPY: {
-                    _handles0(_consume_gas)(gas, _gas_datacopy(release, call_size));
-                    return_size = call_size;
-                    _ensure_capacity(return_data, return_size, return_capacity);
-                    for (uint64_t i = 0; i < return_size; i++) return_data[i] = call_data[i];
-                    return true;
+                    bool success = _handles0(vm_datacopy)(release,
+                        call_data, call_size,
+                        return_data, return_size, return_capacity, gas);
+                    return success;
                 }
                 case BIGMODEXP: {
-                    uint64_t size1 = 3 * 32;
-                    uint8_t buffer1[size1];
-                    uint64_t minsize1 = _min(size1, call_size);
-                    for (uint64_t i = 0; i < minsize1; i++) buffer1[i] = call_data[i];
-                    for (uint64_t i = minsize1; i < size1; i++) buffer1[i] = 0;
-                    uint64_t offset1 = 0;
-                    uint256_t _base_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
-                    uint256_t _exp_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
-                    uint256_t _mod_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
-                    if (((_base_len + _exp_len + _mod_len) >> 64) > 0) _throw0(OUTOFBOUND_INDEX);
-                    uint64_t base_len = _base_len.cast64();
-                    uint64_t exp_len = _exp_len.cast64();
-                    uint64_t mod_len = _mod_len.cast64();
-                    uint64_t size2 = base_len + exp_len + mod_len;
-                    uint8_t buffer2[size2];
-                    uint64_t minsize2 = _min(size2, call_size - minsize1);
-                    for (uint64_t i = 0; i < minsize2; i++) buffer2[i] = call_data[minsize1 + i];
-                    for (uint64_t i = minsize2; i < size2; i++) buffer2[i] = 0;
-                    uint64_t offset2 = 0;
-                    bigint base = bigint::from(&buffer2[offset2], base_len); offset2 += base_len;
-                    bigint exp = bigint::from(&buffer2[offset2], exp_len); offset2 += exp_len;
-                    bigint mod = bigint::from(&buffer2[offset2], mod_len); offset2 += mod_len;
-                    _handles0(_consume_gas)(gas, _gas_bigmodexp(release, base_len, exp_len, mod_len, exp));
-                    bigint res = mod == 0 ? 0 : bigint::powmod(base, exp, mod);
-                    return_size = mod_len;
-                    _ensure_capacity(return_data, return_size, return_capacity);
-                    bigint::to(res, return_data, return_size);
-                    return true;
+                    bool success = _handles0(vm_bigmodexp)(release,
+                        call_data, call_size,
+                        return_data, return_size, return_capacity, gas);
+                    return success;
                 }
                 case BN256ADD: {
-                    _handles0(_consume_gas)(gas, _gas_bn256add(release));
-                    if (call_size != 2 * 2 * 32) _throw0(INVALID_SIZE);
-                    uint64_t call_offset = 0;
-                    uint256_t x1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
-                    uint256_t y1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
-                    uint256_t x2 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
-                    uint256_t y2 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
-                    if (mod_bn_t(x1).as256() != x1) _throw0(INVALID_ENCODING);
-                    if (mod_bn_t(y1).as256() != y1) _throw0(INVALID_ENCODING);
-                    if (mod_bn_t(x2).as256() != x2) _throw0(INVALID_ENCODING);
-                    if (mod_bn_t(y2).as256() != y2) _throw0(INVALID_ENCODING);
-                    point_bn_t p1 = point_bn_t(x1, y1);
-                    point_bn_t p2 = point_bn_t(x2, y2);
-                    if (x1 == 0 && y1 == 0) p1 = point_bn_t::inf();
-                    else if (!p1.belongs()) _throw0(INVALID_ENCODING);
-                    if (x2 == 0 && y2 == 0) p2 = point_bn_t::inf();
-                    else if (!p2.belongs()) _throw0(INVALID_ENCODING);
-                    point_bn_t p3 = p1 + p2;
-                    return_size = 2 * 32;
-                    _ensure_capacity(return_data, return_size, return_capacity);
-                    uint512_t::to(p3.as512(), return_data);
-                    return true;
+                    bool success = _handles0(vm_bn256add)(release,
+                        call_data, call_size,
+                        return_data, return_size, return_capacity, gas);
+                    return success;
                 }
                 case BN256SCALARMUL: {
-                    _handles0(_consume_gas)(gas, _gas_bn256scalarmul(release));
-                    if (call_size != 2 * 32 + 32) _throw0(INVALID_SIZE);
-                    uint64_t call_offset = 0;
-                    uint256_t x1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
-                    uint256_t y1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
-                    uint256_t e = uint256_t::from(&call_data[call_offset]); call_offset += 32;
-                    if (mod_bn_t(x1).as256() != x1) _throw0(INVALID_ENCODING);
-                    if (mod_bn_t(y1).as256() != y1) _throw0(INVALID_ENCODING);
-                    point_bn_t p1 = point_bn_t(x1, y1);
-                    if (x1 == 0 && y1 == 0) p1 = point_bn_t::inf();
-                    else if (!p1.belongs()) _throw0(INVALID_ENCODING);
-                    point_bn_t p2 = p1 * e;
-                    return_size = 2 * 32;
-                    _ensure_capacity(return_data, return_size, return_capacity);
-                    uint512_t::to(p2.as512(), return_data);
-                    return true;
+                    bool success = _handles0(vm_bn256scalarmul)(release,
+                        call_data, call_size,
+                        return_data, return_size, return_capacity, gas);
+                    return success;
                 }
                 case BN256PAIRING: {
-                    if (call_size % (2 * 32 + 2 * 2 * 32) != 0) _throw0(INVALID_SIZE);
-                    uint64_t count = call_size / (2 * 32 + 2 * 2 * 32);
-                    _handles0(_consume_gas)(gas, _gas_bn256pairing(release, count));
-                    G1 curve_points[count];
-                    G2 twist_points[count];
-                    uint64_t call_offset = 0;
-                    for (uint64_t i = 0; i < count; i++) {
-                        bigint x1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
-                        bigint y1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
-                        if (x1 >= P) _throw0(INVALID_ENCODING);
-                        if (y1 >= P) _throw0(INVALID_ENCODING);
-                        G1 g1 = G1(x1, y1);
-                        if (!(x1 == 0 && y1 == 0)) {
-                            if (!g1.is_valid()) _throw0(INVALID_ENCODING);
-                        }
-                        curve_points[i] = g1;
-                        bigint xx2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
-                        bigint xy2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
-                        bigint yx2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
-                        bigint yy2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
-                        if (xx2 >= P) _throw0(INVALID_ENCODING);
-                        if (xy2 >= P) _throw0(INVALID_ENCODING);
-                        if (yx2 >= P) _throw0(INVALID_ENCODING);
-                        if (yy2 >= P) _throw0(INVALID_ENCODING);
-                        G2 g2 = G2(Gen2(xx2, xy2), Gen2(yx2, yy2));
-                        if (!(xx2 == 0 && xy2 == 0 && yx2 == 0 && yy2 == 0)) {
-                            if (!g2.is_valid()) _throw0(INVALID_ENCODING);
-                        }
-                        twist_points[i] = g2;
-                    }
-                    bool pairs = bn256pairing(curve_points, twist_points, count);
-                    return_size = 32;
-                    _ensure_capacity(return_data, return_size, return_capacity);
-                    uint256_t::to(pairs, return_data);
-                    return true;
+                    bool success = _handles0(vm_bn256pairing)(release,
+                        call_data, call_size,
+                        return_data, return_size, return_capacity, gas);
+                    return success;
                 }
                 case BLAKE2F: {
-                    if (call_size != 4 + 8 * 8 + 16 * 8 + 2 * 8 + 1) _throw0(INVALID_SIZE);
-                    if (call_data[call_size-1] > 1) _throw0(INVALID_ENCODING);
-                    uint64_t call_offset = 0;
-                    uint32_t rounds = b2w32be(&call_data[call_offset]); call_offset += 4;
-                    _handles0(_consume_gas)(gas, _gas_blake2f(release, rounds));
-                    uint64_t h0 = b2w64le(&call_data[call_offset]); call_offset += 8;
-                    uint64_t h1 = b2w64le(&call_data[call_offset]); call_offset += 8;
-                    uint64_t h2 = b2w64le(&call_data[call_offset]); call_offset += 8;
-                    uint64_t h3 = b2w64le(&call_data[call_offset]); call_offset += 8;
-                    uint64_t h4 = b2w64le(&call_data[call_offset]); call_offset += 8;
-                    uint64_t h5 = b2w64le(&call_data[call_offset]); call_offset += 8;
-                    uint64_t h6 = b2w64le(&call_data[call_offset]); call_offset += 8;
-                    uint64_t h7 = b2w64le(&call_data[call_offset]); call_offset += 8;
-                    uint64_t w[16];
-                    for (int i = 0; i < 16; i++) { w[i] = b2w64le(&call_data[call_offset]); call_offset += 8; }
-                    uint64_t t0 = b2w64le(&call_data[call_offset]); call_offset += 8;
-                    uint64_t t1 = b2w64le(&call_data[call_offset]); call_offset += 8;
-                    bool last_chunk = call_data[call_size-1] > 0;
-                    blake2f(rounds,
-                        h0, h1, h2, h3,
-                        h4, h5, h6, h7,
-                        w, t0, t1, last_chunk);
-                    return_size = 8 * 8;
-                    _ensure_capacity(return_data, return_size, return_capacity);
-                    uint64_t return_offset = 0;
-                    w2b64le(h0, &return_data[return_offset]); return_offset += 8;
-                    w2b64le(h1, &return_data[return_offset]); return_offset += 8;
-                    w2b64le(h2, &return_data[return_offset]); return_offset += 8;
-                    w2b64le(h3, &return_data[return_offset]); return_offset += 8;
-                    w2b64le(h4, &return_data[return_offset]); return_offset += 8;
-                    w2b64le(h5, &return_data[return_offset]); return_offset += 8;
-                    w2b64le(h6, &return_data[return_offset]); return_offset += 8;
-                    w2b64le(h7, &return_data[return_offset]); return_offset += 8;
-                    return true;
+                    bool success = _handles0(vm_blake2f)(release,
+                        call_data, call_size,
+                        return_data, return_size, return_capacity, gas);
+                    return success;
                 }
                 default: break;
                 }
