@@ -3,7 +3,10 @@
 #include <stdlib.h>
 #include <new>
 
+#define inline
+
 #ifndef NDEBUG
+#define inline inline
 #include <cstdlib>
 #endif // NDEBUG
 
@@ -4811,7 +4814,7 @@ static inline void _ensure_capacity(uint8_t *&data, uint64_t &size, uint64_t &ca
 
 // precompiled contracts
 
-static void _throws(vm_ecrecover)(const Release release,
+static void _throws(vm_ecrecover)(Release release,
     const uint8_t *call_data, const uint64_t call_size,
     uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
 {
@@ -4832,7 +4835,7 @@ static void _throws(vm_ecrecover)(const Release release,
     uint256_t::to(address, return_data, return_size);
 }
 
-static void _throws(vm_sha256)(const Release release,
+static void _throws(vm_sha256)(Release release,
     const uint8_t *call_data, const uint64_t call_size,
     uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
 {
@@ -4843,7 +4846,7 @@ static void _throws(vm_sha256)(const Release release,
     uint256_t::to(hash, return_data, return_size);
 }
 
-static void _throws(vm_ripemd160)(const Release release,
+static void _throws(vm_ripemd160)(Release release,
     const uint8_t *call_data, const uint64_t call_size,
     uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
 {
@@ -4854,7 +4857,7 @@ static void _throws(vm_ripemd160)(const Release release,
     uint256_t::to(hash, return_data, return_size);
 }
 
-static void _throws(vm_datacopy)(const Release release,
+static void _throws(vm_datacopy)(Release release,
     const uint8_t *call_data, const uint64_t call_size,
     uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
 {
@@ -4864,7 +4867,7 @@ static void _throws(vm_datacopy)(const Release release,
     for (uint64_t i = 0; i < return_size; i++) return_data[i] = call_data[i];
 }
 
-static void _throws(vm_bigmodexp)(const Release release,
+static void _throws(vm_bigmodexp)(Release release,
     const uint8_t *call_data, const uint64_t call_size,
     uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
 {
@@ -4897,7 +4900,7 @@ static void _throws(vm_bigmodexp)(const Release release,
     bigint::to(res, return_data, return_size);
 }
 
-static void _throws(vm_bn256add)(const Release release,
+static void _throws(vm_bn256add)(Release release,
     const uint8_t *call_data, const uint64_t call_size,
     uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
 {
@@ -4924,7 +4927,7 @@ static void _throws(vm_bn256add)(const Release release,
     uint512_t::to(p3.as512(), return_data);
 }
 
-static void _throws(vm_bn256scalarmul)(const Release release,
+static void _throws(vm_bn256scalarmul)(Release release,
     const uint8_t *call_data, const uint64_t call_size,
     uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
 {
@@ -4945,7 +4948,7 @@ static void _throws(vm_bn256scalarmul)(const Release release,
     uint512_t::to(p2.as512(), return_data);
 }
 
-static void _throws(vm_bn256pairing)(const Release release,
+static void _throws(vm_bn256pairing)(Release release,
     const uint8_t *call_data, const uint64_t call_size,
     uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
 {
@@ -4985,7 +4988,7 @@ static void _throws(vm_bn256pairing)(const Release release,
     uint256_t::to(pairs, return_data);
 }
 
-static void _throws(vm_blake2f)(const Release release,
+static void _throws(vm_blake2f)(Release release,
     const uint8_t *call_data, const uint64_t call_size,
     uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
 {
@@ -5026,7 +5029,7 @@ static void _throws(vm_blake2f)(const Release release,
 
 // opcodes
 
-static bool _throws(vm_run)(const Release release, Block &block, Storage &storage,
+static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
     const uint160_t &origin_address, const uint256_t &gas_price,
     const uint160_t &owner_address, const uint8_t *code, const uint64_t code_size,
     const uint160_t &caller_address, const uint256_t &call_value, const uint8_t *call_data, const uint64_t call_size,
@@ -5037,66 +5040,50 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
     if (code_size == 0) {
         if ((intptr_t)code < 256) {
             uint8_t opc = (intptr_t)code;
-#ifndef NDEBUG
-            if (std::getenv("EVM_DEBUG")) std::cout << prenames[opc] << std::endl;
-#endif // NDEBUG
             if ((pre[release] & (_1 << opc)) == 0) {
+#ifndef NDEBUG
+                if (std::getenv("EVM_DEBUG")) std::cout << prenames[opc] << std::endl;
+#endif // NDEBUG
                 switch (opc) {
                 case ECRECOVER: {
-                    _handles0(vm_ecrecover)(release,
-                        call_data, call_size,
-                        return_data, return_size, return_capacity, gas);
+                    _handles0(vm_ecrecover)(release, call_data, call_size, return_data, return_size, return_capacity, gas);
                     return true;
                 }
                 case SHA256: {
-                    _handles0(vm_sha256)(release,
-                        call_data, call_size,
-                        return_data, return_size, return_capacity, gas);
+                    _handles0(vm_sha256)(release, call_data, call_size, return_data, return_size, return_capacity, gas);
                     return true;
                 }
                 case RIPEMD160: {
-                    _handles0(vm_ripemd160)(release,
-                        call_data, call_size,
-                        return_data, return_size, return_capacity, gas);
+                    _handles0(vm_ripemd160)(release, call_data, call_size, return_data, return_size, return_capacity, gas);
                     return true;
                 }
                 case DATACOPY: {
-                    _handles0(vm_datacopy)(release,
-                        call_data, call_size,
-                        return_data, return_size, return_capacity, gas);
+                    _handles0(vm_datacopy)(release, call_data, call_size, return_data, return_size, return_capacity, gas);
                     return true;
                 }
                 case BIGMODEXP: {
-                    _handles0(vm_bigmodexp)(release,
-                        call_data, call_size,
-                        return_data, return_size, return_capacity, gas);
+                    _handles0(vm_bigmodexp)(release, call_data, call_size, return_data, return_size, return_capacity, gas);
                     return true;
                 }
                 case BN256ADD: {
-                    _handles0(vm_bn256add)(release,
-                        call_data, call_size,
-                        return_data, return_size, return_capacity, gas);
+                    _handles0(vm_bn256add)(release, call_data, call_size, return_data, return_size, return_capacity, gas);
                     return true;
                 }
                 case BN256SCALARMUL: {
-                    _handles0(vm_bn256scalarmul)(release,
-                        call_data, call_size,
-                        return_data, return_size, return_capacity, gas);
+                    _handles0(vm_bn256scalarmul)(release, call_data, call_size, return_data, return_size, return_capacity, gas);
                     return true;
                 }
+#ifndef NDEBUG
                 case BN256PAIRING: {
-                    _handles0(vm_bn256pairing)(release,
-                        call_data, call_size,
-                        return_data, return_size, return_capacity, gas);
+                    _handles0(vm_bn256pairing)(release, call_data, call_size, return_data, return_size, return_capacity, gas);
                     return true;
                 }
+#endif // NDEBUG
                 case BLAKE2F: {
-                    _handles0(vm_blake2f)(release,
-                        call_data, call_size,
-                        return_data, return_size, return_capacity, gas);
+                    _handles0(vm_blake2f)(release, call_data, call_size, return_data, return_size, return_capacity, gas);
                     return true;
                 }
-                default: break;
+                default: assert(false);
                 }
             }
         }
@@ -5723,7 +5710,7 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
             return_size = 0;
             return true;
         }
-        default: _throw0(INVALID_OPCODE);
+        default: assert(false);
         }
     }
 }

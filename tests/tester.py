@@ -405,7 +405,7 @@ int main()
 }
 """
 
-    filename = "/tmp/tx_" + name
+    filename = "/tmp/vm_" + name
     writeFile(filename + ".cpp", src)
     compileFile(filename + ".cpp", filename);
     result = execFile(filename)
@@ -663,9 +663,10 @@ int main()
 }
 """
 
-    writeFile("/tmp/" + name + ".cpp", src)
-    compileFile("/tmp/" + name + ".cpp", "/tmp/" + name);
-    result = execFile("/tmp/" + name)
+    filename = "/tmp/gs_" + name
+    writeFile(filename + ".cpp", src)
+    compileFile(filename + ".cpp", filename);
+    result = execFile(filename)
     if result != 0: _report("Test failure")
 
 def vmTests(filt):
