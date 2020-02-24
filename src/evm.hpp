@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include <new>
 
+#ifndef NDEBUG
+#include <cstdlib>
+#endif // NDEBUG
+
 #ifndef EVM_HPP
 #define EVM_HPP
 
@@ -29,7 +33,7 @@
     #define _try(C, X, H) { Error _ex = NONE; switch(0) { default: { C } } if (_ex != NONE) { X = _ex; { H } } }
     #define _catches(F) F _catches_args
     #define _trythrow(E) { _ex = (E); break; }
-#endif
+#endif // NATIVE_EXCEPTIONS
 
 // error
 
@@ -3049,19 +3053,20 @@ enum Opcode : uint8_t {
     SELFDESTRUCT = 0xff,
 };
 
+#ifndef NDEBUG
 static const char *opcodes[256] = {
     "STOP", "ADD", "MUL", "SUB", "DIV", "SDIV", "MOD", "SMOD",
-    "ADDMOD", "MULMOD", "EXP", "SIGNEXTEND", "?", "?", "?", "?",
+    "ADDMOD", "MULMOD", "EXP", "SIGNEXTEND", "0x0c", "0x0d", "0x0e", "0x0f",
     "LT", "GT", "SLT", "SGT", "EQ", "ISZERO", "AND", "OR",
-    "XOR", "NOT", "BYTE", "SHL", "SHR", "SAR", "?", "?",
-    "SHA3", "?", "?", "?", "?", "?", "?", "?",
-    "?", "?", "?", "?", "?", "?", "?", "?",
+    "XOR", "NOT", "BYTE", "SHL", "SHR", "SAR", "0x1e", "0x1f",
+    "SHA3", "0x21", "0x22", "0x23", "0x24", "0x25", "0x26", "0x27",
+    "0x28", "0x29", "0x2a", "0x2b", "0x2c", "0x2d", "0x2e", "0x2f",
     "ADDRESS", "BALANCE", "ORIGIN", "CALLER", "CALLVALUE", "CALLDATALOAD", "CALLDATASIZE", "CALLDATACOPY",
     "CODESIZE", "CODECOPY", "GASPRICE", "EXTCODESIZE", "EXTCODECOPY", "RETURNDATASIZE", "RETURNDATACOPY", "EXTCODEHASH",
     "BLOCKHASH", "COINBASE", "TIMESTAMP", "NUMBER", "DIFFICULTY", "GASLIMIT", "CHAINID", "SELFBALANCE",
-    "?", "?", "?", "?", "?", "?", "?", "?",
+    "0x48", "0x49", "0x4a", "0x4b", "0x4c", "0x4d", "0x4e", "0x4f",
     "POP", "MLOAD", "MSTORE", "MSTORE8", "SLOAD", "SSTORE", "JUMP", "JUMPI",
-    "PC", "MSIZE", "GAS", "JUMPDEST", "?", "?", "?", "?",
+    "PC", "MSIZE", "GAS", "JUMPDEST", "0x5c", "0x5d", "0x5e", "0x5f",
     "PUSH1", "PUSH2", "PUSH3", "PUSH4", "PUSH5", "PUSH6", "PUSH7", "PUSH8",
     "PUSH9", "PUSH10", "PUSH11", "PUSH12", "PUSH13", "PUSH14", "PUSH15", "PUSH16",
     "PUSH17", "PUSH18", "PUSH19", "PUSH20", "PUSH21", "PUSH22", "PUSH23", "PUSH24",
@@ -3070,19 +3075,20 @@ static const char *opcodes[256] = {
     "DUP9", "DUP10", "DUP11", "DUP12", "DUP13", "DUP14", "DUP15", "DUP16",
     "SWAP1", "SWAP2", "SWAP3", "SWAP4", "SWAP5", "SWAP6", "SWAP7", "SWAP8",
     "SWAP9", "SWAP10", "SWAP11", "SWAP12", "SWAP13", "SWAP14", "SWAP15", "SWAP16",
-    "LOG0", "LOG1", "LOG2", "LOG3", "LOG4", "?", "?", "?",
-    "?", "?", "?", "?", "?", "?", "?", "?",
-    "?", "?", "?", "?", "?", "?", "?", "?",
-    "?", "?", "?", "?", "?", "?", "?", "?",
-    "?", "?", "?", "?", "?", "?", "?", "?",
-    "?", "?", "?", "?", "?", "?", "?", "?",
-    "?", "?", "?", "?", "?", "?", "?", "?",
-    "?", "?", "?", "?", "?", "?", "?", "?",
-    "?", "?", "?", "?", "?", "?", "?", "?",
-    "?", "?", "?", "?", "?", "?", "?", "?",
-    "CREATE", "CALL", "CALLCODE", "RETURN", "DELEGATECALL", "CREATE2", "?", "?",
-    "?", "?", "STATICCALL", "?", "?", "REVERT", "?", "SELFDESTRUCT",
+    "LOG0", "LOG1", "LOG2", "LOG3", "LOG4", "0xa5", "0xa6", "0xa7",
+    "0xa8", "0xa9", "0xaa", "0xab", "0xac", "0xad", "0xae", "0xaf",
+    "0xb0", "0xb1", "0xb2", "0xb3", "0xb4", "0xb5", "0xb6", "0xb7",
+    "0xb8", "0xb9", "0xba", "0xbb", "0xbc", "0xbd", "0xbe", "0xbf",
+    "0xc0", "0xc1", "0xc2", "0xc3", "0xc4", "0xc5", "0xc6", "0xc7",
+    "0xc8", "0xc9", "0xca", "0xcb", "0xcc", "0xcd", "0xce", "0xcf",
+    "0xd0", "0xd1", "0xd2", "0xd3", "0xd4", "0xd5", "0xd6", "0xd7",
+    "0xd8", "0xd9", "0xda", "0xdb", "0xdc", "0xdd", "0xde", "0xdf",
+    "0xe0", "0xe1", "0xe2", "0xe3", "0xe4", "0xe5", "0xe6", "0xe7",
+    "0xe8", "0xe9", "0xea", "0xeb", "0xec", "0xed", "0xee", "0xef",
+    "CREATE", "CALL", "CALLCODE", "RETURN", "DELEGATECALL", "CREATE2", "0xf6", "0xf7",
+    "0xf8", "0xf9", "STATICCALL", "0xfb", "0xfc", "REVERT", "0xfe", "SELFDESTRUCT",
 };
+#endif // NDEBUG
 
 static const uint16_t CALL_DEPTH = 1024;
 
@@ -3416,6 +3422,7 @@ enum Precompiled : uint8_t {
     BLAKE2F,
 };
 
+#ifndef NDEBUG
 static const char *prenames[BLAKE2F+1] = {
     "?",
     "ECRECOVER",
@@ -3428,6 +3435,7 @@ static const char *prenames[BLAKE2F+1] = {
     "BN256PAIRING",
     "BLAKE2F",
 };
+#endif // NDEBUG
 
 enum Release : uint8_t {
     FRONTIER = 0,
@@ -5034,7 +5042,9 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
     if (code_size == 0) {
         if ((intptr_t)code < 256) {
             uint8_t opc = (intptr_t)code;
-//            if (std::getenv("EVM_DEBUG")) std::cout << prenames[opc] << std::endl;
+#ifndef NDEBUG
+            if (std::getenv("EVM_DEBUG")) std::cout << prenames[opc] << std::endl;
+#endif // NDEBUG
             if ((pre[release] & (_1 << opc)) == 0) {
                 switch (opc) {
                 case ECRECOVER: {
@@ -5105,7 +5115,9 @@ static bool _throws(vm_run)(const Release release, Block &block, Storage &storag
     uint8_t pc_valid[(code_size + 7) / 8];
     for (uint64_t pc = 0; ; pc++) {
         uint8_t opc = pc < code_size ? code[pc] : STOP;
-//        if (std::getenv("EVM_DEBUG")) std::cout << opcodes[opc] << std::endl;
+#ifndef NDEBUG
+        if (std::getenv("EVM_DEBUG")) std::cout << opcodes[opc] << std::endl;
+#endif // NDEBUG
         if ((is[release] & (_1 << opc)) == 0) _throw0(INVALID_OPCODE);
         _handles0(_stack_check)(opc, stack.top());
         if (read_only && (is_writes & (_1 << opc)) > 0) _throw0(ILLEGAL_UPDATE);
