@@ -58,7 +58,6 @@ def compileFile(fnamein, fnameout):
         "-Wno-unused-variable",
         "-Wno-unused-but-set-variable",
         "-Wno-unused-function",
-        "-Os",
         "-o",
         fnameout,
         fnamein,
@@ -103,13 +102,13 @@ def codeInitExec(origin, gasprice, address, caller, value, gas, code, data):
     uint64_t data_size = """ + str(len(data) // 4) + """;
 """
 
-def codeInitEnv(timestamp, number, coinbase, gaslimit, difficulty):
+def codeInitEnv(timestamp, number, gaslimit, difficulty, coinbase):
     return """
     uint64_t timestamp = uhex256(\"""" + intToU256(timestamp) + """\").cast64();
     uint64_t number = uhex256(\"""" + intToU256(number) + """\").cast64();
-    uint160_t coinbase = (uint160_t)uhex256(\"""" + intToU256(coinbase) + """\");
     uint64_t gaslimit = uhex256(\"""" + intToU256(gaslimit) + """\").cast64();
     uint64_t difficulty = uhex256(\"""" + intToU256(difficulty) + """\").cast64();
+    uint160_t coinbase = (uint160_t)uhex256(\"""" + intToU256(coinbase) + """\");
 """
 
 def codeInitLocation(location, number):
@@ -275,10 +274,10 @@ int main()
     env = item["env"]
     timestamp = hexToInt(env["currentTimestamp"])
     number = hexToInt(env["currentNumber"])
-    coinbase = hexToInt(env["currentCoinbase"])
     gaslimit = hexToInt(env["currentGasLimit"])
     difficulty = hexToInt(env["currentDifficulty"])
-    src += codeInitEnv(timestamp, number, coinbase, gaslimit, difficulty)
+    coinbase = hexToInt(env["currentCoinbase"])
+    src += codeInitEnv(timestamp, number, gaslimit, difficulty, coinbase)
 
     src += """
     _Block block(timestamp, number, gaslimit, difficulty, coinbase);
