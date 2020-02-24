@@ -537,7 +537,7 @@ private:
 
     // generates a low collision 64-bit id for 64/256-bit acc_id/keys
     static inline uint64_t id64(uint64_t acc_id, const uint256_t &key) {
-        return key.murmur3(acc_id);
+        return acc_id ^ key.murmur3(acc_id);
     }
 
     // generates a low collision 64-bit id for bytecode
