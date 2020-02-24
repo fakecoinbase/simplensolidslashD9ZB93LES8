@@ -1,4 +1,8 @@
-import json, os, subprocess, sys
+#pip install ecdsa --user
+import ecdsa, json, os, subprocess, sys
+
+#signing_key = ecdsa.SigningKey.from_secret_exponent(e, curve=ecdsa.SECP256k1)
+#return (signing_key.verifying_key.pubkey.point.x(), signing_key.verifying_key.pubkey.point.y())
 
 def _report(*msg):
     print("== " + sys.argv[0] + ":", *msg, file=sys.stderr)
@@ -58,6 +62,7 @@ def compileFile(fnamein, fnameout):
         "-Wno-unused-variable",
         "-Wno-unused-but-set-variable",
         "-Wno-unused-function",
+        "-Os",
         "-o",
         fnameout,
         fnamein,
@@ -246,17 +251,17 @@ def codeDoneGas(fgas):
     }
 """
 
-def codeDoneRlp(sender, _hash):
+def codeDoneRlp(_hash, sender):
     return """
-    uint256_t _hash = uhex256(\"""" + intToU256(_hash) + """\");
-    if (h != _hash) {
-        std::cerr << "post: invalid hash " << _hash << std::endl;
+    uint256_t _h = uhex256(\"""" + intToU256(_hash) + """\");
+    if (h != _h) {
+        std::cerr << "post: invalid hash " << h << " " << _h << std::endl;
         return 1;
     }
 
-    uint160_t sender = (uint160_t)uhex256(\"""" + intToU256(sender) + """\");
-    if (sender != sender) {
-        std::cerr << "post: invalid sender " << " " << sender << std::endl;
+    uint160_t _from = (uint160_t)uhex256(\"""" + intToU256(sender) + """\");
+    if (from != _from) {
+        std::cerr << "post: invalid sender" << std::endl;
         return 1;
     }
 """
@@ -374,108 +379,118 @@ int main()
 }
 """
 
-    writeFile("/tmp/" + name + ".cpp", src)
-    compileFile("/tmp/" + name + ".cpp", "/tmp/" + name);
-    result = execFile("/tmp/" + name)
-    if result != 0:
-        _report("Test failure")
+    filename = "/tmp/tx_" + name
+    writeFile(filename + ".cpp", src)
+    compileFile(filename + ".cpp", filename);
+    result = execFile(filename)
+    if result != 0: _report("Test failure")
 
 def txTest(name, item, path):
-    src = readFile("../src/evm.cpp")
-
-    src += """
-int main()
-{
-    Release release = ISTANBUL;
-    _Block block;
-"""
+#    print(json.dumps(item, indent=2))
 
     rlp = hexToBin(item["rlp"])
-    src += codeInitRlp(rlp);
 
-    src += """
-    uint256_t h;
-    uint256_t from;
-
-    bool success;
-    try {
-        struct txn txn = decode_txn(buffer, size);
-        if (!txn.is_signed) throw INVALID_TRANSACTION;
-
-        uint256_t offset = 8 + 2 * block.chainid();
-        if (txn.v != 27 && txn.v != 28 && txn.v != 27 + offset && txn.v != 28 + offset) throw INVALID_TRANSACTION;
-
-        {
-            uint256_t v = txn.v;
-            uint256_t r = txn.r;
-            uint256_t s = txn.s;
-            txn.is_signed = v > 28;
-            txn.v = block.chainid();
-            txn.r = 0;
-            txn.s = 0;
-            uint64_t unsigned_size = encode_txn(txn);
-            uint8_t unsigned_buffer[unsigned_size];
-            encode_txn(txn, unsigned_buffer, unsigned_size);
-            h = sha3(unsigned_buffer, unsigned_size);
-            txn.is_signed = true;
-            txn.v = v > 28 ? v - offset : v;
-            txn.r = r;
-            txn.s = s;
-        }
-        from = ecrecover(h, txn.v, txn.r, txn.s);
-
-        success = true;
-        if (std::getenv("EVM_DEBUG")) std::cerr << "tx success " << std::endl;
-    } catch (Error e) {
-        success = false;
-        if (std::getenv("EVM_DEBUG")) std::cerr << "tx exception " << errors[e] << std::endl;
+    releases = {
+      "Frontier": "FRONTIER",
+      "Homestead": "HOMESTEAD",
+      "EIP150": "TANGERINE_WHISTLE",
+      "EIP158": "SPURIOUS_DRAGON",
+      "Byzantium": "BYZANTIUM",
+      "Constantinople": "CONSTANTINOPLE",
+      "ConstantinopleFix": "PETERSBURG",
+      "Istanbul": "ISTANBUL",
     }
-"""
 
-    data = item["Istanbul"];
-    if not "sender" in data:
+    for release_name, release in releases.items():
+        print(release_name)
+
+        src = readFile("../src/evm.cpp")
+        hdr = readFile("../src/evm.hpp")
+        src = src.replace("#include \"evm.hpp\"", hdr)
+
+        data = item[release_name]
 
         src += """
+int main()
+{
+    Release release = """ + release + """;
+"""
+
+        src += codeInitRlp(rlp);
+
+        src += """
+    uint256_t h = 0;
+    uint160_t from = 0;
+    bool success = true;
+    _try({
+        h = sha3(buffer, size);
+        struct txn txn;
+        _catches(decode_txn)(buffer, size, txn);
+        _catches(_verify_txn)(release, txn);
+        uint256_t h2 = _catches(_txn_hash)(txn);
+        if (std::getenv("EVM_DEBUG")) {
+            std::cerr << txn.nonce << std::endl;
+            std::cerr << txn.gasprice << std::endl;
+            std::cerr << txn.gaslimit << std::endl;
+            std::cerr << txn.has_to << std::endl;
+            std::cerr << txn.to << std::endl;
+            std::cerr << txn.value << std::endl;
+            std::cerr << txn.data_size << std::endl;
+            std::cerr << txn.is_signed << std::endl;
+            std::cerr << txn.v << std::endl;
+            std::cerr << txn.r << std::endl;
+            std::cerr << txn.s << std::endl;
+        }
+        from = _catches(ecrecover)(h2, txn.v, txn.r, txn.s);
+    }, Error e, {
+        success = false;
+        if (std::getenv("EVM_DEBUG")) std::cerr << "vm exception " << errors[e] << std::endl;
+    })
+"""
+        if not "hash" in data:
+
+            src += """
     if (success) {
         std::cerr << "post: invalid success on failure" << std::endl;
         return 1;
     }
 """
 
-    else:
+        else:
 
-        src += """
+            src += """
     if (!success) {
         std::cerr << "post: invalid failure on success" << std::endl;
         return 1;
     }
 """
+            _hash = hexToInt(data["hash"])
+            sender = hexToInt(data["sender"])
 
-        sender = hexToInt(data["sender"])
-        _hash = hexToInt(data["hash"])
-        src += codeDoneRlp(sender, _hash);
+            src += codeDoneRlp(_hash, sender);
 
-    src += """
+        src += """
     return 0;
 }
 """
-
-    writeFile("/tmp/" + name + ".cpp", src)
-    compileFile("/tmp/" + name + ".cpp", "/tmp/" + name);
-    result = execFile("/tmp/" + name)
-    if result != 0:
-        _report("Test failure")
+        filename = "/tmp/tx_" + name + "_" + release
+        writeFile(filename + ".cpp", src)
+        compileFile(filename + ".cpp", filename);
+        result = execFile(filename)
+        if result != 0: _report("Test failure")
 
 def gsTest(name, item, path):
     src = readFile("../src/evm.cpp")
+    hdr = readFile("../src/evm.hpp")
+    src = src.replace("#include \"evm.hpp\"", hdr)
 
     # implement
+    print(json.dumps(item, indent=2))
 
     writeFile("/tmp/" + name + ".cpp", src)
     compileFile("/tmp/" + name + ".cpp", "/tmp/" + name);
     result = execFile("/tmp/" + name)
-    if result != 0:
-        _report("Test failure")
+    if result != 0: _report("Test failure")
 
 def vmTests(filt):
     paths = listTests("./tests/VMTests", filePrefixes=[filt])
@@ -503,13 +518,11 @@ def gsTests(filt):
 
 def main():
     filt = sys.argv[1] if len(sys.argv) == 2 else ""
-#    try:
-    vmTests(filt)
-#    except: pass
-#    try: txTests(filt)
-#    except: pass
-#    try: 
-#    gsTests(filt)
+    try: vmTests(filt)
+    except: pass
+    try: txTests(filt)
+    except: pass
+#    try: gsTests(filt)
 #    except: pass
 
 if __name__ == '__main__': main()
