@@ -561,11 +561,11 @@ int main()
     _try({
         if (txn.nonce != storage.get_nonce(from)) _trythrow(NONCE_MISMATCH);
         storage.increment_nonce(from);
-        uint160_t to = txn.has_to ? txn.to : _catches(gen_address)(from, storage.get_nonce(from));
+        uint160_t to = txn.has_to ? txn.to : _catches(gen_contract_address)(from, storage.get_nonce(from));
 
         // check for overflow
         uint64_t gas = txn.gaslimit.cast64();
-        _catches(_consume_gas)(gas, _gas_intrinsic(release, txn.has_to, txn.data, txn.data_size));
+        _catches(consume_gas)(gas, gas_intrinsic(release, txn.has_to, txn.data, txn.data_size));
         uint256_t gas_cost = txn.gaslimit * txn.gasprice;
         if (pays_gas) {
             if (storage.get_balance(from) < gas_cost) _trythrow(INSUFFICIENT_BALANCE);
@@ -614,8 +614,8 @@ int main()
                                 return_data, return_size, return_capacity, gas,
                                 false, 0);
                 if (success) {
-                    _catches(_code_size_check)(release, return_size);
-                    _catches(_consume_gas)(gas, _gas_create(release, return_size));
+                    _catches(code_size_check)(release, return_size);
+                    _catches(consume_gas)(gas, gas_create(release, return_size));
                     storage.register_code(to, return_data, return_size);
                 }
             }
@@ -631,7 +631,7 @@ int main()
 
         uint64_t refund_gas = storage.get_refund();
         uint64_t used_gas = txn.gaslimit.cast64() - gas;
-        _refund_gas(gas, _min(refund_gas, used_gas / 2));
+        credit_gas(gas, _min(refund_gas, used_gas / 2));
         if (pays_gas) storage.add_balance(from, gas * txn.gasprice);
 
         storage.flush();
