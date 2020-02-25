@@ -4848,9 +4848,9 @@ static inline void _throws(stack_check)(uint8_t opc, uint64_t stacktop)
 }
 
 // handy routine to check memory bounds
-static inline void _throws(memory_check)(const uint256_t &offset, const uint256_t &size)
+static inline void _throws(memory_check)(uint256_t &offset, const uint256_t &size)
 {
-    // TODO
+    if (size == 0) { offset = 0; return; }
     if ((size >> 64) > 0) _throw(OUTOFBOUNDS_VALUE);
     if ((offset >> 64) > 0) _throw(OUTOFBOUNDS_VALUE);
     if (((offset + size) >> 64) > 0) _throw(OUTOFBOUNDS_VALUE);
