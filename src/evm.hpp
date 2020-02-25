@@ -4984,12 +4984,10 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                     _handles0(vm_bn256scalarmul)(release, call_data, call_size, return_data, return_size, return_capacity, gas);
                     return true;
                 }
-#ifndef NDEBUG
                 case BN256PAIRING: {
                     _handles0(vm_bn256pairing)(release, call_data, call_size, return_data, return_size, return_capacity, gas);
                     return true;
                 }
-#endif // NDEBUG
                 case BLAKE2F: {
                     _handles0(vm_blake2f)(release, call_data, call_size, return_data, return_size, return_capacity, gas);
                     return true;
@@ -5213,70 +5211,31 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
         case MSIZE: { stack.push(memory.size()); break; }
         case GAS: { stack.push(gas); break; }
         case JUMPDEST: { break; }
-        case PUSH1: { const int n = 1; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH2: { const int n = 2; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH3: { const int n = 3; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH4: { const int n = 4; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH5: { const int n = 5; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH6: { const int n = 6; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH7: { const int n = 7; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH8: { const int n = 8; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH9: { const int n = 9; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH10: { const int n = 10; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH11: { const int n = 11; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH12: { const int n = 12; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH13: { const int n = 13; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH14: { const int n = 14; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH15: { const int n = 15; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH16: { const int n = 16; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH17: { const int n = 17; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH18: { const int n = 18; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH19: { const int n = 19; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH20: { const int n = 20; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH21: { const int n = 21; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH22: { const int n = 22; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH23: { const int n = 23; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH24: { const int n = 24; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH25: { const int n = 25; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH26: { const int n = 26; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH27: { const int n = 27; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH28: { const int n = 28; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH29: { const int n = 29; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH30: { const int n = 30; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH31: { const int n = 31; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case PUSH32: { const int n = 32; uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1))); stack.push(v1); pc += n; break; }
-        case DUP1: { uint256_t v1 = stack[1]; stack.push(v1); break; }
-        case DUP2: { uint256_t v1 = stack[2]; stack.push(v1); break; }
-        case DUP3: { uint256_t v1 = stack[3]; stack.push(v1); break; }
-        case DUP4: { uint256_t v1 = stack[4]; stack.push(v1); break; }
-        case DUP5: { uint256_t v1 = stack[5]; stack.push(v1); break; }
-        case DUP6: { uint256_t v1 = stack[6]; stack.push(v1); break; }
-        case DUP7: { uint256_t v1 = stack[7]; stack.push(v1); break; }
-        case DUP8: { uint256_t v1 = stack[8]; stack.push(v1); break; }
-        case DUP9: { uint256_t v1 = stack[9]; stack.push(v1); break; }
-        case DUP10: { uint256_t v1 = stack[10]; stack.push(v1); break; }
-        case DUP11: { uint256_t v1 = stack[11]; stack.push(v1); break; }
-        case DUP12: { uint256_t v1 = stack[12]; stack.push(v1); break; }
-        case DUP13: { uint256_t v1 = stack[13]; stack.push(v1); break; }
-        case DUP14: { uint256_t v1 = stack[14]; stack.push(v1); break; }
-        case DUP15: { uint256_t v1 = stack[15]; stack.push(v1); break; }
-        case DUP16: { uint256_t v1 = stack[16]; stack.push(v1); break; }
-        case SWAP1: { uint256_t v1 = stack[1]; stack[1] = stack[2]; stack[2] = v1; break; }
-        case SWAP2: { uint256_t v1 = stack[1]; stack[1] = stack[3]; stack[3] = v1; break; }
-        case SWAP3: { uint256_t v1 = stack[1]; stack[1] = stack[4]; stack[4] = v1; break; }
-        case SWAP4: { uint256_t v1 = stack[1]; stack[1] = stack[5]; stack[5] = v1; break; }
-        case SWAP5: { uint256_t v1 = stack[1]; stack[1] = stack[6]; stack[6] = v1; break; }
-        case SWAP6: { uint256_t v1 = stack[1]; stack[1] = stack[7]; stack[7] = v1; break; }
-        case SWAP7: { uint256_t v1 = stack[1]; stack[1] = stack[8]; stack[8] = v1; break; }
-        case SWAP8: { uint256_t v1 = stack[1]; stack[1] = stack[9]; stack[9] = v1; break; }
-        case SWAP9: { uint256_t v1 = stack[1]; stack[1] = stack[10]; stack[10] = v1; break; }
-        case SWAP10: { uint256_t v1 = stack[1]; stack[1] = stack[11]; stack[11] = v1; break; }
-        case SWAP11: { uint256_t v1 = stack[1]; stack[1] = stack[12]; stack[12] = v1; break; }
-        case SWAP12: { uint256_t v1 = stack[1]; stack[1] = stack[13]; stack[13] = v1; break; }
-        case SWAP13: { uint256_t v1 = stack[1]; stack[1] = stack[14]; stack[14] = v1; break; }
-        case SWAP14: { uint256_t v1 = stack[1]; stack[1] = stack[15]; stack[15] = v1; break; }
-        case SWAP15: { uint256_t v1 = stack[1]; stack[1] = stack[16]; stack[16] = v1; break; }
-        case SWAP16: { uint256_t v1 = stack[1]; stack[1] = stack[17]; stack[17] = v1; break; }
+        case PUSH1: case PUSH2: case PUSH3: case PUSH4: case PUSH5: case PUSH6: case PUSH7: case PUSH8:
+        case PUSH9: case PUSH10: case PUSH11: case PUSH12: case PUSH13: case PUSH14: case PUSH15: case PUSH16:
+        case PUSH17: case PUSH18: case PUSH19: case PUSH20: case PUSH21: case PUSH22: case PUSH23: case PUSH24:
+        case PUSH25: case PUSH26: case PUSH27: case PUSH28: case PUSH29: case PUSH30: case PUSH31: case PUSH32: {
+            const int n = opc - PUSH1 + 1;
+            uint256_t v1 = uint256_t::from(&code[pc+1], _min(n, code_size - (pc + 1)));
+            stack.push(v1);
+            pc += n;
+            break;
+        }
+        case DUP1: case DUP2: case DUP3: case DUP4: case DUP5: case DUP6: case DUP7: case DUP8:
+        case DUP9: case DUP10: case DUP11: case DUP12: case DUP13: case DUP14: case DUP15: case DUP16: {
+            const int n = opc - DUP1 + 1;
+            uint256_t v1 = stack[n];
+            stack.push(v1);
+            break;
+        }
+        case SWAP1: case SWAP2: case SWAP3: case SWAP4: case SWAP5: case SWAP6: case SWAP7: case SWAP8:
+        case SWAP9: case SWAP10: case SWAP11: case SWAP12: case SWAP13: case SWAP14: case SWAP15: case SWAP16: {
+            const int n = opc - SWAP1 + 2;
+            uint256_t v1 = stack[1];
+            stack[1] = stack[n];
+            stack[n] = v1;
+            break;
+        }
         case LOG0: {
             uint256_t v1 = stack.pop(), v2 = stack.pop();
             _handles0(_memory_check)(v1, v2);
