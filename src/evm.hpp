@@ -4098,18 +4098,16 @@ static uint64_t gas_selfdestruct(Release release, bool funds, bool empty, bool e
 // calculates refund for selfdestruct operation
 static uint64_t gas_refund_selfdestruct(Release release)
 {
-    // TODO
     return _gas(release, GasSelfDestructRefund);
 }
 
 // calculation of gas consumption for sstore operation
-static uint64_t gas_sstore(Release release, uint64_t gas,
-    bool set, bool clear, bool noop, bool dirty, bool init)
+static inline uint64_t gas_sstore(Release release, uint64_t gas, bool init, bool dirty, bool noop, bool sets, bool clears, bool cleans)
 {
-    if (gas <= _gas(release, GasSstoreSentry)) return gas + 1;
+    if (gas <= _gas(release, GasSstoreSentry)) return gas + 1; // forces the consumption of all gas
     if (release < CONSTANTINOPLE || (PETERSBURG <= release && release < ISTANBUL)) {
-        if (set) return _gas(release, GasSstoreLegacySet);
-        if (clear) return _gas(release, GasSstoreLegacyClear);
+        if (sets) return _gas(release, GasSstoreLegacySet);
+        if (clears) return _gas(release, GasSstoreLegacyClear);
         return _gas(release, GasSstoreLegacyReset);
     }
     if (noop) return _gas(release, GasSstoreNoop);
@@ -4119,9 +4117,22 @@ static uint64_t gas_sstore(Release release, uint64_t gas,
 }
 
 // calculates refund for sstore operation
-static uint64_t gas_refund_sstore()
+static inline uint64_t gas_refund_sstore(Release release, bool init, bool dirty, bool noop, bool sets, bool clears, bool cleans)
 {
-    // TODO
+    if (release < CONSTANTINOPLE || (PETERSBURG <= release && release < ISTANBUL)) {
+        if (clears) return _gas(release, GasSstoreLegacyRefund);
+        return 0;
+    }
+	if (!init && clears) return _gas(release, GasSstoreClearRefund);
+    if (dirty && cleans) return _gas(release, init ? GasSstoreInitRefund : GasSstoreCleanRefund);
+    return 0;
+}
+
+// calculates refund for sstore operation
+static inline uint64_t gas_unrefund_sstore(Release release, bool init, bool dirty, bool noop, bool sets, bool clears, bool cleans)
+{
+    if (release < CONSTANTINOPLE || (PETERSBURG <= release && release < ISTANBUL)) return 0;
+	if (!init && sets) return _gas(release, GasSstoreClearRefund);
     return 0;
 }
 
@@ -5389,9 +5400,15 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint256_t address = stack.pop(), value = stack.pop();
             uint256_t current = storage.load(owner_address, address);
             uint256_t original = storage._load(owner_address, address);
-            _handles0(consume_gas)(gas, gas_sstore(release, gas,
-                current == 0 && value > 0, current > 0 && value == 0,
-                current == value, current != original, original == 0));
+            bool init = original == 0;
+            bool dirty = current != original;
+            bool noop = current == value;
+            bool sets = current == 0 && value > 0;
+            bool clears = current > 0 && value == 0;
+            bool cleans = original == value;
+            _handles0(consume_gas)(gas, gas_sstore(release, gas, init, dirty, noop, sets, clears, cleans));
+            storage.add_refund(gas_refund_sstore(release, init, dirty, noop, sets, clears, cleans));
+            storage.sub_refund(gas_unrefund_sstore(release, init, dirty, noop, sets, clears, cleans));
             storage.store(owner_address, address, value);
             break;
         }
