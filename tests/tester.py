@@ -59,13 +59,14 @@ def compileFile(fnamein, fnameout):
     if os.path.isfile(fnameout): return;
     return subprocess.call([
         "g++",
-        "-std=c++14",
+        "-std=c++11",
         "-pedantic",
         "-Wall",
         "-Wno-vla",
         "-Wno-unused-variable",
         "-Wno-unused-but-set-variable",
         "-Wno-unused-function",
+        "-Wno-maybe-uninitialized",
         "-Os",
         "-o",
         fnameout,
