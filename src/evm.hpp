@@ -2354,6 +2354,8 @@ static uint160_t _throws(ecrecover)(const uint256_t &_h, const uint256_t &_v, co
     bigint r = uint256_t::to_big(_r);
     bigint s = uint256_t::to_big(_s);
     if (v < 27 || v > 28) _throw0(INVALID_SIGNATURE);
+    if (r == 0 || r >= P) _throw0(INVALID_SIGNATURE);
+    if (s == 0 || r >= P) _throw0(INVALID_SIGNATURE);
     bigint y = bigint::powmod(((r * r) % P * r) % P + 7, (P + 1) / 4, P);
     if ((v == 28) == ((y % 2) == 0)) y = P - y;
     G0 q(r, y);
@@ -2844,7 +2846,7 @@ static void _throws(verify_txn)(Release release, struct txn &txn)
         if (chainid != CHAIN_ID) _throw(INVALID_TRANSACTION);
     }
     if (release >= HOMESTEAD) {
-        if (txn.s == 0 || 2*uint256_t::to_big(txn.s) > G0::P()) _throw(INVALID_TRANSACTION);
+        if (2*uint256_t::to_big(txn.s) > G0::P()) _throw(INVALID_TRANSACTION);
     }
 }
 
@@ -5840,7 +5842,7 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
     _handles(verify_txn)(release, txn);
 
     uint160_t from = sender;
-    if (txn.r != 0 || txn.s != 0 || sender == 0) {
+    if (sender == 0) {
         uint256_t h = _handles(hash_txn)(txn);
         from = _handles(ecrecover)(h, txn.v, txn.r, txn.s);
     }

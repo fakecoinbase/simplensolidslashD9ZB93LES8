@@ -163,10 +163,26 @@ public:
         }, Error e, {
             check(false, "malformed transaction");
         })
+        check(txn.is_signed, "missing signature");
         if (txn.r == 0 && txn.s == 0 && sender > 0) {
             uint64_t user_id = get_user_id(sender);
+            check(user_id > 0, "unknown account");
             name account(user_id);
             require_auth(account);
+        } else {
+            // this is partially redundant with vm_txn, which is ok
+            // transaction validation failure will happen early in here
+            // sender recovery will be skipped there
+            _try({
+                Release release = get_release(forknumber());
+                _handles(verify_txn)(release, txn);
+                uint256_t h = _handles(hash_txn)(txn);
+                sender = _handles(ecrecover)(h, txn.v, txn.r, txn.s);
+            }, Error e, {
+                check(false, "invalid transaction");
+            })
+            uint64_t user_id = get_user_id(sender);
+            check(user_id > 0, "unknown account");
         }
         _try({
             bool pays_gas = false;
