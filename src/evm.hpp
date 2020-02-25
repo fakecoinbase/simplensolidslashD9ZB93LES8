@@ -5336,9 +5336,9 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
             _handles0(memory_check)(v1, v3);
             uint64_t offset1 = v1.cast64(), size = v3.cast64();
-            uint64_t offset2 = v2 > call_size ? call_size : v2.cast64();
             _handles0(consume_gas)(gas, gas_memory(release, memory.size(), offset1 + size));
             _handles0(consume_gas)(gas, gas_copy(release, size));
+            uint64_t offset2 = v2 > call_size ? call_size : v2.cast64();
             memory.burn(offset1, size, &call_data[offset2], _min(size, call_size - offset2));
             break;
         }
@@ -5347,9 +5347,9 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
             _handles0(memory_check)(v1, v3);
             uint64_t offset1 = v1.cast64(), size = v3.cast64();
-            uint64_t offset2 = v2 > code_size ? code_size : v2.cast64();
             _handles0(consume_gas)(gas, gas_memory(release, memory.size(), offset1 + size));
             _handles0(consume_gas)(gas, gas_copy(release, size));
+            uint64_t offset2 = v2 > code_size ? code_size : v2.cast64();
             memory.burn(offset1, size, &code[offset2], _min(size, code_size - offset2));
             break;
         }
@@ -5360,11 +5360,11 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint256_t v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
             _handles0(memory_check)(v2, v4);
             uint64_t offset1 = v2.cast64(), size = v4.cast64();
-            uint64_t offset2 = v3 > extcode_size ? extcode_size : v3.cast64();
             _handles0(consume_gas)(gas, gas_memory(release, memory.size(), offset1 + size));
             _handles0(consume_gas)(gas, gas_copy(release, size));
             uint64_t extcode_size;
             const uint8_t *extcode = storage.get_code(address, extcode_size);
+            uint64_t offset2 = v3 > extcode_size ? extcode_size : v3.cast64();
             memory.burn(offset1, size, &extcode[offset2], _min(size, extcode_size - offset2));
             _delete(code);
             break;
@@ -5374,9 +5374,9 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop();
             _handles0(memory_check)(v1, v3);
             uint64_t offset1 = v1.cast64(), size = v3.cast64();
-            uint64_t offset2 = v2 > return_size ? return_size : v2.cast64();
             _handles0(consume_gas)(gas, gas_memory(release, memory.size(), offset1 + size));
             _handles0(consume_gas)(gas, gas_copy(release, size));
+            uint64_t offset2 = v2 > return_size ? return_size : v2.cast64();
             memory.burn(offset1, size, &return_data[offset2], _min(size, return_size - offset2));
             break;
         }
