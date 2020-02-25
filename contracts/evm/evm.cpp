@@ -294,19 +294,9 @@ private:
     // - block number and timestamp should represent the native EOSIO block number and time
     // - block hash, coinbase, and difficulty should return static values
 
+    static constexpr uint64_t _forknumber = 10000000; // after istanbul
     static constexpr uint64_t _gaslimit = 10000000; // sufficiently large supply
     static constexpr uint64_t _difficulty = 17179869184; // aleatory, from genesis
-    static constexpr uint64_t _forknumber = 10000000; // after istanbul
-
-    // vm call back to obtain the current block timestamp
-    uint64_t timestamp() {
-        return eosio::current_block_time().to_time_point().sec_since_epoch();
-    }
-
-    // vm call back to obtain the current block number
-    uint64_t number() {
-        return 0; // implement
-    }
 
     // vm callback to obtain the current ETH mainnet block number
     // based on this number the vm realizes the current release
@@ -315,19 +305,29 @@ private:
         return _forknumber;
     }
 
+    // vm call back to obtain the current block number
+    uint64_t number() {
+        return 0; // implement
+    }
+
+    // vm call back to obtain the current block timestamp
+    uint64_t timestamp() {
+        return eosio::current_block_time().to_time_point().sec_since_epoch();
+    }
+
     // vm callback to obtain the current block gas limit
     uint64_t gaslimit() {
         return _gaslimit;
     }
 
-    // vm callback to obtain the current block difficulty
-    uint64_t difficulty() {
-        return _difficulty;
-    }
-
     // vm callback to obtain the current block coinbase
     uint160_t coinbase() {
         return 0; // could be something else
+    }
+
+    // vm callback to obtain the current block difficulty
+    uint256_t difficulty() {
+        return _difficulty;
     }
 
     // vm callback to obtain the hash of a block

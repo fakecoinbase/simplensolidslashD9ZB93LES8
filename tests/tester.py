@@ -134,13 +134,13 @@ def codeInitExec(origin, gasprice, address, caller, value, gas, code, data):
     uint64_t data_size = """ + str(len(data) // 4) + """;
 """
 
-def codeInitEnv(timestamp, number, gaslimit, difficulty, coinbase):
+def codeInitEnv(number, timestamp, gaslimit, coinbase, difficulty):
     return """
-    uint64_t timestamp = uhex256(\"""" + intToU256(timestamp) + """\").cast64();
     uint64_t number = uhex256(\"""" + intToU256(number) + """\").cast64();
+    uint64_t timestamp = uhex256(\"""" + intToU256(timestamp) + """\").cast64();
     uint64_t gaslimit = uhex256(\"""" + intToU256(gaslimit) + """\").cast64();
-    uint64_t difficulty = uhex256(\"""" + intToU256(difficulty) + """\").cast64();
     uint160_t coinbase = (uint160_t)uhex256(\"""" + intToU256(coinbase) + """\");
+    uint256_t difficulty = uhex256(\"""" + intToU256(difficulty) + """\");
 """
 
 def codeInitLocation(location, number):
@@ -304,15 +304,15 @@ int main()
 """
 
     env = item["env"]
-    timestamp = hexToInt(env["currentTimestamp"])
     number = hexToInt(env["currentNumber"])
+    timestamp = hexToInt(env["currentTimestamp"])
     gaslimit = hexToInt(env["currentGasLimit"])
-    difficulty = hexToInt(env["currentDifficulty"])
     coinbase = hexToInt(env["currentCoinbase"])
-    src += codeInitEnv(timestamp, number, gaslimit, difficulty, coinbase)
+    difficulty = hexToInt(env["currentDifficulty"])
+    src += codeInitEnv(number, timestamp, gaslimit, coinbase, difficulty)
 
     src += """
-    _Block block(timestamp, number, gaslimit, difficulty, coinbase);
+    _Block block(number, timestamp, gaslimit, coinbase, difficulty);
     _State state;
     Storage storage(&state);
 
@@ -518,15 +518,15 @@ int main()
 """
 
     env = item["env"]
-    timestamp = hexToInt(env["currentTimestamp"])
     number = hexToInt(env["currentNumber"])
+    timestamp = hexToInt(env["currentTimestamp"])
     gaslimit = hexToInt(env["currentGasLimit"])
-    difficulty = hexToInt(env["currentDifficulty"])
     coinbase = hexToInt(env["currentCoinbase"])
-    src += codeInitEnv(timestamp, number, gaslimit, difficulty, coinbase)
+    difficulty = hexToInt(env["currentDifficulty"])
+    src += codeInitEnv(number, timestamp, gaslimit, coinbase, difficulty)
 
     src += """
-    _Block block(timestamp, number, gaslimit, difficulty, coinbase);
+    _Block block(number, timestamp, gaslimit, coinbase, difficulty);
     _State state;
     Storage storage(&state);
 

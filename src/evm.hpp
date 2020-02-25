@@ -4801,11 +4801,11 @@ public:
 class Block {
 public:
     virtual uint64_t forknumber() = 0; // original ethereum mainnet block number, used to pick current release
-    virtual uint64_t timestamp() = 0; // block timestamp as provided
     virtual uint64_t number() = 0; // block number as provided
+    virtual uint64_t timestamp() = 0; // block timestamp as provided
     virtual uint64_t gaslimit() = 0; // block gas limit as provided
-    virtual uint64_t difficulty() = 0; // block difficulty as provided
     virtual uint160_t coinbase() = 0; // block coinbase as provided
+    virtual uint256_t difficulty() = 0; // block difficulty as provided
     virtual uint256_t hash(const uint256_t &number) = 0; // provides block hash from block number
 };
 
