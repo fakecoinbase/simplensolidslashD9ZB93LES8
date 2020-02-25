@@ -4850,6 +4850,8 @@ static inline void _throws(stack_check)(uint8_t opc, uint64_t stacktop)
 // handy routine to check memory bounds
 static inline void _throws(memory_check)(uint256_t &offset, const uint256_t &size)
 {
+    // subtlety here: when size is zero memory operation is a nop
+    // so we set offset to zero in that regard
     if (size == 0) { offset = 0; return; }
     if ((size >> 64) > 0) _throw(OUTOFBOUNDS_VALUE);
     if ((offset >> 64) > 0) _throw(OUTOFBOUNDS_VALUE);
@@ -5173,7 +5175,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
     if (code_size == 0) { // do nothing if contract code is empty
         if ((intptr_t)code < 256) { // but first test for precompiled contract
             uint8_t opc = (intptr_t)code;
-            if ((pre[release] & (_1 << opc)) == 0) { // and which precompiled contracts are available
+            if ((pre[release] & (_1 << opc)) > 0) { // and which precompiled contracts are available
 #ifndef NDEBUG
                 if (std::getenv("EVM_DEBUG")) std::cout << prenames[opc] << std::endl;
 #endif // NDEBUG
