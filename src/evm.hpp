@@ -4314,7 +4314,7 @@ private:
     static constexpr int growthdiv = 4; // growth factor 4 means 1/4 (25% per rehashing)
     // list of values, stored according to snapshot order (lifo, newest first)
     struct value_stack {
-        uint64_t serial;
+        uint32_t serial;
         V value;
         struct value_stack *next;
     };
@@ -4393,6 +4393,7 @@ public:
             keys->values = values;
         }
         keys->values->value = value;
+        assert(keys->values->next == nullptr || keys->values->next->serial < serial);
     }
     inline uint64_t snapshot() { return serial++; }
     // flattens all entry values with serial greater than snapshot
@@ -4401,7 +4402,6 @@ public:
             struct key_list *prev = nullptr;
             struct key_list *keys = table[i];
             while (keys != nullptr) {
-                struct value_stack *values = keys->values;
                 if (keys->values == nullptr) {
                     struct key_list *next = keys->next;
                     _delete(keys); key_count--;
@@ -4409,13 +4409,13 @@ public:
                     if (prev == nullptr) table[i] = keys; else prev->next = keys;
                     continue;
                 }
-                if (values->serial > snapshot) {
-                    values->serial = snapshot;
-                    while (values->next != nullptr && values->next->serial >= snapshot) {
-                        assert(values->next->serial == snapshot);
-                        struct value_stack *next = values->next->next;
-                        _delete(values->next);
-                        values->next = next;
+                if (keys->values->serial > snapshot) {
+                    keys->values->serial = snapshot;
+                    while (keys->values->next != nullptr && keys->values->next->serial >= snapshot) {
+                        assert(keys->values->next->serial == snapshot);
+                        struct value_stack *next = keys->values->next->next;
+                        _delete(keys->values->next);
+                        keys->values->next = next;
                     }
                 }
                 prev = keys;
@@ -5578,16 +5578,15 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             if (storage.get_balance(owner_address) < value) _throw0(INSUFFICIENT_BALANCE);
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
-            uint64_t code_size;
-            const uint8_t *code = storage.get_code(code_address, code_size);
             uint64_t snapshot = storage.begin();
             if (!storage.exists(code_address)) {
                 if (release >= SPURIOUS_DRAGON) {
                     if (value > 0) {
                         if ((intptr_t)code > BLAKE2F) {
                             return_size = 0;
-                            memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
                             credit_gas(gas, call_gas);
+                            storage.end(snapshot, true);
+                            memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
                             stack.push(true);
                             break;
                         }
@@ -5597,6 +5596,8 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             }
             storage.sub_balance(owner_address, value);
             storage.add_balance(code_address, value);
+            uint64_t code_size;
+            const uint8_t *code = storage.get_code(code_address, code_size);
             bool success;
             _try({
                 success = _catches(vm_run)(release, block, storage,
@@ -5633,9 +5634,9 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             if (storage.get_balance(owner_address) < value) _throw0(INSUFFICIENT_BALANCE);
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
+            uint64_t snapshot = storage.begin();
             uint64_t code_size;
             const uint8_t *code = storage.get_code(code_address, code_size);
-            uint64_t snapshot = storage.begin();
             bool success;
             _try({
                 success = _catches(vm_run)(release, block, storage,
@@ -5679,9 +5680,9 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             _handles0(consume_gas)(gas, call_gas);
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
+            uint64_t snapshot = storage.begin();
             uint64_t code_size;
             const uint8_t *code = storage.get_code(code_address, code_size);
-            uint64_t snapshot = storage.begin();
             bool success;
             _try({
                 success = _catches(vm_run)(release, block, storage,
@@ -5761,9 +5762,9 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             storage.add_balance(code_address, 0);
             uint8_t args_data[args_size];
             memory.dump(args_offset, args_size, args_data);
+            uint64_t snapshot = storage.begin();
             uint64_t code_size;
             const uint8_t *code = storage.get_code(code_address, code_size);
-            uint64_t snapshot = storage.begin();
             bool success;
             _try({
                 success = _catches(vm_run)(release, block, storage,
