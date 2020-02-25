@@ -4694,7 +4694,7 @@ public:
         return refund_gas;
     }
     void add_refund(uint64_t cost) {
-        assert(refund_gas + cost > refund_gas);
+        assert(refund_gas + cost >= refund_gas);
         refund_gas += cost;
     }
     void sub_refund(uint64_t cost) {
