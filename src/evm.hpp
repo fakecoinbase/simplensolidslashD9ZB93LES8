@@ -4037,7 +4037,7 @@ static inline uint64_t gas_log(Release release, uint64_t n, uint64_t size)
 // calculation of gas consumption for SHA3
 static inline uint64_t gas_sha3(Release release, uint64_t size)
 {
-    uint64_t words = size / 32;
+    uint64_t words = (size + 31) / 32;
     return words * _gas(release, GasSha3Word);
 }
 
