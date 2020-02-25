@@ -2916,6 +2916,28 @@ static uint64_t _throws(encode_cid)(const uint256_t &from, const uint256_t &nonc
     return _handles0(encode_cid)(from, nonce, nullptr, 0);
 }
 
+// generates a contract address given caller and nonce (CREATE method)
+static uint160_t _throws(gen_contract_address)(const uint160_t &from, const uint256_t &nonce)
+{
+    uint64_t size = _handles0(encode_cid)((uint256_t)from, nonce);
+    uint8_t buffer[size];
+    _handles0(encode_cid)((uint256_t)from, nonce, buffer, size);
+    return (uint160_t)sha3(buffer, size);
+}
+
+// generates a contract address given caller, salt, and code hash (CREATE2 method)
+static uint160_t gen_contract_address(const uint160_t &from, const uint256_t &salt, const uint256_t &hash)
+{
+    uint64_t size = 1 + 20 + 32 + 32;
+    uint8_t buffer[size];
+    uint64_t offset = 0;
+    buffer[offset] = 0xff; offset += 1;
+    uint160_t::to(from, &buffer[offset]); offset += 20;
+    uint256_t::to(salt, &buffer[offset]); offset += 32;
+    uint256_t::to(hash, &buffer[offset]); offset += 32;
+    return (uint160_t)sha3(buffer, size);
+}
+
 // ** gas **
 
 // types of gas expenditure constants
@@ -4170,6 +4192,20 @@ static uint64_t gas_blake2f(Release release, uint64_t rounds)
     return _gas(release, GasBlake2f) + rounds * _gas(release, GasBlake2fRound);
 }
 
+// handy routine to consume gas, checks for gas exaustion
+static inline void _throws(consume_gas)(uint64_t &gas, uint64_t cost)
+{
+    if (cost > gas) _throw(GAS_EXAUSTED);
+    gas -= cost;
+}
+
+// handy routine to credit back gas
+static inline void credit_gas(uint64_t &gas, uint64_t stipend)
+{
+    assert(gas + stipend >= gas);
+    gas += stipend;
+}
+
 // ** execution components **
 
 // simple frame stack implementation
@@ -4810,42 +4846,6 @@ public:
 };
 
 // ** execution validation **
-
-// generates a contract address given caller and nonce (CREATE method)
-static uint160_t _throws(gen_contract_address)(const uint160_t &from, const uint256_t &nonce)
-{
-    uint64_t size = _handles0(encode_cid)((uint256_t)from, nonce);
-    uint8_t buffer[size];
-    _handles0(encode_cid)((uint256_t)from, nonce, buffer, size);
-    return (uint160_t)sha3(buffer, size);
-}
-
-// generates a contract address given caller, salt, and code hash (CREATE2 method)
-static uint160_t gen_contract_address(const uint160_t &from, const uint256_t &salt, const uint256_t &hash)
-{
-    uint64_t size = 1 + 20 + 32 + 32;
-    uint8_t buffer[size];
-    uint64_t offset = 0;
-    buffer[offset] = 0xff; offset += 1;
-    uint160_t::to(from, &buffer[offset]); offset += 20;
-    uint256_t::to(salt, &buffer[offset]); offset += 32;
-    uint256_t::to(hash, &buffer[offset]); offset += 32;
-    return (uint160_t)sha3(buffer, size);
-}
-
-// handy routine to consume gas, checks for gas exaustion
-static inline void _throws(consume_gas)(uint64_t &gas, uint64_t cost)
-{
-    if (cost > gas) _throw(GAS_EXAUSTED);
-    gas -= cost;
-}
-
-// handy routine to credit back gas
-static inline void credit_gas(uint64_t &gas, uint64_t stipend)
-{
-    assert(gas + stipend >= gas);
-    gas += stipend;
-}
 
 // handy routine to check stack bounds
 static inline void _throws(stack_check)(uint8_t opc, uint64_t stacktop)
