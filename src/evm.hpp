@@ -4398,6 +4398,7 @@ public:
     inline uint64_t snapshot() { return serial++; }
     // flattens all entry values with serial greater than snapshot
     void commit(uint64_t snapshot) {
+        assert(snapshot < serial);
         for (uint64_t i = 0; i < size; i++) {
             struct key_list *prev = nullptr;
             struct key_list *keys = table[i];
@@ -4410,21 +4411,23 @@ public:
                     continue;
                 }
                 if (keys->values->serial > snapshot) {
-                    keys->values->serial = snapshot;
                     while (keys->values->next != nullptr && keys->values->next->serial >= snapshot) {
                         assert(keys->values->next->serial == snapshot);
                         struct value_stack *next = keys->values->next->next;
                         _delete(keys->values->next);
                         keys->values->next = next;
                     }
+                    keys->values->serial = snapshot;
                 }
                 prev = keys;
                 keys = keys->next;
             }
         }
+        serial = snapshot;
     }
     // removes all entry values with serial greater than snapshot
     void rollback(uint64_t snapshot) {
+        assert(snapshot < serial);
         for (uint64_t i = 0; i < size; i++) {
             struct key_list *prev = nullptr;
             struct key_list *keys = table[i];
@@ -4445,6 +4448,7 @@ public:
                 keys = keys->next;
             }
         }
+        serial = snapshot;
     }
 };
 
@@ -4540,8 +4544,11 @@ public:
         log.data_size = data_size;
     }
     inline uint64_t snapshot() { return count; }
-    inline void commit(uint64_t snapshot) {}
+    inline void commit(uint64_t snapshot) {
+        assert(snapshot <= count);
+    }
     void rollback(uint64_t snapshot) {
+        assert(snapshot <= count);
         for (uint64_t i = snapshot; i < count; i++) {
             _delete(entries[i].topics);
             _delete(entries[i].data);
@@ -5860,6 +5867,7 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
                 if (release >= SPURIOUS_DRAGON) {
                     if (txn.value > 0) {
                         if ((intptr_t)code > BLAKE2F) {
+                            _delete(code);
                             goto skip;
                         }
                     }
