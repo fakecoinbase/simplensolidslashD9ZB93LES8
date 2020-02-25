@@ -124,9 +124,7 @@ def codeInitExec(origin, gasprice, address, caller, value, gas, code, data):
     uint160_t address = (uint160_t)uhex256(\"""" + intToU256(address) + """\");
     uint160_t caller = (uint160_t)uhex256(\"""" + intToU256(caller) + """\");
     uint256_t value = uhex256(\"""" + intToU256(value) + """\");
-    uint256_t _gas = uhex256(\"""" + intToU256(gas) + """\");
-
-    uint64_t gas = _gas.cast64(); // fix
+    uint64_t gas = uhex256(\"""" + intToU256(gas) + """\").cast64();
 
     uint8_t *code = (uint8_t*)\"""" + code + """\";
     uint64_t code_size = """ + str(len(code) // 4) + """;
@@ -166,8 +164,6 @@ def codeDoneLocation(location, number):
             uint256_t _number = state.load(account, location);
             if (number != _number) {
                 std::cerr << "post: invalid storage" << std::endl;
-//                std::cerr << number << std::endl;
-//                std::cerr << _number << std::endl;
                 return 1;
             }
         }
@@ -208,12 +204,10 @@ def codeDoneAccount(account, nonce, balance, code, storage):
 
         if (nonce != state.get_nonce(account)) {
             std::cerr << "post: invalid nonce" << std::endl;
-//            std::cerr << nonce << " " << state.get_nonce(account) << std::endl;
             return 1;
         }
         if (balance != state.get_balance(account)) {
             std::cerr << "post: invalid balance" << std::endl;
-//            std::cerr << balance << " " << state.get_balance(account) << std::endl;
             return 1;
         }
 
@@ -273,8 +267,8 @@ def codeDoneGas(fgas):
     return """
     uint256_t fgas = uhex256(\"""" + intToU256(fgas) + """\");
     if (gas != fgas) {
-//        std::cerr << "post: invalid gas " << fgas << " " << gas << std::endl;
-//        return 1;
+        std::cerr << "post: invalid gas " << fgas << " " << gas << std::endl;
+        return 1;
     }
 """
 
@@ -361,7 +355,7 @@ int main()
     storage.end(snapshot, success);
     uint64_t refund_gas = storage.get_refund();
     uint64_t used_gas = gaslimit - gas;
-//    _refund_gas(gas, _min(refund_gas, used_gas / 2));
+    credit_gas(gas, _min(refund_gas, used_gas / 2));
 //    storage.add_balance(origin, gas * gasprice);
     storage.flush();
 """
@@ -453,8 +447,8 @@ int main()
         h = sha3(buffer, size);
         struct txn txn;
         _catches(decode_txn)(buffer, size, txn);
-        _catches(_verify_txn)(release, txn);
-        uint256_t h2 = _catches(_txn_hash)(txn);
+        _catches(verify_txn)(release, txn);
+        uint256_t h2 = _catches(hash_txn)(txn);
         if (std::getenv("EVM_DEBUG")) {
             std::cerr << txn.nonce << std::endl;
             std::cerr << txn.gasprice << std::endl;
