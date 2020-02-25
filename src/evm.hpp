@@ -4805,7 +4805,7 @@ public:
     virtual uint64_t number() = 0; // block number as provided
     virtual uint64_t gaslimit() = 0; // block gas limit as provided
     virtual uint64_t difficulty() = 0; // block difficulty as provided
-    virtual const uint160_t coinbase() = 0; // block coinbase as provided
+    virtual uint160_t coinbase() = 0; // block coinbase as provided
     virtual uint256_t hash(const uint256_t &number) = 0; // provides block hash from block number
 };
 

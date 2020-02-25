@@ -326,7 +326,7 @@ private:
     }
 
     // vm callback to obtain the current block coinbase
-    const uint160_t coinbase() {
+    uint160_t coinbase() {
         return 0; // could be something else
     }
 
