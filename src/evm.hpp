@@ -1976,7 +1976,7 @@ struct Gen2_t {
     Gen2 canon() const { return Gen2(x % P(), y % P()); }
     Gen2& operator=(const bigint& v) { x = 0; y = v; return *this; }
     Gen2& operator=(const Gen2& v) { x = v.x; y = v.y; return *this; }
-    const Gen2 operator-() const { Gen2 v = *this; v.x = neg(x); v.y = neg(y); return v; }
+    Gen2 operator-() const { Gen2 v = *this; v.x = neg(x); v.y = neg(y); return v; }
     Gen2& operator+=(const Gen2& v) { x += v.x; y += v.y; return *this; }
     Gen2& operator-=(const Gen2& v) { x += neg(v.x); y += neg(v.y); return *this; }
     Gen2& operator*=(const bigint& v) { x *= v; y *= v; return *this; }
@@ -2038,7 +2038,7 @@ struct Gen6_t {
     }
     Gen6 canon() const { return Gen6(x.canon(), y.canon(), z.canon()); }
     Gen6& operator=(const bigint& v) { x = 0; y = 0; z = v; return *this; }
-    const Gen6 operator-() const { return Gen6(-x, -y, -z); }
+    Gen6 operator-() const { return Gen6(-x, -y, -z); }
     Gen6& operator+=(const Gen6& v) { x += v.x; y += v.y; z += v.z; return *this; }
     Gen6& operator-=(const Gen6& v) { x -= v.x; y -= v.y; z -= v.z; return *this; }
     Gen6& operator*=(const Gen6& v2) {
@@ -2149,7 +2149,7 @@ struct CurvePoint_t {
         return CurvePoint(_x, _y, 1, 1);
     }
     void inf() { z = 0; }
-    const CurvePoint operator-() const { return CurvePoint(x, neg(y), z, 0); }
+    CurvePoint operator-() const { return CurvePoint(x, neg(y), z, 0); }
     CurvePoint& operator+=(const CurvePoint& b) {
         CurvePoint a = *this;
         if (a.is_inf()) { *this = b; return *this; }
@@ -2241,7 +2241,7 @@ struct TwistPoint_t {
         return TwistPoint(_x, _y, _z, _t);
     }
     void inf() { z = 0; }
-    const TwistPoint operator-() const { Gen2 t; t = 0; return TwistPoint(x, -y, z, t); }
+    TwistPoint operator-() const { Gen2 t; t = 0; return TwistPoint(x, -y, z, t); }
     TwistPoint& operator+=(const TwistPoint& b) {
         TwistPoint a = *this;
         if (a.is_inf()) { *this = b; return *this; }
