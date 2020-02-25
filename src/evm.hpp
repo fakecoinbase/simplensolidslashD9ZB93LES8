@@ -43,6 +43,7 @@
 enum Error {
     NONE = 0,
     CODE_CONFLICT,
+    CODE_EXCEEDED,
     GAS_EXAUSTED,
     ILLEGAL_TARGET,
     ILLEGAL_UPDATE,
@@ -64,6 +65,7 @@ enum Error {
 static const char *errors[STACK_UNDERFLOW+1] = {
     "NONE",
     "CODE_CONFLICT",
+    "CODE_EXCEEDED",
     "GAS_EXAUSTED",
     "ILLEGAL_TARGET",
     "ILLEGAL_UPDATE",
@@ -4858,7 +4860,7 @@ static inline void _throws(memory_check)(const uint256_t &offset, const uint256_
 static inline void _throws(code_size_check)(Release release, const uint64_t code_size)
 {
     if (release >= SPURIOUS_DRAGON) {
-        if (code_size > CODE_SIZE) _throw(INVALID_SIZE);
+        if (code_size > CODE_SIZE) _throw(CODE_EXCEEDED);
     }
 }
 
