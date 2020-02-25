@@ -4895,7 +4895,8 @@ static void _throws(jumpdest_check)(const uint8_t *code, uint64_t code_size, uin
         uint64_t byte_index = pc_limit / 8;
         uint64_t bit_index = pc_limit % 8;
         if (bit_index == 0) pc_valid[byte_index] = 0;
-        switch (code[pc_limit]) {
+        uint8_t opc = code[pc_limit];
+        switch (opc) {
         case JUMPDEST: { pc_valid[byte_index] |= (1 << bit_index); break; }
         case PUSH1: case PUSH2: case PUSH3: case PUSH4: case PUSH5: case PUSH6: case PUSH7: case PUSH8:
         case PUSH9: case PUSH10: case PUSH11: case PUSH12: case PUSH13: case PUSH14: case PUSH15: case PUSH16:
