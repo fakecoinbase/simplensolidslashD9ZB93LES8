@@ -5850,8 +5850,7 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
     storage.increment_nonce(from);
     uint160_t to = txn.has_to ? txn.to : _handles(gen_contract_address)(from, storage.get_nonce(from));
 
-    // TODO
-    // check for overflow
+    if (txn.gaslimit > block.gaslimit()) _throw(OUTOFBOUNDS_VALUE);
     uint64_t gas = txn.gaslimit.cast64();
     _handles(consume_gas)(gas, gas_intrinsic(release, txn.has_to, txn.data, txn.data_size));
     uint256_t gas_cost = txn.gaslimit * txn.gasprice;
