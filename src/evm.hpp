@@ -4886,38 +4886,14 @@ static void _throws(jumpdest_check)(const uint8_t *code, uint64_t code_size, uin
         if (bit_index == 0) pc_valid[byte_index] = 0;
         switch (code[pc_limit]) {
         case JUMPDEST: { pc_valid[byte_index] |= (1 << bit_index); break; }
-        case PUSH1: { const int n = 1; pc_limit += n; break; }
-        case PUSH2: { const int n = 2; pc_limit += n; break; }
-        case PUSH3: { const int n = 3; pc_limit += n; break; }
-        case PUSH4: { const int n = 4; pc_limit += n; break; }
-        case PUSH5: { const int n = 5; pc_limit += n; break; }
-        case PUSH6: { const int n = 6; pc_limit += n; break; }
-        case PUSH7: { const int n = 7; pc_limit += n; break; }
-        case PUSH8: { const int n = 8; pc_limit += n; break; }
-        case PUSH9: { const int n = 9; pc_limit += n; break; }
-        case PUSH10: { const int n = 10; pc_limit += n; break; }
-        case PUSH11: { const int n = 11; pc_limit += n; break; }
-        case PUSH12: { const int n = 12; pc_limit += n; break; }
-        case PUSH13: { const int n = 13; pc_limit += n; break; }
-        case PUSH14: { const int n = 14; pc_limit += n; break; }
-        case PUSH15: { const int n = 15; pc_limit += n; break; }
-        case PUSH16: { const int n = 16; pc_limit += n; break; }
-        case PUSH17: { const int n = 17; pc_limit += n; break; }
-        case PUSH18: { const int n = 18; pc_limit += n; break; }
-        case PUSH19: { const int n = 19; pc_limit += n; break; }
-        case PUSH20: { const int n = 20; pc_limit += n; break; }
-        case PUSH21: { const int n = 21; pc_limit += n; break; }
-        case PUSH22: { const int n = 22; pc_limit += n; break; }
-        case PUSH23: { const int n = 23; pc_limit += n; break; }
-        case PUSH24: { const int n = 24; pc_limit += n; break; }
-        case PUSH25: { const int n = 25; pc_limit += n; break; }
-        case PUSH26: { const int n = 26; pc_limit += n; break; }
-        case PUSH27: { const int n = 27; pc_limit += n; break; }
-        case PUSH28: { const int n = 28; pc_limit += n; break; }
-        case PUSH29: { const int n = 29; pc_limit += n; break; }
-        case PUSH30: { const int n = 30; pc_limit += n; break; }
-        case PUSH31: { const int n = 31; pc_limit += n; break; }
-        case PUSH32: { const int n = 32; pc_limit += n; break; }
+        case PUSH1: case PUSH2: case PUSH3: case PUSH4: case PUSH5: case PUSH6: case PUSH7: case PUSH8:
+        case PUSH9: case PUSH10: case PUSH11: case PUSH12: case PUSH13: case PUSH14: case PUSH15: case PUSH16:
+        case PUSH17: case PUSH18: case PUSH19: case PUSH20: case PUSH21: case PUSH22: case PUSH23: case PUSH24:
+        case PUSH25: case PUSH26: case PUSH27: case PUSH28: case PUSH29: case PUSH30: case PUSH31: case PUSH32: {
+            const int n = opc - PUSH1 + 1;
+            pc_limit += n;
+            break;
+        }
         default: break;
         }
     }
