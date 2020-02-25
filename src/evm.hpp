@@ -366,6 +366,17 @@ public:
             buffer[j] = (v.data[x] >> 8*y) & 0xff;
         }
     }
+#ifndef NDEBUG
+    friend std::ostream& operator<<(std::ostream &os, const bigint &v) {
+        for (uint64_t i = v.W; i > 0; i--) {
+            os << std::hex << std::setw(8) << std::setfill('0') << v.data[i-1];
+        }
+        if (v.W == 0) {
+            os << std::hex << std::setw(8) << std::setfill('0') << 0;
+        }
+        return os;
+    }
+#endif // NDEBUG
 };
 
 // reads bigint from decimal string
