@@ -3984,51 +3984,42 @@ static uint64_t gas_intrinsic(Release release, bool is_message_call, const uint8
 }
 
 // calculation of gas consumption for memory related operations
-static inline uint64_t gas_memory(Release release, uint64_t size1, uint64_t size2)
+static inline uint64_t gas_memory(Release release, uint64_t _size1, uint64_t _size2)
 {
-    // TODO
-    // check for overflow
-    uint64_t words1 = (size1 + 31) / 32;
-    uint64_t words2 = (size2 + 31) / 32;
+    uint256_t size1 = _size1;
+    uint256_t size2 = _size2;
+    uint256_t words1 = (size1 + 31) / 32;
+    uint256_t words2 = (size2 + 31) / 32;
     if (words2 <= words1) return 0;
-    // check for overflow
-    return (words2 - words1) * _gas(release, GasMemory)
+    uint256_t used_gas = (words2 - words1) * _gas(release, GasMemory)
         + (words2 * words2) / _gas(release, GasMemoryDiv) - (words1 * words1) / _gas(release, GasMemoryDiv);
+    if ((used_gas >> 64) > 0) return ~(uint64_t)0;
+    return used_gas.cast64();
 }
 
 // calculation of gas consumption for data copying operations
 static inline uint64_t gas_copy(Release release, uint64_t size)
 {
-    // TODO
-    // check for overflow
     uint64_t words = (size + 31) / 32;
-    // check for overflow
     return words * _gas(release, GasCopy);
 }
 
 // calculation of gas consumption for logging operations
 static inline uint64_t gas_log(Release release, uint64_t n, uint64_t size)
 {
-    // TODO
-    // check for overflow
     return _gas(release, GasLog) + n * _gas(release, GasLogTopic) + size * _gas(release, GasLogData);
 }
 
 // calculation of gas consumption for SHA3
 static inline uint64_t gas_sha3(Release release, uint64_t size)
 {
-    // TODO
-    // check for overflow
     uint64_t words = size / 32;
-    // check for overflow
     return words * _gas(release, GasSha3Word);
 }
 
 // calculation of gas consumption for EXP
 static inline uint64_t gas_exp(Release release, uint64_t size)
 {
-    // TODO
-    // check for overflow
     return size * _gas(release, GasExpByte);
 }
 
@@ -4064,8 +4055,6 @@ static uint64_t gas_cap(Release release, uint64_t gas, uint64_t reserved_gas)
 // calculation of gas consumption for create operations
 static uint64_t gas_create(Release release, uint64_t size)
 {
-    // TODO
-    // check for overflow
     return size * _gas(release, GasCreateData);
 }
 
@@ -4121,8 +4110,6 @@ static uint64_t gas_ecrecover(Release release)
 // calculation of gas consumption for sha256 precompiled contract
 static uint64_t gas_sha256(Release release, uint64_t size)
 {
-    // TODO
-    // check for overflow
     uint64_t words = (size + 31) / 32;
     return _gas(release, GasSha256) + words * _gas(release, GasSha256Word);
 }
@@ -4130,8 +4117,6 @@ static uint64_t gas_sha256(Release release, uint64_t size)
 // calculation of gas consumption for ripemd160 precompiled contract
 static uint64_t gas_ripemd160(Release release, uint64_t size)
 {
-    // TODO
-    // check for overflow
     uint64_t words = (size + 31) / 32;
     return _gas(release, GasRipemd160) + words * _gas(release, GasRipemd160Word);
 }
@@ -4139,8 +4124,6 @@ static uint64_t gas_ripemd160(Release release, uint64_t size)
 // calculation of gas consumption for datacopy precompiled contract
 static uint64_t gas_datacopy(Release release, uint64_t size)
 {
-    // TODO
-    // check for overflow
     uint64_t words = (size + 31) / 32;
     return _gas(release, GasDataCopy) + words * _gas(release, GasDataCopyWord);
 }
@@ -4148,8 +4131,6 @@ static uint64_t gas_datacopy(Release release, uint64_t size)
 // calculation of gas consumption for bigmodexp precompiled contract
 static uint64_t gas_bigmodexp(Release release, uint64_t base_len, uint64_t exp_len, uint64_t mod_len, const bigint &exp)
 {
-    // TODO
-    // check for overflow, max out in case
     uint64_t max_len = _max(base_len, mod_len);
     uint64_t base_gas;
     if (max_len <= 64) base_gas = max_len * max_len;
