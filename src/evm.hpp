@@ -2589,7 +2589,7 @@ static uint64_t _throws(parse_varlen)(const uint8_t *&b, uint64_t &s, bool &is_l
         uint256_t t = _handles0(parse_nlzint)(b, s, n - (0x80 + 56) + 1);
         uint64_t l = t.cast64();
         if (l < 56) _throw0(INVALID_ENCODING);
-        is_list = true; return l;
+        is_list = false; return l;
     }
     if (n == 0x81) {
         if (s < 1) _throw0(INVALID_ENCODING);
