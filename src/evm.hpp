@@ -740,6 +740,12 @@ struct U {
         }
     }
 
+    static bigint to_big(const U& v) {
+        uint8_t buffer[N/8];
+        U<N>::to(v, buffer);
+        return bigint::from(buffer, N/8);
+    }
+
     uint32_t murmur3_(uint32_t seed) const { return lo.murmur3_(hi.murmur3_(seed)); }
     uint32_t murmur3(uint32_t seed) const {
         uint32_t h = lo.murmur3_(hi.murmur3_(seed));
@@ -1078,6 +1084,12 @@ struct U<64> {
         if (size > 0) buffer[size - 1] = (uint8_t)v.n;
     }
 
+    static bigint to_big(const U& v) {
+        uint8_t buffer[8];
+        U<64>::to(v, buffer);
+        return bigint::from(buffer, 8);
+    }
+
     uint32_t murmur3_(uint32_t seed) const {
         uint32_t h = seed;
         uint32_t k = (uint32_t)(n >> 32);
@@ -1402,6 +1414,12 @@ struct U<32> {
         if (size > 0) buffer[size - 1] = (uint8_t)v.n;
     }
 
+    static bigint to_big(const U& v) {
+        uint8_t buffer[4];
+        U<32>::to(v, buffer);
+        return bigint::from(buffer, 4);
+    }
+
     uint32_t murmur3_(uint32_t seed) const {
         uint32_t h = seed;
         uint32_t k = n;
@@ -1482,15 +1500,6 @@ public:
 };
 static inline uint416_t udec416(const char *s) { return udec<416>(s); }
 static inline uint416_t uhex416(const char *s) { return uhex<416>(s); }
-
-struct uint512_t : public U<512> {
-public:
-    inline uint512_t() {}
-    inline uint512_t(uint64_t v) : U(v) {}
-    inline uint512_t(const U& v) : U(v) {}
-};
-static inline uint512_t udec512(const char *s) { return udec<512>(s); }
-static inline uint512_t uhex512(const char *s) { return uhex<512>(s); }
 
 // crypto
 
@@ -1949,23 +1958,22 @@ static void blake2f(const uint32_t ROUNDS,
     h7 ^= v7 ^ v15;
 }
 
-// bn256
+// curves
 
-static const bigint P = big("21888242871839275222246405745257275088696311157297823662689037894645226208583");
-static const bigint Q = big("21888242871839275222246405745257275088548364400416034343698204186575808495617");
-
-struct Gen2 {
+template<const char *_P>
+struct Gen2_t {
+    using Gen2 = Gen2_t;
     bigint x, y;
-    Gen2() {}
-    Gen2(const bigint &_x, const bigint &_y) : x(_x), y(_y) {}
+    Gen2_t() {}
+    Gen2_t(const bigint &_x, const bigint &_y) : x(_x), y(_y) {}
     bool is_zero() const { return x == 0 && y == 0; }
     bool is_one() const { return x == 0 && y == 1; }
     Gen2 conj() const { return Gen2(neg(x), y); }
     Gen2 twice() const { return Gen2(x << 1, y << 1); }
     Gen2 mulxi() const { return Gen2((x << 3) + x + y, (y << 3) + neg(x) + y); }
-    Gen2 sqr() const { return Gen2(((x * y) << 1) % P, ((y + neg(x)) * (y + x)) % P); }
-    Gen2 inv() const { bigint inv = bigint::powmod(x * x + y * y, P - 2, P); return Gen2((neg(x) * inv) % P, (y * inv) % P); }
-    Gen2 canon() const { return Gen2(x % P, y % P); }
+    Gen2 sqr() const { return Gen2(((x * y) << 1) % P(), ((y + neg(x)) * (y + x)) % P()); }
+    Gen2 inv() const { bigint inv = bigint::powmod(x * x + y * y, P() - 2, P()); return Gen2((neg(x) * inv) % P(), (y * inv) % P()); }
+    Gen2 canon() const { return Gen2(x % P(), y % P()); }
     Gen2& operator=(const bigint& v) { x = 0; y = v; return *this; }
     Gen2& operator=(const Gen2& v) { x = v.x; y = v.y; return *this; }
     const Gen2 operator-() const { Gen2 v = *this; v.x = neg(x); v.y = neg(y); return v; }
@@ -1974,27 +1982,24 @@ struct Gen2 {
     Gen2& operator*=(const bigint& v) { x *= v; y *= v; return *this; }
     Gen2& operator*=(const Gen2& v2) {
         Gen2 v1 = *this;
-        x = (v1.x * v2.y + v1.y * v2.x) % P;
-        y = (v1.y * v2.y + neg(v1.x * v2.x)) % P;
+        x = (v1.x * v2.y + v1.y * v2.x) % P();
+        y = (v1.y * v2.y + neg(v1.x * v2.x)) % P();
         return *this;
     }
     friend const Gen2 operator+(const Gen2& v1, const Gen2& v2) { return Gen2(v1) += v2; }
     friend const Gen2 operator-(const Gen2& v1, const Gen2& v2) { return Gen2(v1) -= v2; }
     friend const Gen2 operator*(const Gen2& v1, const Gen2& v2) { return Gen2(v1) *= v2; }
     friend const Gen2 operator*(const Gen2& v1, const bigint& v2) { return Gen2(v1) *= v2; }
-    static bigint neg(const bigint &v) { return P - (v % P); }
+    static bigint neg(const bigint &v) { return P() - (v % P()); }
+    static bigint P() { static bigint P = big(_P); return P; }
 };
 
-static const bigint XI_P2_1_3 = big("21888242871839275220042445260109153167277707414472061641714758635765020556616");
-static const Gen2 XI_P_1_3(
-    big("10307601595873709700152284273816112264069230130616436755625194854815875713954"),
-    big("21575463638280843010398324269430826099269044274347216827212613867836435027261")
-);
-
-struct Gen6 {
+template<class Gen2>
+struct Gen6_t {
+    using Gen6 = Gen6_t;
     Gen2 x, y, z;
-    Gen6() {}
-    Gen6(const Gen2 &_x, const Gen2 &_y, const Gen2 &_z) : x(_x), y(_y), z(_z) {}
+    Gen6_t() {}
+    Gen6_t(const Gen2 &_x, const Gen2 &_y, const Gen2 &_z) : x(_x), y(_y), z(_z) {}
     bool is_zero() const { return x.is_zero() && y.is_zero() && z.is_zero(); }
     bool is_one() const { return x.is_zero() && y.is_zero() && z.is_one(); }
     Gen6 twice() const { return Gen6(x.twice(), y.twice(), z.twice()); }
@@ -2003,10 +2008,15 @@ struct Gen6 {
             big("19937756971775647987995932169929341994314640652964949448313374472400716661030"),
             big("2581911344467009335267311115468803099551665605076196740867805258568234346338")
         );
+        static const Gen2 XI_P_1_3(
+            big("10307601595873709700152284273816112264069230130616436755625194854815875713954"),
+            big("21575463638280843010398324269430826099269044274347216827212613867836435027261")
+        );
         return Gen6(x.conj() * XI_2_P_2_3, y.conj() * XI_P_1_3, z.conj());
     }
     Gen6 frob2() const {
         static const bigint XI_2_P2_2_3 = big("2203960485148121921418603742825762020974279258880205651966");
+        static const bigint XI_P2_1_3 = big("21888242871839275220042445260109153167277707414472061641714758635765020556616");
         return Gen6(x * XI_2_P2_2_3, y * XI_P2_1_3, z);
     }
     Gen6 inv() const {
@@ -2050,10 +2060,12 @@ struct Gen6 {
     friend const Gen6 operator*(const Gen6& v1, const bigint& v2) { return Gen6(v1) *= v2; }
 };
 
-struct Gen12 {
+template<class Gen2, class Gen6>
+struct Gen12_t {
+    using Gen12 = Gen12_t;
     Gen6 x, y;
-    Gen12() {}
-    Gen12(const Gen6 &_x, const Gen6 &_y) : x(_x), y(_y) {}
+    Gen12_t() {}
+    Gen12_t(const Gen6 &_x, const Gen6 &_y) : x(_x), y(_y) {}
     Gen12 conj() const { return Gen12(-x, y); }
     Gen12 pow(const bigint &power) const {
         const Gen12 &a = *this;
@@ -2095,33 +2107,34 @@ struct Gen12 {
     friend const Gen12 operator*(const Gen12& v1, const Gen6& v2) { return Gen12(v1) *= v2; }
 };
 
-struct CurvePoint {
-    static constexpr uint64_t b = 3;
+template<const char *_P, int _B>
+struct CurvePoint_t {
+    using CurvePoint = CurvePoint_t;
     bigint x, y, z, t;
-    CurvePoint() {}
-    CurvePoint(const bigint &_x, const bigint &_y) : x(_x), y(_y) {
+    CurvePoint_t() {}
+    CurvePoint_t(const bigint &_x, const bigint &_y) : x(_x), y(_y) {
         if (x == 0 && y == 0) { y = 1; z = 0; t = 0; } else { z = 1; t = 1; }
     }
-    CurvePoint(const bigint &_x, const bigint &_y, const bigint &_z, const bigint &_t) : x(_x), y(_y), z(_z), t(_t) {}
+    CurvePoint_t(const bigint &_x, const bigint &_y, const bigint &_z, const bigint &_t) : x(_x), y(_y), z(_z), t(_t) {}
     bool is_inf() const { return z == 0; }
     bool is_valid() const {
-        bigint t = y * y + neg(x * x * x + b);
-        if (t >= P) t %= P;
+        bigint t = y * y + neg(x * x * x + _B);
+        if (t >= P()) t %= P();
         return t == 0;
     }
     CurvePoint twice() const {
-        bigint a = (x * x) % P;
-        bigint b = (y * y) % P;
-        bigint c = (b * b) % P;
+        bigint a = (x * x) % P();
+        bigint b = (y * y) % P();
+        bigint c = (b * b) % P();
         bigint t0 = x + b;
-        bigint d = ((t0 * t0) % P) - (a + c);
+        bigint d = ((t0 * t0) % P()) + neg(a + c);
         bigint e = d + d;
         bigint f = a + a + a;
-        bigint g = (y * z) % P;
+        bigint g = (y * z) % P();
         bigint h = c + c;
         bigint i = h + h;
-        bigint _x = ((f * f) % P) - (e + e);
-        bigint _y = ((f * (e - _x)) % P) - (i + i);
+        bigint _x = ((f * f) % P()) + neg(e + e);
+        bigint _y = ((f * (e + neg(_x))) % P()) + neg(i + i);
         bigint _z = g + g;
         bigint _t = t; // check
         return CurvePoint(_x, _y, _z, _t);
@@ -2129,10 +2142,10 @@ struct CurvePoint {
     CurvePoint affine() const {
         if (z == 1) return *this;
         if (is_inf()) { return CurvePoint(0, 1, 0, 0); }
-        bigint zinv = bigint::powmod(z, P - 2, P);
-        bigint zinv2 = (zinv * zinv) % P;
-        bigint _x = (x * zinv2) % P;
-        bigint _y = (((y * zinv2) % P) * zinv) % P;
+        bigint zinv = bigint::powmod(z, P() - 2, P());
+        bigint zinv2 = (zinv * zinv) % P();
+        bigint _x = (x * zinv2) % P();
+        bigint _y = (((y * zinv2) % P()) * zinv) % P();
         return CurvePoint(_x, _y, 1, 1);
     }
     void inf() { z = 0; }
@@ -2141,25 +2154,25 @@ struct CurvePoint {
         CurvePoint a = *this;
         if (a.is_inf()) { *this = b; return *this; }
         if (b.is_inf()) { *this = a; return *this; }
-        bigint z1z1 = (a.z * a.z) % P;
-        bigint z2z2 = (b.z * b.z) % P;
-        bigint u1 = (a.x * z2z2) % P;
-        bigint u2 = (b.x * z1z1) % P;
-        bigint s1 = (a.y * ((b.z * z2z2) % P)) % P;
-        bigint s2 = (b.y * ((a.z * z1z1) % P)) % P;
-        bigint h = u2 - u1;
-        bigint t = s2 - s1;
+        bigint z1z1 = (a.z * a.z) % P();
+        bigint z2z2 = (b.z * b.z) % P();
+        bigint u1 = (a.x * z2z2) % P();
+        bigint u2 = (b.x * z1z1) % P();
+        bigint s1 = (a.y * ((b.z * z2z2) % P())) % P();
+        bigint s2 = (a.z * ((b.y * z1z1) % P())) % P();
+        bigint h = u2 + neg(u1);
+        bigint t = s2 + neg(s1);
         if (h == 0 && t == 0) { *this = a.twice(); return *this; }
         bigint _t = h + h;
-        bigint i = (_t * _t) % P;
-        bigint j = (h * i) % P;
+        bigint i = (_t * _t) % P();
+        bigint j = (h * i) % P();
         bigint r = t + t;
-        bigint v = (u1 * i) % P;
-        bigint w = (s1 * j) % P;
+        bigint v = (u1 * i) % P();
+        bigint w = (s1 * j) % P();
         bigint t0 = a.z + b.z;
-        x = ((r * r) % P) - (j + v + v);
-        y = ((r * (v - x)) % P) - (w + w);
-        z = ((((t0 * t0) % P) - (z1z1 + z2z2)) * h) % P;
+        x = ((r * r) % P()) + neg(j + v + v);
+        y = ((r * (v + neg(x))) % P()) + neg(w + w);
+        z = ((((t0 * t0) % P()) + neg(z1z1 + z2z2)) * h) % P();
         // check t
         return *this;
     }
@@ -2175,16 +2188,19 @@ struct CurvePoint {
     }
     friend const CurvePoint operator+(const CurvePoint& v1, const CurvePoint& v2) { return CurvePoint(v1) += v2; }
     friend const CurvePoint operator*(const CurvePoint& v1, const bigint& v2) { return CurvePoint(v1) *= v2; }
-    static bigint neg(const bigint &v) { return P - (v % P); }
+    static bigint neg(const bigint &v) { return P() - (v % P()); }
+    static bigint P() { static bigint P = big(_P); return P; }
 };
 
-struct TwistPoint {
+template<class Gen2, const char *_Q>
+struct TwistPoint_t {
+    using TwistPoint = TwistPoint_t;
     Gen2 x, y, z, t;
-    TwistPoint() {}
-    TwistPoint(const Gen2 &_x, const Gen2 &_y) : x(_x), y(_y) {
+    TwistPoint_t() {}
+    TwistPoint_t(const Gen2 &_x, const Gen2 &_y) : x(_x), y(_y) {
         if (x.is_zero() && y.is_zero()) { y = 1; z = 0; t = 0; } else { z = 1; t = 1; }
     }
-    TwistPoint(const Gen2 &_x, const Gen2 &_y, const Gen2 &_z, const Gen2 &_t) : x(_x), y(_y), z(_z), t(_t) {}
+    TwistPoint_t(const Gen2 &_x, const Gen2 &_y, const Gen2 &_z, const Gen2 &_t) : x(_x), y(_y), z(_z), t(_t) {}
     bool is_inf() const { return z.is_zero(); }
     bool is_valid() const {
         static const Gen2 twistB(
@@ -2194,7 +2210,7 @@ struct TwistPoint {
         Gen2 t = y.sqr() - (x.sqr() * x + twistB);
         t = t.canon();
         if (t.x != 0 || t.y != 0) return false;
-        TwistPoint p = *this * Q;
+        TwistPoint p = *this * Q();
         return p.z.is_zero();
     }
     TwistPoint twice() const {
@@ -2262,7 +2278,55 @@ struct TwistPoint {
     }
     friend const TwistPoint operator+(const TwistPoint& v1, const TwistPoint& v2) { return TwistPoint(v1) += v2; }
     friend const TwistPoint operator*(const TwistPoint& v1, const bigint& v2) { return TwistPoint(v1) *= v2; }
+    static bigint Q() { static bigint Q = big(_Q); return Q; }
 };
+
+// secp256k1
+
+static const char p_[] = "115792089237316195423570985008687907853269984665640564039457584007908834671663";
+static const char q_[] = "115792089237316195423570985008687907852837564279074904382605163141518161494337";
+
+using G0 = CurvePoint_t<p_, 7>;
+
+static uint160_t _throws(ecrecover)(const uint256_t &_h, const uint256_t &_v, const uint256_t &_r, const uint256_t &_s)
+{
+    static const bigint P = big(p_);
+    static const bigint Q = big(q_);
+    static const G0 G = G0(
+        big("55066263022277343669578718895168534326250603453777594175500187360389116729240"),
+        big("32670510020758816978083085130507043184471273380659243275938904335757337482424")
+    );
+
+    bigint h = uint256_t::to_big(_h);
+    bigint v = uint256_t::to_big(_v);
+    bigint r = uint256_t::to_big(_r);
+    bigint s = uint256_t::to_big(_s);
+    if (v < 27 || v > 28) _throw0(INVALID_SIGNATURE);
+    bigint y = bigint::powmod(((r * r) % P * r) % P + 7, (P + 1) / 4, P);
+    if ((v == 28) == ((y % 2) == 0)) y = P - y;
+    G0 q(r, y);
+    bigint u = Q - (h % Q);
+    bigint z = bigint::powmod(r, Q - 2, Q);
+    G0 t = ((q * s) + (G * u)) * z;
+    t = t.affine();
+    uint8_t buffer[64];
+    uint64_t offset = 0;
+    bigint::to(t.x, &buffer[offset], 32); offset += 32;
+    bigint::to(t.y, &buffer[offset], 32); offset += 32;
+    uint160_t a = (uint160_t)sha3(buffer, 64);
+    return a;
+}
+
+// bn256
+
+static const char P_[] = "21888242871839275222246405745257275088696311157297823662689037894645226208583";
+static const char Q_[] = "21888242871839275222246405745257275088548364400416034343698204186575808495617";
+
+using Gen2 = Gen2_t<P_>;
+using Gen6 = Gen6_t<Gen2>;
+using Gen12 = Gen12_t<Gen2, Gen6>;
+using G1 = CurvePoint_t<P_, 3>;
+using G2 = TwistPoint_t<Gen2, Q_>;
 
 static void mul_line(const Gen2 &a, const Gen2 &b, const Gen2 &c, Gen12 &inout)
 {
@@ -2273,7 +2337,7 @@ static void mul_line(const Gen2 &a, const Gen2 &b, const Gen2 &c, Gen12 &inout)
     inout.y = t1.multau() + t2;
 }
 
-static TwistPoint line_func_twice(const CurvePoint &q, const TwistPoint &r, Gen2 &a, Gen2 &b, Gen2 &c)
+static G2 line_func_twice(const G1 &q, const G2 &r, Gen2 &a, Gen2 &b, Gen2 &c)
 {
     Gen2 A = r.x.sqr();
     Gen2 B = r.y.sqr();
@@ -2292,10 +2356,10 @@ static TwistPoint line_func_twice(const CurvePoint &q, const TwistPoint &r, Gen2
     a = ((r.x + F).sqr() - (A + G)) - (M + M);
     b = -(L + L) * q.x;
     c = (N + N) * q.y;
-    return TwistPoint(H, (E - H) * F - (J + J), K, K.sqr());
+    return G2(H, (E - H) * F - (J + J), K, K.sqr());
 }
 
-static TwistPoint line_func_add(const CurvePoint &q, const TwistPoint &r, const TwistPoint &p, const Gen2 &r2, Gen2 &a, Gen2&b, Gen2&c)
+static G2 line_func_add(const G1 &q, const G2 &r, const G2 &p, const Gen2 &r2, Gen2 &a, Gen2&b, Gen2&c)
 {
     Gen2 A = ((p.y + r.z).sqr() - (r2 + r.t)) * r.t - (r.y + r.y);
     Gen2 B = p.x * r.t;
@@ -2315,10 +2379,10 @@ static TwistPoint line_func_add(const CurvePoint &q, const TwistPoint &r, const 
     a = M + M - (p.y + K).sqr() + r2 + L;
     b = O + O;
     c = N + N;
-    return TwistPoint(I, (H - I) * A - (J + J), K, L);
+    return G2(I, (H - I) * A - (J + J), K, L);
 }
 
-static Gen12 miller(const CurvePoint &_A, const TwistPoint &_B)
+static Gen12 miller(const G1 &_A, const G2 &_B)
 {
     static const int8_t sixuPlus2NAF[] = {
         1, 0, 1, 0, 0, -1, 0, 1, 1, 0, 0, 0, -1, 0, 0, 1,
@@ -2327,18 +2391,23 @@ static Gen12 miller(const CurvePoint &_A, const TwistPoint &_B)
         0, 1, 0, 0, -1, 1, 0, 0, -1, 0, 1, 0, 1, 0, 0, 0,
     };
 
+    static const bigint XI_P2_1_3 = big("21888242871839275220042445260109153167277707414472061641714758635765020556616");
+    static const Gen2 XI_P_1_3(
+        big("10307601595873709700152284273816112264069230130616436755625194854815875713954"),
+        big("21575463638280843010398324269430826099269044274347216827212613867836435027261")
+    );
     static const Gen2 XI_P_1_2(
         big("3505843767911556378687030309984248845540243509899259641013678093033130930403"),
         big("2821565182194536844548159561693502659359617185244120367078079554186484126554")
     );
 
     Gen2 _1; _1 = 1;
-    CurvePoint A = _A.affine();
-    TwistPoint B = _B; B.affine();
-    TwistPoint C = -B;
-    TwistPoint P(B.x.conj() * XI_P_1_3, B.y.conj() * XI_P_1_2, _1, _1);
-    TwistPoint Q(B.x * XI_P2_1_3, B.y, _1, _1);
-    TwistPoint R = B;
+    G1 A = _A.affine();
+    G2 B = _B; B.affine();
+    G2 C = -B;
+    G2 P(B.x.conj() * XI_P_1_3, B.y.conj() * XI_P_1_2, _1, _1);
+    G2 Q(B.x * XI_P2_1_3, B.y, _1, _1);
+    G2 R = B;
     Gen2 r2 = B.y.sqr();
     Gen2 a, b, c;
     Gen12 ret; ret = 1;
@@ -2373,7 +2442,7 @@ static Gen12 bn256check(const Gen12 &v)
     return (t8 * t1.conj()).sqr() * t8 * t1.frob() * t2 * t2.frob();
 }
 
-static bool bn256pairing(CurvePoint *a, TwistPoint *b, uint64_t count)
+static bool bn256pairing(G1 *a, G2 *b, uint64_t count)
 {
     Gen12 prod; prod = 1;
     for (uint64_t i = 0; i < count; i++) {
@@ -2382,170 +2451,6 @@ static bool bn256pairing(CurvePoint *a, TwistPoint *b, uint64_t count)
     }
     Gen12 value = bn256check(prod);
     return value.is_one();
-}
-
-// secp256k1
-
-static const uint256_t _N[8] = {
-    // secp
-    uhex256("fefffffc2f").signext(4),
-    uhex256("febaaedce6af48a03bbfd25e8cd0364141").signext(16),
-    uhex256("79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"),
-    uhex256("483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8"),
-    // bn
-    uhex256("30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47"),
-    uhex256("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001"),
-    1,
-    2,
-};
-
-template<int N>
-class modN_t {
-private:
-    static const uint256_t &n() { return _N[N]; }
-    uint256_t u;
-public:
-    inline const uint256_t &as256() const { return u; }
-    inline modN_t() {}
-    inline modN_t(uint64_t v) : u(v) {}
-    inline modN_t(const uint256_t &v) : u(v % n()) {}
-    inline modN_t(const modN_t &v) : u(v.u) {}
-    inline modN_t& operator=(const modN_t& v) { u = v.u; return *this; }
-    inline const modN_t operator-() const { return modN_t(n() - u); }
-    inline modN_t& operator++() { *this += modN_t(1); return *this; }
-    inline modN_t& operator--() { *this -= modN_t(1); return *this; }
-    inline const modN_t operator++(int) { const modN_t v = *this; ++(*this); return v; }
-    inline const modN_t operator--(int) { const modN_t v = *this; --(*this); return v; }
-    inline modN_t& operator+=(const modN_t& v) { *this = *this + v; return *this; }
-    inline modN_t& operator-=(const modN_t& v) { *this = *this - v; return *this; }
-    inline modN_t& operator*=(const modN_t& v) { *this = *this * v; return *this; }
-    inline modN_t& operator/=(const modN_t& v) { *this = *this / v; return *this; }
-    friend inline const modN_t operator+(const modN_t& v1, const modN_t& v2) { return modN_t(uint256_t::addmod(v1.u, v2.u, n())); }
-    friend inline const modN_t operator-(const modN_t& v1, const modN_t& v2) { return v1 + (-v2); }
-    friend inline const modN_t operator*(const modN_t& v1, const modN_t& v2) { return modN_t(uint256_t::mulmod(v1.u, v2.u, n())); }
-    friend inline const modN_t operator/(const modN_t& v1, const modN_t& v2) { return v1.u * pow(v2.u, -(modN_t)2); }
-    friend inline bool operator==(const modN_t& v1, const modN_t& v2) { return v1.u == v2.u; }
-    friend inline bool operator!=(const modN_t& v1, const modN_t& v2) { return v1.u != v2.u; }
-    static inline const modN_t pow(const modN_t &v1, const modN_t &v2) { return modN_t(uint256_t::powmod(v1.u, v2.u, n())); }
-};
-
-template<int N, int GX, int GY, int A, int B>
-class pointN_t {
-private:
-    static inline const modN_t<N> a() { return A; }
-    static inline const modN_t<N> b() { return B; }
-    static inline const pointN_t g() { return pointN_t(_N[GX], _N[GY]); }
-    bool is_inf;
-    modN_t<N> x;
-    modN_t<N> y;
-public:
-    static const pointN_t inf() { pointN_t p(0, 0); p.is_inf = true; return p; }
-    bool belongs() {
-        if (is_inf) return false;
-        return y * y - (x * x * x + a() * x + b()) == 0;
-    }
-    uint512_t as512() const {
-        uint8_t buffer[64];
-        uint256_t::to(x.as256(), buffer);
-        uint256_t::to(y.as256(), &buffer[32]);
-        return uint512_t::from(buffer);
-    }
-    pointN_t() {}
-    pointN_t(const modN_t<N> &_x, const modN_t<N> &_y): is_inf(false), x(_x), y(_y) {}
-    pointN_t(const pointN_t &p) : is_inf(p.is_inf), x(p.x), y(p.y) {}
-    pointN_t& operator=(const pointN_t& p) { is_inf = p.is_inf; x = p.x; y = p.y; return *this; }
-    pointN_t& operator+=(const pointN_t& p) { *this = *this + p; return *this; }
-    friend const pointN_t operator+(const pointN_t& p1, const pointN_t& p2) {
-        if (p1.is_inf) return p2;
-        if (p2.is_inf) return p1;
-        modN_t<N> x1 = p1.x, y1 = p1.y;
-        modN_t<N> x2 = p2.x, y2 = p2.y;
-        modN_t<N> l;
-        if (x1 == x2) {
-            if (y1 != y2) return inf();
-            if (y1 == 0) return inf();
-            l = (3 * (x1 * x1) + a()) / (2 * y1);
-        } else {
-            l = (y2 - y1) / (x2 - x1);
-        }
-        modN_t<N> x3 = l * l - x1 - x2;
-        modN_t<N> y3 = l * (x1 - x3) - y1;
-        return pointN_t(x3, y3);
-    }
-    friend const pointN_t operator*(const pointN_t& _p, const uint256_t& e) {
-        pointN_t p = _p;
-        pointN_t q = inf();
-        for (int n = 0; n < 256; n++) {
-            int i = n / 8;
-            int j = n % 8;
-            if ((e.byte(i) & (1 << j)) > 0) q += p;
-            p += p;
-        }
-        return q;
-    }
-    friend bool operator==(const pointN_t& p1, const pointN_t& p2) { return p1.is_inf == p2.is_inf && p1.x == p2.x && p1.y == p2.y; }
-    friend bool operator!=(const pointN_t& p1, const pointN_t& p2) { return !(p1 == p2); }
-    static pointN_t gen(const uint256_t &u) { return  g() * u; }
-    static pointN_t find(const modN_t<N> &x, bool is_odd) {
-        modN_t<N> poly = x * x * x + a() * x + b();
-        modN_t<N> y = modN_t<N>::pow(poly, (modN_t<N>)1 / 4);
-        if (is_odd == (y.as256().byte(0) % 2 == 0)) y = -y;
-        return pointN_t(x, y);
-    }
-};
-
-class mod_t : public modN_t<0> {
-public:
-    inline mod_t() {}
-    inline mod_t(uint64_t v) : modN_t(v) {}
-    inline mod_t(const uint256_t &v) : modN_t(v) {}
-    inline mod_t(const modN_t &v) : modN_t(v) {}
-};
-
-class mud_t : public modN_t<1> {
-public:
-    inline mud_t() {}
-    inline mud_t(uint64_t v) : modN_t(v) {}
-    inline mud_t(const uint256_t &v) : modN_t(v) {}
-    inline mud_t(const modN_t &v) : modN_t(v) {}
-};
-
-class point_t : public pointN_t<0, 2, 3, 0, 7> {
-public:
-    inline point_t() {}
-    inline point_t(const mod_t &_x, const mod_t &_y): pointN_t(_x, _y) {}
-    inline point_t(const pointN_t &p) : pointN_t(p) {}
-};
-
-class mod_bn_t : public modN_t<4> {
-public:
-    inline mod_bn_t() {}
-    inline mod_bn_t(uint64_t v) : modN_t(v) {}
-    inline mod_bn_t(const uint256_t &v) : modN_t(v) {}
-    inline mod_bn_t(const modN_t &v) : modN_t(v) {}
-};
-
-class point_bn_t : public pointN_t<4, 6, 7, 0, 3> {
-public:
-    inline point_bn_t() {}
-    inline point_bn_t(const mod_bn_t &_x, const mod_bn_t &_y): pointN_t(_x, _y) {}
-    inline point_bn_t(const pointN_t &p) : pointN_t(p) {}
-};
-
-static uint160_t _throws(ecrecover)(const uint256_t &h, const uint256_t &v, const uint256_t &r, const uint256_t &s)
-{
-    if (v < 27 || v > 28) _throw0(INVALID_SIGNATURE);
-    if (r == 0 || mod_t(r).as256() != r) _throw0(INVALID_SIGNATURE);
-    if (s == 0 || mod_t(s).as256() != s) _throw0(INVALID_SIGNATURE);
-    point_t q = point_t::find(r, v == 28);
-    mud_t z = 1 / (mud_t)r;
-    mud_t u = -(mud_t)h;
-    point_t p = point_t::gen(u.as256()) + q * s;
-    point_t t = p * z.as256();
-    uint8_t buffer[64];
-    uint512_t::to(t.as512(), buffer);
-    uint160_t a = (uint160_t)sha3(buffer, 64);
-    return a;
 }
 
 // decoder
@@ -4906,24 +4811,28 @@ static void _throws(vm_bn256add)(Release release,
     _handles(_consume_gas)(gas, _gas_bn256add(release));
     if (call_size != 2 * 2 * 32) _throw(INVALID_SIZE);
     uint64_t call_offset = 0;
-    uint256_t x1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
-    uint256_t y1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
-    uint256_t x2 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
-    uint256_t y2 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
-    if (mod_bn_t(x1).as256() != x1) _throw(INVALID_ENCODING);
-    if (mod_bn_t(y1).as256() != y1) _throw(INVALID_ENCODING);
-    if (mod_bn_t(x2).as256() != x2) _throw(INVALID_ENCODING);
-    if (mod_bn_t(y2).as256() != y2) _throw(INVALID_ENCODING);
-    point_bn_t p1 = point_bn_t(x1, y1);
-    point_bn_t p2 = point_bn_t(x2, y2);
-    if (x1 == 0 && y1 == 0) p1 = point_bn_t::inf();
-    else if (!p1.belongs()) _throw(INVALID_ENCODING);
-    if (x2 == 0 && y2 == 0) p2 = point_bn_t::inf();
-    else if (!p2.belongs()) _throw(INVALID_ENCODING);
-    point_bn_t p3 = p1 + p2;
+    bigint x1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+    bigint y1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+    bigint x2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+    bigint y2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+    if (x1 >= G1::P()) _throw(INVALID_ENCODING);
+    if (y1 >= G1::P()) _throw(INVALID_ENCODING);
+    if (x2 >= G1::P()) _throw(INVALID_ENCODING);
+    if (y2 >= G1::P()) _throw(INVALID_ENCODING);
+    G1 p1 = G1(x1, y1);
+    G1 p2 = G1(x2, y2);
+    if (!(x1 == 0 && y1 == 0)) {
+        if (!p1.is_valid()) _throw(INVALID_ENCODING);
+    }
+    if (!(x2 == 0 && y2 == 0)) {
+        if (!p2.is_valid()) _throw(INVALID_ENCODING);
+    }
+    G1 p3 = (p1 + p2).affine();
     return_size = 2 * 32;
     _ensure_capacity(return_data, return_size, return_capacity);
-    uint512_t::to(p3.as512(), return_data);
+    uint64_t return_offset = 0;
+    bigint::to(p3.x, &return_data[return_offset], 32); return_offset += 32;
+    bigint::to(p3.y, &return_data[return_offset], 32); return_offset += 32;
 }
 
 static void _throws(vm_bn256scalarmul)(Release release,
@@ -4933,18 +4842,21 @@ static void _throws(vm_bn256scalarmul)(Release release,
     _handles(_consume_gas)(gas, _gas_bn256scalarmul(release));
     if (call_size != 2 * 32 + 32) _throw(INVALID_SIZE);
     uint64_t call_offset = 0;
-    uint256_t x1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
-    uint256_t y1 = uint256_t::from(&call_data[call_offset]); call_offset += 32;
-    uint256_t e = uint256_t::from(&call_data[call_offset]); call_offset += 32;
-    if (mod_bn_t(x1).as256() != x1) _throw(INVALID_ENCODING);
-    if (mod_bn_t(y1).as256() != y1) _throw(INVALID_ENCODING);
-    point_bn_t p1 = point_bn_t(x1, y1);
-    if (x1 == 0 && y1 == 0) p1 = point_bn_t::inf();
-    else if (!p1.belongs()) _throw(INVALID_ENCODING);
-    point_bn_t p2 = p1 * e;
+    bigint x1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+    bigint y1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+    bigint e = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+    if (x1 >= G1::P()) _throw(INVALID_ENCODING);
+    if (y1 >= G1::P()) _throw(INVALID_ENCODING);
+    G1 p1 = G1(x1, y1);
+    if (!(x1 == 0 && y1 == 0)) {
+        if (!p1.is_valid()) _throw(INVALID_ENCODING);
+    }
+    G1 p2 = (p1 * e).affine();
     return_size = 2 * 32;
     _ensure_capacity(return_data, return_size, return_capacity);
-    uint512_t::to(p2.as512(), return_data);
+    uint64_t return_offset = 0;
+    bigint::to(p2.x, &return_data[return_offset], 32); return_offset += 32;
+    bigint::to(p2.y, &return_data[return_offset], 32); return_offset += 32;
 }
 
 static void _throws(vm_bn256pairing)(Release release,
@@ -4954,15 +4866,15 @@ static void _throws(vm_bn256pairing)(Release release,
     if (call_size % (2 * 32 + 2 * 2 * 32) != 0) _throw(INVALID_SIZE);
     uint64_t count = call_size / (2 * 32 + 2 * 2 * 32);
     _handles(_consume_gas)(gas, _gas_bn256pairing(release, count));
-    CurvePoint curve_points[count];
-    TwistPoint twist_points[count];
+    G1 curve_points[count];
+    G2 twist_points[count];
     uint64_t call_offset = 0;
     for (uint64_t i = 0; i < count; i++) {
         bigint x1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
         bigint y1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
-        if (x1 >= P) _throw(INVALID_ENCODING);
-        if (y1 >= P) _throw(INVALID_ENCODING);
-        CurvePoint g1 = CurvePoint(x1, y1);
+        if (x1 >= G1::P()) _throw(INVALID_ENCODING);
+        if (y1 >= G1::P()) _throw(INVALID_ENCODING);
+        G1 g1 = G1(x1, y1);
         if (!(x1 == 0 && y1 == 0)) {
             if (!g1.is_valid()) _throw(INVALID_ENCODING);
         }
@@ -4971,11 +4883,11 @@ static void _throws(vm_bn256pairing)(Release release,
         bigint xy2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
         bigint yx2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
         bigint yy2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
-        if (xx2 >= P) _throw(INVALID_ENCODING);
-        if (xy2 >= P) _throw(INVALID_ENCODING);
-        if (yx2 >= P) _throw(INVALID_ENCODING);
-        if (yy2 >= P) _throw(INVALID_ENCODING);
-        TwistPoint g2 = TwistPoint(Gen2(xx2, xy2), Gen2(yx2, yy2));
+        if (xx2 >= G1::P()) _throw(INVALID_ENCODING);
+        if (xy2 >= G1::P()) _throw(INVALID_ENCODING);
+        if (yx2 >= G1::P()) _throw(INVALID_ENCODING);
+        if (yy2 >= G1::P()) _throw(INVALID_ENCODING);
+        G2 g2 = G2(Gen2(xx2, xy2), Gen2(yx2, yy2));
         if (!(xx2 == 0 && xy2 == 0 && yx2 == 0 && yy2 == 0)) {
             if (!g2.is_valid()) _throw(INVALID_ENCODING);
         }
@@ -5724,7 +5636,7 @@ static void _throws(_verify_txn)(Release release, struct txn &txn)
         if (chainid != CHAIN_ID) _throw(INVALID_TRANSACTION);
     }
     if (release >= HOMESTEAD) {
-        if (txn.s == 0 || 2*txn.s < txn.s || mod_t(2*txn.s - 1).as256() != 2*txn.s - 1) _throw(INVALID_TRANSACTION);
+        if (txn.s == 0 || 2*uint256_t::to_big(txn.s) > G0::P()) _throw(INVALID_TRANSACTION);
     }
 }
 
