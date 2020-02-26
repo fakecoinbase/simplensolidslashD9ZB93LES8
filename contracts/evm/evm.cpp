@@ -349,7 +349,7 @@ private:
 private:
     // vm callback to read the noce
     uint64_t get_nonce(const uint160_t &address) const {
-        eosio::print_f("debug: get_nonce address<0x%>", to_string(address));
+        //eosio::print_f("debug: get_nonce address<0x%>", to_string(address));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto itr = _account.find(acc_id);
@@ -360,10 +360,10 @@ private:
 
     // vm callback to update the noce
     void set_nonce(const uint160_t &address, const uint64_t &nonce) {
-        eosio::print_f("debug: set_nonce address<0x%> value<0x%>", to_string(address), to_string((uint256_t)nonce));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto itr = _account.find(acc_id);
+            eosio::print_f("debug: set_nonce address<0x%> value<0x%>", to_string(address), to_string((uint256_t)nonce));
             _account.modify(itr, _self, [&](auto& row) { row.nonce = nonce; });
             return;
         }
@@ -372,7 +372,7 @@ private:
 
     // vm callback to read the balance
     uint256_t get_balance(const uint160_t &address) const {
-        eosio::print_f("debug: get_balance address<0x%>", to_string(address));
+        //eosio::print_f("debug: get_balance address<0x%>", to_string(address));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto itr = _account.find(acc_id);
@@ -383,12 +383,12 @@ private:
 
     // vm callback to update the balance
     void set_balance(const uint160_t &address, const uint256_t &_balance) {
-        eosio::print_f("debug: set_balance address<0x%> value<0x%>", to_string(address), to_string(_balance));
         check(_balance < ((uint256_t)1 << 64), "illegal state, invalid balance");
         uint64_t balance = _balance.cast64();
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto itr = _account.find(acc_id);
+            eosio::print_f("debug: set_balance address<0x%> value<0x%>", to_string(address), to_string(_balance));
             _account.modify(itr, _self, [&](auto& row) { row.balance = balance; });
             return;
         }
@@ -397,25 +397,24 @@ private:
 
     // vm callback to read the account codehash
     uint256_t get_codehash(const uint160_t &address) const {
-        eosio::print_f("debug: get_codehash address<0x%>", to_string(address));
+        //eosio::print_f("debug: get_codehash address<0x%>", to_string(address));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto idx = _code.get_index<"code2"_n>();
             auto itr = idx.find(acc_id);
-            if (itr != idx.end()) return id64(itr->code);
+            if (itr != idx.end()) return id256(itr->code);
         }
         return 0;
     };
 
     // vm callback to update the account codehash
     void set_codehash(const uint160_t &address, const uint256_t &codehash) {
-        eosio::print_f("debug: set_codehash address<0x%> value<0x%>", to_string(address), to_string(codehash));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto idx = _code.get_index<"code2"_n>();
             auto itr = idx.find(acc_id);
             if (itr != idx.end()) {
-                if (id64(itr->code) == codehash) return;
+                if (id256(itr->code) == codehash) return;
                 idx.erase(itr);
             }
         }
@@ -424,7 +423,8 @@ private:
             uint64_t hash_id = id64(codehash);
             auto idx = _code.get_index<"code3"_n>();
             for (auto itr = idx.find(hash_id); itr != idx.end(); itr++) {
-                if (itr->acc_id == 0 && id64(itr->code) == codehash) {
+                if (itr->acc_id == 0 && id256(itr->code) == codehash) {
+                    eosio::print_f("debug: set_codehash address<0x%> value<0x%>", to_string(address), to_string(codehash));
                     idx.modify(itr, _self, [&](auto& row) { row.acc_id = acc_id; });
                     return;
                 }
@@ -434,12 +434,11 @@ private:
 
     // vm call back to load code
     uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
-        eosio::print_f("debug: load_code codehash<0x%>", to_string(codehash));
+        //eosio::print_f("debug: load_code codehash<0x%>", to_string(codehash));
         uint64_t hash_id = id64(codehash);
         auto idx = _code.get_index<"code3"_n>();
-        auto itr = idx.find(hash_id);
-        while (itr != idx.end()) {
-            if (id64(itr->code) == codehash) {
+        for (auto itr = idx.find(hash_id); itr != idx.end(); itr++) {
+            if (id256(itr->code) == codehash) {
                 code_size = itr->code.size();
                 uint8_t *code = _new<uint8_t>(code_size);
                 for (uint64_t i = 0; i < code_size; i++) code[i] = itr->code[i];
@@ -452,12 +451,12 @@ private:
 
     // vm call back to store code
     void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) {
-        eosio::print_f("debug: store_code codehash<0x%> value<0x%>", to_string(codehash), to_string(code, code_size));
         uint64_t hash_id = id64(codehash);
         auto idx = _code.get_index<"code3"_n>();
         for (auto itr = idx.find(hash_id); itr != idx.end(); itr++) {
-            if (id64(itr->code) == codehash) return;
+            if (id256(itr->code) == codehash) return;
         }
+        eosio::print_f("debug: store_code codehash<0x%> value<0x%>", to_string(codehash), to_string(code, code_size));
         _code.emplace(_self, [&](auto& row) {
             row.code_id = _max(1, _code.available_primary_key());
             row.acc_id = 0;
@@ -468,7 +467,7 @@ private:
 
     // vm callback to read from the storage
     uint256_t load(const uint160_t &address, const uint256_t &key) const {
-        eosio::print_f("debug: load address<0x%> key<0x%>", to_string(address), to_string(key));
+        //eosio::print_f("debug: load address<0x%> key<0x%>", to_string(address), to_string(key));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             uint64_t key_id = id64(acc_id, key);
@@ -482,13 +481,13 @@ private:
 
     // vm callback to update the storage
     void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) {
-        eosio::print_f("debug: store address<0x%> key<0x%> value<0x%>", to_string(address), to_string(key), to_string(value));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             uint64_t key_id = id64(acc_id, key);
             auto idx = _state.get_index<"state3"_n>();
             for (auto itr = idx.find(key_id); itr != idx.end(); itr++) {
                 if (itr->acc_id == acc_id && equals(itr->key, key)) {
+                    eosio::print_f("debug: store address<0x%> key<0x%> value<0x%>", to_string(address), to_string(key), to_string(value));
                     if (value > 0) {
                         idx.modify(itr, _self, [&](auto& row) { row.value = convert(value); });
                     } else {
@@ -500,6 +499,7 @@ private:
         }
         if (value > 0) {
             if (acc_id == 0) acc_id = insert_account(address, 0, 0, 0);
+            eosio::print_f("debug: store address<0x%> key<0x%> value<0x%>", to_string(address), to_string(key), to_string(value));
             _state.emplace(_self, [&](auto& row) {
                 row.key_id = _max(1, _state.available_primary_key());
                 row.acc_id = acc_id;
@@ -511,11 +511,13 @@ private:
 
     // vm call back to clean up accounts
     void remove(const uint160_t &address) {
-        eosio::print_f("debug: remove address<{0x%}>", to_string(address));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto itr = _account.find(acc_id);
-            if (itr->user_id == 0) _account.erase(itr);
+            if (itr->user_id == 0) {
+                eosio::print_f("debug: remove address<{0x%}>", to_string(address));
+                _account.erase(itr);
+            }
         }
     }
 
@@ -588,14 +590,6 @@ private:
         return acc_id ^ key.murmur3(acc_id);
     }
 
-    // generates a low collision 64-bit id for bytecode
-    static uint64_t id64(const std::vector<uint8_t> &code) {
-        uint64_t size = code.size();
-        local<uint8_t> buffer_l(size); uint8_t *buffer = buffer_l.data;
-        for (uint64_t i = 0; i < size; i++) buffer[i] = code[i];
-        return id64(sha3(buffer, size));
-    }
-
     // generates a low collision 64-bit id for codehash
     static uint64_t id64(const uint256_t &codehash) {
         return 0
@@ -607,6 +601,19 @@ private:
             | (uint64_t)codehash.byte(2) << 16
             | (uint64_t)codehash.byte(1) << 8
             | (uint64_t)codehash.byte(0);
+    }
+
+    // generates a low collision 64-bit id for bytecode
+    static uint64_t id64(const std::vector<uint8_t> &code) {
+        return id64(id256(code));
+    }
+
+    // generates the codehash for bytecode
+    static uint256_t id256(const std::vector<uint8_t> &code) {
+        uint64_t size = code.size();
+        local<uint8_t> buffer_l(size); uint8_t *buffer = buffer_l.data;
+        for (uint64_t i = 0; i < size; i++) buffer[i] = code[i];
+        return sha3(buffer, size);
     }
 
     // compare checksum160 for equality
