@@ -275,19 +275,19 @@ public:
         // TODO missing removal
     }
     inline void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) {
-        if (std::getenv("EVM_DEBUG")) std::cout << "log0" << address << std::endl;
+        if (std::getenv("EVM_DEBUG")) std::cout << "log0 " << address << std::endl;
     }
     inline void log1(const uint160_t &address, const uint256_t &v1, const uint8_t *data, uint64_t data_size) {
-        if (std::getenv("EVM_DEBUG")) std::cout << "log1" << address << " " << v1 << std::endl;
+        if (std::getenv("EVM_DEBUG")) std::cout << "log1 " << address << " " << v1 << std::endl;
     }
     inline void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) {
-        if (std::getenv("EVM_DEBUG")) std::cout << "log2" << address << " " << v1 << " " << v2 << std::endl;
+        if (std::getenv("EVM_DEBUG")) std::cout << "log2 " << address << " " << v1 << " " << v2 << std::endl;
     }
     inline void log3(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *data, uint64_t data_size) {
-        if (std::getenv("EVM_DEBUG")) std::cout << "log3" << address << " " << v1 << " " << v2 << " " << v3 << std::endl;
+        if (std::getenv("EVM_DEBUG")) std::cout << "log3 " << address << " " << v1 << " " << v2 << " " << v3 << std::endl;
     }
     inline void log4(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *data, uint64_t data_size) {
-        if (std::getenv("EVM_DEBUG")) std::cout << "log4" << address << " " << v1 << " " << v2 << " " << v3 << " " << v4 << std::endl;
+        if (std::getenv("EVM_DEBUG")) std::cout << "log4 " << address << " " << v1 << " " << v2 << " " << v3 << " " << v4 << std::endl;
     }
 };
 
@@ -392,8 +392,8 @@ int main(int argc, const char *argv[])
     _try({
         _Block block;
         _State state;
-        // state.set_balance(1, 10000000);
-        _catches(vm_txn)(block, state, buffer, size, 0, true);
+        state.set_balance(1, 10000000);
+        _catches(vm_txn)(block, state, buffer, size, 1, true);
         state.save();
     }, Error e, {
         std::cerr << progname << ": error " << errors[e] << std::endl; return 1;
