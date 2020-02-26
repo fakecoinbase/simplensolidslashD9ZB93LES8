@@ -392,8 +392,8 @@ int main(int argc, const char *argv[])
     _try({
         _Block block;
         _State state;
-        state.set_balance(1, 10000000);
-        _catches(vm_txn)(block, state, buffer, size, 1, true);
+        state.set_balance(65535, 10000000);
+        _catches(vm_txn)(block, state, buffer, size, 65535, true);
         state.save();
     }, Error e, {
         std::cerr << progname << ": error " << errors[e] << std::endl; return 1;
