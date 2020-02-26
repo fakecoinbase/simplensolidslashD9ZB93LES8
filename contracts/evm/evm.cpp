@@ -78,8 +78,7 @@ private:
     uint64_t get_account(const uint160_t &address) const {
         uint64_t key_id = id64(address);
         auto idx = _account.get_index<"account3"_n>();
-        auto itr = idx.find(key_id);
-        while (itr != idx.end()) {
+        for (auto itr = idx.find(key_id); itr != idx.end(); itr++) {
             if (equals(itr->address, address)) return itr->acc_id;
         }
         return 0;
@@ -424,8 +423,7 @@ private:
             if (acc_id == 0) acc_id = insert_account(address, 0, 0, 0);
             uint64_t hash_id = id64(codehash);
             auto idx = _code.get_index<"code3"_n>();
-            auto itr = idx.find(hash_id);
-            while (itr != idx.end()) {
+            for (auto itr = idx.find(hash_id); itr != idx.end(); itr++) {
                 if (itr->acc_id == 0 && id64(itr->code) == codehash) {
                     idx.modify(itr, _self, [&](auto& row) { row.acc_id = acc_id; });
                     return;
@@ -457,8 +455,7 @@ private:
         eosio::print_f("debug: store_code codehash<0x{%}> value<0x{%}>", to_string(codehash), to_string(code, code_size));
         uint64_t hash_id = id64(codehash);
         auto idx = _code.get_index<"code3"_n>();
-        auto itr = idx.find(hash_id);
-        while (itr != idx.end()) {
+        for (auto itr = idx.find(hash_id); itr != idx.end(); itr++) {
             if (id64(itr->code) == codehash) return;
         }
         _code.emplace(_self, [&](auto& row) {
@@ -476,8 +473,7 @@ private:
         if (acc_id > 0) {
             uint64_t key_id = id64(acc_id, key);
             auto idx = _state.get_index<"state3"_n>();
-            auto itr = idx.find(key_id);
-            while (itr != idx.end()) {
+            for (auto itr = idx.find(key_id); itr != idx.end(); itr++) {
                 if (itr->acc_id == acc_id && equals(itr->key, key)) return convert(itr->value);
             }
         }
@@ -491,8 +487,7 @@ private:
         if (acc_id > 0) {
             uint64_t key_id = id64(acc_id, key);
             auto idx = _state.get_index<"state3"_n>();
-            auto itr = idx.find(key_id);
-            while (itr != idx.end()) {
+            for (auto itr = idx.find(key_id); itr != idx.end(); itr++) {
                 if (itr->acc_id == acc_id && equals(itr->key, key)) {
                     if (value > 0) {
                         idx.modify(itr, _self, [&](auto& row) { row.value = convert(value); });
