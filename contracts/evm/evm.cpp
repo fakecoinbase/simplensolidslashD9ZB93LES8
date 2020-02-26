@@ -423,9 +423,18 @@ private:
             uint64_t hash_id = id64(codehash);
             auto idx = _code.get_index<"code3"_n>();
             for (auto itr = idx.find(hash_id); itr != idx.end(); itr++) {
-                if (itr->acc_id == 0 && id256(itr->code) == codehash) {
+                if (id256(itr->code) == codehash) {
                     eosio::print_f("debug: set_codehash address<0x%> value<0x%>", to_string(address), to_string(codehash));
-                    idx.modify(itr, _self, [&](auto& row) { row.acc_id = acc_id; });
+                    if (itr->acc_id == 0) {
+                        idx.modify(itr, _self, [&](auto& row) { row.acc_id = acc_id; });
+                    } else {
+                        _code.emplace(_self, [&](auto& row) {
+                            row.code_id = _max(1, _code.available_primary_key());
+                            row.acc_id = acc_id;
+                            row.code.resize(itr->code.size());
+                            for (uint64_t i = 0; i < itr->code.size(); i++) row.code[i] = itr->code[i];
+                        });
+                    }
                     return;
                 }
             }
