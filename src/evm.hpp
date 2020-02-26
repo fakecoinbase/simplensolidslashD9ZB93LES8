@@ -769,7 +769,7 @@ struct U {
         }
         if (size > L/8) {
             uint64_t _size = size > N/8 ? N/8 : size;
-            U<L>::to(v.hi, &buffer[size - _size], _size - L/8);
+            U<H>::to(v.hi, &buffer[size - _size], _size - L/8);
         }
         if (size > 0) {
             uint64_t _size = size > L/8 ? L/8 : size;
