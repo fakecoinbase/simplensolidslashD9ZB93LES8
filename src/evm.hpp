@@ -27,16 +27,16 @@
     #define _throws_args(...) (Error &_ex, __VA_ARGS__)
     #define _handles_args(...) (_ex, __VA_ARGS__); if (_ex != NONE) return
     #define _handles_args0(...) (_ex, __VA_ARGS__); if (_ex != NONE) return 0
-    #define _catches_args(...) (_ex, __VA_ARGS__); if (_ex != NONE) break
+    #define _catches_args(...) (_exlocal, __VA_ARGS__); if (_exlocal != NONE) break
 
     #define _throws(F) F _throws_args
     #define _handles(F) F _handles_args
     #define _handles0(F) F _handles_args0
     #define _throw(E) { _ex = (E); return; }
     #define _throw0(E) return (_ex = (E), 0)
-    #define _try(C, X, H) { Error _ex = NONE; switch(0) { default: { C } } if (_ex != NONE) { X = _ex; { H } } }
+    #define _try(C, X, H) { Error _exlocal = NONE; switch(0) { default: { C } } if (_exlocal != NONE) { X = _exlocal; { H } } }
     #define _catches(F) F _catches_args
-    #define _trythrow(E) { _ex = (E); break; }
+    #define _trythrow(E) { _exlocal = (E); break; }
 #endif // NATIVE_EXCEPTIONS
 
 // list of errors raised by the interpreter
@@ -2812,6 +2812,7 @@ static void _throws(decode_txn)(const uint8_t *buffer, uint64_t size, struct txn
 {
     struct rlp rlp;
     _handles(parse_rlp)(buffer, size, rlp);
+    txn.data = nullptr;
     _try({
         if (size > 0) _trythrow(INVALID_TRANSACTION);
         if (rlp.size != 6 && rlp.size != 9) _trythrow(INVALID_TRANSACTION);
