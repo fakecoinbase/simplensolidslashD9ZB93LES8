@@ -153,7 +153,7 @@ public:
     // - If the associated entry in the Accounts Table has no Associated EOSIO Account
     // - OR if the transaction has not been authorized by the Associated EOSIO Account
     [[eosio::action]]
-    void raw(const string& data, const checksum160 &_sender) {
+    void raw(const string& data, const checksum160& _sender) {
         const uint8_t *buffer = (const uint8_t*)data.c_str();
         uint64_t size = data.size();
         uint160_t sender = convert(_sender);
