@@ -175,9 +175,9 @@ public:
             // sender recovery will be skipped there
             _try({
                 Release release = get_release(forknumber());
-                _handles(verify_txn)(release, txn);
-                uint256_t h = _handles(hash_txn)(txn);
-                sender = _handles(ecrecover)(h, txn.v, txn.r, txn.s);
+                _catches(verify_txn)(release, txn);
+                uint256_t h = _catches(hash_txn)(txn);
+                sender = _catches(ecrecover)(h, txn.v, txn.r, txn.s);
             }, Error e, {
                 check(false, "invalid transaction");
             })
