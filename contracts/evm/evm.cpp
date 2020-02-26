@@ -250,27 +250,24 @@ public:
     //   by the EOSIO account listed in the inputs OR if such a withdrawal would
     //   leave the Account Table entry’s balance negative
     [[eosio::action]]
-    void withdraw(const name& account, const asset& asset) {
+    void withdraw(const name& account, const asset& quantity) {
         require_auth(account);
         uint64_t user_id = account.value;
         uint64_t acc_id = get_account(user_id);
-        check(acc_id != 0, "account does not exist");
-        check(asset.symbol == eosio::symbol("SYS", 4), "should withdraw SYS");
-        uint64_t amount = asset.amount;
+        check(acc_id > 0, "account does not exist");
+        check(quantity.symbol == eosio::symbol("SYS", 4), "should withdraw SYS");
+        uint64_t amount = quantity.amount;
         uint64_t balance = get_balance(acc_id);
         check(balance >= amount, "insufficient funds");
         sub_balance(acc_id, amount);
-
-        // using transfer_action = action_wrapper<"transfer"_n, &token::transfer>;
-        // transfer_action action{ "eosio.token"_n, { _self, "active"_n }};
-        // action.send( _self, account, asset, "withdrawal");
         struct transfer { eosio::name from; eosio::name to; eosio::asset quantity; std::string memo; };
         eosio::action transfer_action = eosio::action(
-            eosio::permission_level(_self, eosio::name("active")),
-            eosio::name("evm"),
-            eosio::name("transfer"),
-            transfer{ _self, account, asset, "withdraw" });
+            eosio::permission_level(_self, "active"_n),
+            "eosio.token"_n,
+            "transfer"_n,
+            transfer{ _self, account, quantity, "withdrawal" });
         transfer_action.send();
+        eosio::print_f("info: withdrawal of % to % (%)\n", quantity, account, user_id);
     }
 
     // The Application MUST respond to EOSIO token transfers
@@ -284,7 +281,7 @@ public:
             if (acc_id > 0) {
                 uint64_t amount = quantity.amount;
                 add_balance(acc_id, amount);
-                eosio::print_f("info: deposit of % credited to % (%)\n", quantity, account, user_id);
+                eosio::print_f("info: deposit of % from % (%)\n", quantity, account, user_id);
             }
         }
     }
