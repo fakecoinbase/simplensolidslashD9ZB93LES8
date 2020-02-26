@@ -77,6 +77,13 @@ contract StandardToken is Token
 
 contract OET is StandardToken
 {
+	constructor(uint256 _value) public {
+		address _owner = msg.sender;
+		supply = _value;
+		balances[_owner] = _value;
+		emit Transfer(address(0), _owner, _value);
+	}
+
 	function name() public pure returns (string memory _name)
 	{
 		return "Over Eosio Token";

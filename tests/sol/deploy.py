@@ -145,36 +145,44 @@ def txn_encode(fields={}):
         ([ nlzint(b2n(v)), nlzint(b2n(r)), nlzint(b2n(s)) ] if v+r+s != b'' else [])
     )
 
-def txn_contract(binfile, nonce):
-    with open(binfile, 'rb') as f: data = f.read()
+def txn_contract(nonce, binfile, supply):
+    with open(binfile, 'r') as f: data = f.read()
     fields = {}
     fields['nonce'] = nonce
     fields['gasprice'] = 1
-    fields['gaslimit'] = 100000
-    fields['data'] = data
+    fields['gaslimit'] = 10000000
+    fields['data'] = h2b(data) + n2b(supply, 32)
     fields['v'] = n2b(27)
     return txn_encode(fields);
 
-def txn_transfer(to, amount, nonce):
+def txn_address(address, nonce):
+    b = h2b(address)
+    if len(b) != 20: raise ValueError('Invalid length')
+    return keccak256(rlp([nlzint(h2n(address)), nlzint(nonce)]))[12:]
+
+def txn_transfer(nonce, contract, to, amount):
     funsig = 'transfer(address,uint256)'
     method = keccak256(funsig.encode())[:4]
     b = h2b(to)
     if len(b) != 20: raise ValueError('Invalid length')
-    data = method + b + n2b(amount, 32)
+    data = method + n2b(0, 12) + b + n2b(amount, 32)
     fields = {}
     fields['nonce'] = nonce
     fields['gasprice'] = 1
     fields['gaslimit'] = 100000
+    fields['to'] = contract
     fields['data'] = data
     fields['v'] = n2b(27)
     return txn_encode(fields);
 
 def main():
-    if not len(sys.argv) in [3, 4]:
-        print('usage: python3 ' + sys.argv[0] + ' <binfile> <nonce>')
-        print('usage: python3 ' + sys.argv[0] + ' <address> <amount> <nonce>')
+    if not len(sys.argv) in [3, 4, 5]:
+        print('usage: python3 ' + sys.argv[0] + ' <nonce> <binfile> <supply>       -- contract creation transaction')
+        print('usage: python3 ' + sys.argv[0] + ' <from> <nonce>                   -- contract address')
+        print('usage: python3 ' + sys.argv[0] + ' <nonce> <contract> <to> <amount> -- transfer call transaction')
         return
-    if len(sys.argv) == 3: print(b2h(txn_contract(sys.argv[1], int(sys.argv[2]))))
-    if len(sys.argv) == 4: print(b2h(txn_transfer(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]))))
+    if len(sys.argv) == 4: print(b2h(txn_contract(int(sys.argv[1]), sys.argv[2], int(sys.argv[3]))))
+    if len(sys.argv) == 3: print(b2h(txn_address(sys.argv[1], int(sys.argv[2]))))
+    if len(sys.argv) == 5: print(b2h(txn_transfer(int(sys.argv[1]), sys.argv[2], sys.argv[3], int(sys.argv[4]))))
 
 if __name__ == '__main__': main()
