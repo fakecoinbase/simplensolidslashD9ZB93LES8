@@ -284,6 +284,7 @@ public:
             if (acc_id > 0) {
                 uint64_t amount = quantity.amount;
                 add_balance(acc_id, amount);
+                eosio::print_f("info: deposit of % credited to % (%)\n", quantity, account, user_id);
             }
         }
     }
