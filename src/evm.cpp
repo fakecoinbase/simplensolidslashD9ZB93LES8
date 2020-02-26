@@ -93,7 +93,7 @@ private:
         std::ifstream fs("states/" + name + ".dat", std::ios::ate | std::ios::binary);
         if (!fs.is_open()) assert(false);
         uint64_t size = fs.tellg();
-        uint8_t buffer[size];
+        local<uint8_t> buffer_l(size); uint8_t *buffer = buffer_l.data;
         fs.seekg(0, std::ios::beg);
         fs.read((char*)buffer, size);
         uint64_t offset = 0;
@@ -129,7 +129,7 @@ private:
         for (int i = 0; i < keyvalue_size; i++) {
             size += 4 + 32 + 32;
         }
-        uint8_t buffer[size];
+        local<uint8_t> buffer_l(size); uint8_t *buffer = buffer_l.data;
         uint64_t offset = 0;
         w2b32le(account_size, &buffer[offset]); offset += 4;
         for (int i = 0; i < account_size; i++) {
@@ -387,7 +387,7 @@ int main(int argc, const char *argv[])
     const char *hexstr = argv[1];
     int len = std::strlen(hexstr);
     uint64_t size = len / 2;
-    uint8_t buffer[size];
+    local<uint8_t> buffer_l(size); uint8_t *buffer = buffer_l.data;
     if (len % 2 > 0 || !parse_hex(hexstr, buffer, size)) { std::cerr << progname << ": invalid input" << std::endl; return 1; }
     _try({
         _Block block;

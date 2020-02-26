@@ -155,7 +155,7 @@ public:
     void raw(const string& data, const checksum160& _sender) {
         check(data.size() % 2 == 0, "hexadecimal string should have an even size");
         uint64_t size = data.size() / 2;
-        uint8_t buffer[size];
+        local<uint8_t> buffer_l(size); uint8_t *buffer = buffer_l.data;
         for (uint64_t i = 0; i < data.size(); i++) {
             char c = data[i];
             check(('0' <= c && c <= '9') || ('A' <= c && c <= 'F') || ('a' <= c && c <= 'f'), "invalid hexadecimal character");
@@ -233,7 +233,7 @@ public:
             rlp.list[1].data = _new<uint8_t>(rlp.list[1].size);
             for (uint64_t i = 0; i < rlp.list[1].size; i++) rlp.list[1].data[i] = data[i];
             uint64_t size = _catches(dump_rlp)(rlp, nullptr, 0);
-            uint8_t buffer[size];
+            local<uint8_t> buffer_l(size); uint8_t *buffer = buffer_l.data;
             _catches(dump_rlp)(rlp, buffer, size);
             free_rlp(rlp);
             address = (uint160_t)sha3(buffer, size);
@@ -341,7 +341,7 @@ private:
 
     // vm callback to obtain the hash of a block
     uint256_t hash(const uint256_t &number) {
-        uint8_t buffer[32];
+        local<uint8_t> buffer_l(32); uint8_t *buffer = buffer_l.data;
         uint256_t::to(number, buffer);
         return sha3(buffer, 32);
     }
@@ -591,7 +591,7 @@ private:
     // generates a low collision 64-bit id for bytecode
     static uint64_t id64(const std::vector<uint8_t> &code) {
         uint64_t size = code.size();
-        uint8_t buffer[size];
+        local<uint8_t> buffer_l(size); uint8_t *buffer = buffer_l.data;
         for (uint64_t i = 0; i < size; i++) buffer[i] = code[i];
         return id64(sha3(buffer, size));
     }
@@ -655,14 +655,14 @@ private:
 
     // conversion to hex string for printing
     static string to_string(const uint160_t &address) {
-        uint8_t buffer[20];
+        local<uint8_t> buffer_l(20); uint8_t *buffer = buffer_l.data;
         uint160_t::to(address, buffer);
         return to_string(buffer, 20);
     }
 
     // conversion to hex string for printing
     static string to_string(const uint256_t &value) {
-        uint8_t buffer[32];
+        local<uint8_t> buffer_l(32); uint8_t *buffer = buffer_l.data;
         uint256_t::to(value, buffer);
         return to_string(buffer, 32);
     }
@@ -670,7 +670,7 @@ private:
     // conversion to hex string for printing
     static string to_string(const uint8_t *data, uint64_t size) {
         static char hex[] = "0123456789abcdef";
-        char buffer[2* size];
+        local<char> buffer_l(2*size); char *buffer = buffer_l.data;
         for (uint64_t i = 0; i < size; i++) {
             buffer[2*i] = hex[data[i] >> 4];
             buffer[2*i+1] = hex[data[i] & 0xf];
