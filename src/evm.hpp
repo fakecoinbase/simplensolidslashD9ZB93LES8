@@ -2810,7 +2810,7 @@ static uint64_t _throws(encode_txn)(const struct txn &txn)
 // decodes a transaction as rlp from a buffer
 static void _throws(decode_txn)(const uint8_t *buffer, uint64_t size, struct txn &txn)
 {
-    struct rlp rlp;
+    struct rlp rlp = {false, 0, nullptr};
     _handles(parse_rlp)(buffer, size, rlp);
     txn.data = nullptr;
     _try({
@@ -5836,7 +5836,7 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
     Release release = get_release(block.forknumber());
     Storage storage(&state);
 
-    struct txn txn;
+    struct txn txn = {0, 0, 0, false, 0, 0, nullptr, 0, false, 0, 0, 0};
     _handles(decode_txn)(buffer, size, txn);
     _handles(verify_txn)(release, txn);
 
