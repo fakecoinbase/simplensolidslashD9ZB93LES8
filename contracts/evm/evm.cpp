@@ -119,9 +119,9 @@ private:
         });
     }
 
-    // insert a new account, assumer account does not exist (unique address/user_id)
+    // insert a new account, assumes account does not exist (unique address/user_id)
     uint64_t insert_account(const uint160_t &address, uint64_t nonce, uint64_t balance, uint64_t user_id) {
-        uint64_t acc_id = _account.available_primary_key();
+        uint64_t acc_id = _max(1, _account.available_primary_key());
         _account.emplace(_self, [&](auto& row) {
             row.acc_id = acc_id;
             row.address = convert(address);
@@ -206,12 +206,12 @@ public:
         require_auth(account);
         uint64_t user_id = account.value;
         uint64_t acc_id = get_account(user_id);
-        check(acc_id == 0, "account already exists");
+        check(acc_id == 0, "user already has an account");
         string _name = account.to_string();
         const uint8_t *name = (const uint8_t*)_name.c_str();
         const uint8_t *data = (const uint8_t*)_data.c_str();
         uint160_t address;
-        struct rlp rlp;
+        struct rlp rlp = { false, 0, nullptr };
         _try({
             rlp.is_list = true;
             rlp.size = 2;
@@ -233,9 +233,12 @@ public:
             free_rlp(rlp);
             check(false, "execution failure: " + string(errors[e]));
         })
+        // the operation should create a new account table entry
+        // therefore we need to fail if one does exist
         uint64_t _acc_id = get_account(address);
-        check(_acc_id == 0, "account already exists");
+        check(_acc_id == 0, "this account already exists");
         insert_account(address, 1, 0, user_id);
+        eosio::print_f("info: account created for % (%) at 0x%\n", account, user_id, to_string(address));
     }
 
     // 1 an EOSIO account
@@ -452,7 +455,7 @@ private:
             if (id64(itr->code) == codehash) return;
         }
         _code.emplace(_self, [&](auto& row) {
-            row.code_id = _account.available_primary_key();
+            row.code_id = _max(1, _code.available_primary_key());
             row.acc_id = 0;
             row.code.resize(code_size);
             for (uint64_t i = 0; i < code_size; i++) row.code[i] = code[i];
@@ -496,7 +499,7 @@ private:
         if (value > 0) {
             if (acc_id == 0) acc_id = insert_account(address, 0, 0, 0);
             _state.emplace(_self, [&](auto& row) {
-                row.key_id = _account.available_primary_key();
+                row.key_id = _max(1, _state.available_primary_key());
                 row.acc_id = acc_id;
                 row.key = convert(key);
                 row.value = convert(value);
@@ -549,12 +552,28 @@ private:
     // generates a low collision 64-bit id for 160-bit addresses
     static uint64_t id64(const checksum160 &address) {
         auto _address = address.extract_as_byte_array();
-        return _address[0] << 24 | _address[1] << 16 | _address[2] << 8 | _address[3];
+        return 0
+            | (uint64_t)_address[12] << 56
+            | (uint64_t)_address[13] << 48
+            | (uint64_t)_address[14] << 40
+            | (uint64_t)_address[15] << 32
+            | (uint64_t)_address[16] << 24
+            | (uint64_t)_address[17] << 16
+            | (uint64_t)_address[18] << 8
+            | (uint64_t)_address[19];
     }
 
     // generates a low collision 64-bit id for 160-bit addresses
     static uint64_t id64(const uint160_t &address) {
-        return address.byte(3) << 24 | address.byte(2) << 16 | address.byte(1) << 8 | address.byte(0);
+        return 0
+            | (uint64_t)address.byte(7) << 56
+            | (uint64_t)address.byte(6) << 48
+            | (uint64_t)address.byte(5) << 40
+            | (uint64_t)address.byte(4) << 32
+            | (uint64_t)address.byte(3) << 24
+            | (uint64_t)address.byte(2) << 16
+            | (uint64_t)address.byte(1) << 8
+            | (uint64_t)address.byte(0);
     }
 
     // generates a low collision 64-bit id for 64/256-bit acc_id/keys
@@ -577,7 +596,15 @@ private:
 
     // generates a low collision 64-bit id for codehash
     static uint64_t id64(const uint256_t &codehash) {
-        return codehash.byte(3) << 24 | codehash.byte(2) << 16 | codehash.byte(1) << 8 | codehash.byte(0);
+        return 0
+            | (uint64_t)codehash.byte(7) << 56
+            | (uint64_t)codehash.byte(6) << 48
+            | (uint64_t)codehash.byte(5) << 40
+            | (uint64_t)codehash.byte(4) << 32
+            | (uint64_t)codehash.byte(3) << 24
+            | (uint64_t)codehash.byte(2) << 16
+            | (uint64_t)codehash.byte(1) << 8
+            | (uint64_t)codehash.byte(0);
     }
 
     // compare checksum160 for equality
@@ -604,10 +631,9 @@ private:
 
     // conversion to checksum160
     static checksum160 convert(const uint160_t &v) {
-        checksum160 t;
-        auto c = t.extract_as_byte_array();
+        std::array<uint8_t, 20> c;
         for (uint64_t i = 0; i < 20; i++) c[i] = v.byte(19 - i);
-        return t;
+        return checksum160(c);
     };
 
     // conversion from checksum256
@@ -620,10 +646,9 @@ private:
 
     // conversion to checksum256
     static checksum256 convert(const uint256_t &v) {
-        checksum256 t;
-        auto c = t.extract_as_byte_array();
+        std::array<uint8_t, 32> c;
         for (uint64_t i = 0; i < 32; i++) c[i] = v.byte(31 - i);
-        return t;
+        return checksum256(c);
     };
 
     // conversion to hex string for printing
