@@ -154,22 +154,28 @@ public:
     // - OR if the transaction has not been authorized by the Associated EOSIO Account
     [[eosio::action]]
     void raw(const string& data, const checksum160& _sender) {
-        const uint8_t *buffer = (const uint8_t*)data.c_str();
-        uint64_t size = data.size();
+        check(data.size() % 2 == 0, "hexadecimal string should have an even size");
+        uint64_t size = data.size() / 2;
+        uint8_t buffer[size];
+        for (uint64_t i = 0; i < data.size(); i++) {
+            char c = data[i];
+            check(('0' <= c && c <= '9') || ('A' <= c && c <= 'F') || ('a' <= c && c <= 'f'), "invalid hexadecimal character");
+            uint64_t j = i/2;
+            buffer[j] <<= 4;
+            if (c >= 'a') { buffer[j] |= (uint8_t)(c - 'a' + 10); continue; }
+            if (c >= 'A') { buffer[j] |= (uint8_t)(c - 'A' + 10); continue; }
+            buffer[j] |= (uint8_t)(c - '0');
+        }
         uint160_t sender = convert(_sender);
-        struct txn txn;
+        struct txn txn = {0, 0, 0, false, 0, 0, nullptr, 0, false, 0, 0, 0};
         _try({
             _catches(decode_txn)(buffer, size, txn);
         }, Error e, {
             check(false, "malformed transaction");
         })
         check(txn.is_signed, "missing signature");
-        if (txn.r == 0 && txn.s == 0 && sender > 0) {
-            uint64_t user_id = get_user_id(sender);
-            check(user_id > 0, "unknown account");
-            name account(user_id);
-            require_auth(account);
-        } else {
+        bool eos_auth = txn.r == 0 && txn.s == 0 && sender > 0;
+        if (!eos_auth) {
             // this is partially redundant with vm_txn, which is ok
             // transaction validation failure will happen early in here
             // sender recovery will be skipped there
@@ -181,15 +187,18 @@ public:
             }, Error e, {
                 check(false, "invalid transaction");
             })
-            uint64_t user_id = get_user_id(sender);
-            check(user_id > 0, "unknown account");
         }
+        uint64_t user_id = get_user_id(sender);
+        check(user_id > 0, "unknown account");
+        name account(user_id);
+        if (eos_auth) require_auth(account);
         _try({
             bool pays_gas = false;
             _catches(vm_txn)(*this, *this, buffer, size, sender, pays_gas);
         }, Error e, {
             check(false, "execution failure: " + string(errors[e]));
         })
+        eosio::print_f("info: transaction executed by % (%)\n", account, user_id);
     }
 
     // 1 an EOSIO account
