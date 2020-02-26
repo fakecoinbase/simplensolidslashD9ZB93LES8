@@ -7,24 +7,6 @@
 
 #include "evm.hpp"
 
-/*
-friend std::ostream& operator<<(std::ostream &os, const uintX_t &v) {
-    for (int i = 0; i < B; i++) {
-        os << std::hex << std::setw(2) << std::setfill('0') << (uint32_t)v[i];
-    }
-    return os;
-}
-
-friend std::ostream& operator<<(std::ostream &os, const modN_t &v) {
-    os << v.u;
-    return os;
-}
-friend std::ostream& operator<<(std::ostream &os, const pointN_t &v) {
-    os << v.x << " " << v.y;
-    return os;
-}
-*/
-
 class _State : public State {
 private:
     struct account {
@@ -169,7 +151,16 @@ private:
             uint256_t::to(keyvalue_list[i][0], &buffer[offset]); offset += 32;
             uint256_t::to(keyvalue_list[i][1], &buffer[offset]); offset += 32;
         }
-        uint64_t hash = sha256(buffer, size).cast64();
+        uint256_t sha = sha256(buffer, size);
+        uint64_t hash = 0
+            | (uint64_t)sha.byte(7) << 56
+            | (uint64_t)sha.byte(6) << 48
+            | (uint64_t)sha.byte(5) << 40
+            | (uint64_t)sha.byte(4) << 32
+            | (uint64_t)sha.byte(3) << 24
+            | (uint64_t)sha.byte(2) << 16
+            | (uint64_t)sha.byte(1) << 8
+            | (uint64_t)sha.byte(0);
         std::stringstream ss;
         ss << std::hex << std::setw(8) << std::setfill('0') << hash;
         std::string name(ss.str());
@@ -197,30 +188,35 @@ public:
         std::cout << "EVM_STATE=" << name << std::endl;
     }
     inline uint64_t get_nonce(const uint160_t &address) const {
+        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: get_nonce " << address << std::endl;
         const struct account *account = find(address);
         return account == nullptr ? 0 : account->nonce;
     };
     inline void set_nonce(const uint160_t &address, const uint64_t &nonce) {
+        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: set_nonce " << address << " " << (uint256_t)nonce << std::endl;
         update(address, nonce, get_balance(address), get_codehash(address));
     };
     inline uint256_t get_balance(const uint160_t &address) const {
+        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: get_balance " << address << std::endl;
         const struct account *account = find(address);
         return account == nullptr ? 0 : account->balance;
     };
     inline void set_balance(const uint160_t &address, const uint256_t &balance) {
+        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: set_balance " << address << " " << balance << std::endl;
         update(address, get_nonce(address), balance, get_codehash(address));
     };
-
     inline uint256_t get_codehash(const uint160_t &address) const {
+        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: get_codehash " << address << std::endl;
         const struct account *account = find(address);
         return account == nullptr ? 0 : account->codehash;
     };
-
     inline void set_codehash(const uint160_t &address, const uint256_t &codehash) {
+        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: set_codehash " << address << " " << codehash << std::endl;
         update(address, get_nonce(address), get_balance(address), codehash);
     };
 
     inline uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
+        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: load_code " << codehash << std::endl;
         const struct contract *contract = find(codehash);
         if (contract == nullptr) {
             code_size = 0;
@@ -232,10 +228,12 @@ public:
         return code;
     };
     inline void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) {
+        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: store_code " << codehash << std::endl;
         update(codehash, code, code_size);
     };
 
     inline uint256_t load(const uint160_t &address, const uint256_t &key) const {
+        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: load " << address << " " << key << std::endl;
         for (int i = 0; i < keyvalue_size; i++) {
             if (keyvalue_list[i][0] == key && address == account_index[keyvalue_index[i]]) {
                 return keyvalue_list[i][1];
@@ -245,6 +243,7 @@ public:
         return _0;
     };
     inline void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) {
+        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: store " << address << " " << key << " " << value << std::endl;
         for (int i = 0; i < keyvalue_size; i++) {
             if (keyvalue_list[i][0] == key && address == account_index[keyvalue_index[i]]) {
                 keyvalue_list[i][1] = value;
@@ -272,33 +271,33 @@ public:
         keyvalue_size++;
     };
     inline void remove(const uint160_t &address) {
-        // missing removal
+        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: remove " << address << std::endl;
+        // TODO missing removal
     }
-
     inline void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) {
-        if (std::getenv("EVM_DEBUG")) std::cout << "log0" << std::endl;
+        if (std::getenv("EVM_DEBUG")) std::cout << "log0" << address << std::endl;
     }
     inline void log1(const uint160_t &address, const uint256_t &v1, const uint8_t *data, uint64_t data_size) {
-        if (std::getenv("EVM_DEBUG")) std::cout << "log1" << std::endl;
+        if (std::getenv("EVM_DEBUG")) std::cout << "log1" << address << " " << v1 << std::endl;
     }
     inline void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) {
-        if (std::getenv("EVM_DEBUG")) std::cout << "log2" << std::endl;
+        if (std::getenv("EVM_DEBUG")) std::cout << "log2" << address << " " << v1 << " " << v2 << std::endl;
     }
     inline void log3(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *data, uint64_t data_size) {
-        if (std::getenv("EVM_DEBUG")) std::cout << "log3" << std::endl;
+        if (std::getenv("EVM_DEBUG")) std::cout << "log3" << address << " " << v1 << " " << v2 << " " << v3 << std::endl;
     }
     inline void log4(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *data, uint64_t data_size) {
-        if (std::getenv("EVM_DEBUG")) std::cout << "log3" << std::endl;
+        if (std::getenv("EVM_DEBUG")) std::cout << "log4" << address << " " << v1 << " " << v2 << " " << v3 << " " << v4 << std::endl;
     }
 };
 
 class _Block : public Block {
 private:
-    uint64_t _number = 0;
+    uint64_t _number = 10000000;
     uint64_t _timestamp = 0;
     uint64_t _gaslimit = 10000000;
     uint160_t _coinbase = 0;
-    uint256_t _difficulty = 0;
+    uint256_t _difficulty = 17179869184;
 public:
     _Block() {}
     _Block(uint64_t number, uint64_t timestamp, uint64_t gaslimit, const uint160_t& coinbase, const uint256_t& difficulty)
@@ -393,6 +392,7 @@ int main(int argc, const char *argv[])
     _try({
         _Block block;
         _State state;
+        // state.set_balance(1, 10000000);
         _catches(vm_txn)(block, state, buffer, size, 0, true);
         state.save();
     }, Error e, {
