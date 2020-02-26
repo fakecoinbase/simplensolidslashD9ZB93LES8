@@ -5836,9 +5836,13 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
     Release release = get_release(block.forknumber());
     Storage storage(&state);
 
+    eosio::print_f("info: vm 1");
+
     struct txn txn = {0, 0, 0, false, 0, 0, nullptr, 0, false, 0, 0, 0};
     _handles(decode_txn)(buffer, size, txn);
     _handles(verify_txn)(release, txn);
+
+    eosio::print_f("info: vm 2");
 
     uint160_t from = sender;
     if (sender == 0) {
@@ -5849,6 +5853,8 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
     storage.increment_nonce(from);
     uint160_t to = txn.has_to ? txn.to : _handles(gen_contract_address)(from, storage.get_nonce(from));
 
+    eosio::print_f("info: vm 3");
+
     if (txn.gaslimit > block.gaslimit()) _throw(OUTOFBOUNDS_VALUE);
     uint64_t gas = txn.gaslimit.cast64();
     _handles(consume_gas)(gas, gas_intrinsic(release, txn.has_to, txn.data, txn.data_size));
@@ -5857,6 +5863,8 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
         if (storage.get_balance(from) < gas_cost) _throw(INSUFFICIENT_BALANCE);
         storage.sub_balance(from, gas_cost);
     }
+
+    eosio::print_f("info: vm 4");
 
     bool success = false;
     uint64_t return_size = 0;
