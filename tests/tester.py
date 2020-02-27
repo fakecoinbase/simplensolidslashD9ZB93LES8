@@ -40,7 +40,7 @@ def readFile(fname):
             elif fname.endswith(".yml"):
                 fparsed = yaml.load(fcontents, Loader=yaml.FullLoader)
             elif fname.endswith(".cpp"):
-                fparsed, _ = fcontents.split("/* main */")
+                fparsed, _ = fcontents.split("// ** main **")
             elif fname.endswith(".hpp"):
                 fparsed = fcontents
             else:
@@ -56,7 +56,7 @@ def writeFile(fname, fcontents):
         f.write(fcontents)
 
 def compileFile(fnamein, fnameout):
-    if os.path.isfile(fnameout): return;
+    if os.path.isfile(fnameout): return 0;
     return subprocess.call([
         "g++",
         "-std=c++11",
@@ -402,7 +402,8 @@ int main()
 
     filename = "/tmp/vm_" + name
     writeFile(filename + ".cpp", src)
-    compileFile(filename + ".cpp", filename);
+    result = compileFile(filename + ".cpp", filename)
+    if result != 0: _report("Test fail to compile"); return
     result = execFile(filename)
     if result != 0: _report("Test failure")
 
@@ -496,7 +497,8 @@ int main()
 """
         filename = "/tmp/tx_" + name + "_" + release
         writeFile(filename + ".cpp", src)
-        compileFile(filename + ".cpp", filename);
+        result = compileFile(filename + ".cpp", filename)
+        if result != 0: _report("Test fail to compile"); continue
         result = execFile(filename)
         if result != 0: _report("Test failure")
 
@@ -660,7 +662,8 @@ int main()
 
     filename = "/tmp/gs_" + name
     writeFile(filename + ".cpp", src)
-    compileFile(filename + ".cpp", filename);
+    result = compileFile(filename + ".cpp", filename)
+    if result != 0: _report("Test fail to compile"); return
     result = execFile(filename)
     if result != 0: _report("Test failure")
 
