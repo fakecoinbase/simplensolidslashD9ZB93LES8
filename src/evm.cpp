@@ -210,42 +210,6 @@ private:
         return hash;
     }
 public:
-    uint256_t root(const char *cmd) {
-        uint64_t size = strlen(cmd) + 1 + 1 + account_size * ( 40 + 3 * (1 + 64) ) + keyvalue_size * (2 * (1 + 64)) + (account_size - 1) + 1 + 1;
-        local<char> buffer_l(size); char *buffer = buffer_l.data;
-        uint64_t offset = 0;
-        for (uint64_t i = 0; i < strlen(cmd); i++) buffer[offset++] = cmd[i];
-        buffer[offset++] = ' ';
-        buffer[offset++] = '\'';
-        for (uint64_t i = 0; i < account_size; i++) {
-            if (account_list[i].nonce == 0 && account_list[i].balance == 0 && (account_list[i].codehash == 0 /*|| account_list[i].codehash == EMPTY_CODEHASH*/)) continue;
-            if (i > 0) buffer[offset++] = ';';
-            uint160_t address = account_index[i];
-            to_hex<160>(address, &buffer[offset]); offset += 40;
-            buffer[offset++] = ',';
-            to_hex<256>(account_list[i].nonce, &buffer[offset]); offset += 64;
-            buffer[offset++] = ',';
-            to_hex<256>(account_list[i].balance, &buffer[offset]); offset += 64;
-            buffer[offset++] = ',';
-            to_hex<256>(account_list[i].codehash, &buffer[offset]); offset += 64;
-            for (uint64_t j = 0; j < keyvalue_size; j++) {
-                if (address == keyvalue_index[j]) {
-                    if (keyvalue_list[j][1] == 0) continue;
-                    buffer[offset++] = ',';
-                    to_hex<256>(keyvalue_list[j][0], &buffer[offset]); offset += 64;
-                    buffer[offset++] = ',';
-                    to_hex<256>(keyvalue_list[j][1], &buffer[offset]); offset += 64;
-                }
-            }
-
-        }
-        buffer[offset++] = '\'';
-        buffer[offset++] = '\0';
-        assert(offset <= size);
-        std::cout << buffer << std::endl;
-        return exec(buffer);
-    }
-public:
     _State() {
         const char *name = std::getenv("EVM_STATE");
         if (name != nullptr) {
@@ -527,6 +491,40 @@ public:
             assert(false);
         })
         return 0;
+    }
+    uint256_t root(const char *cmd) {
+        uint64_t size = strlen(cmd) + 1 + 1 + account_size * ( 40 + 3 * (1 + 64) ) + keyvalue_size * (2 * (1 + 64)) + (account_size - 1) + 1 + 1;
+        local<char> buffer_l(size); char *buffer = buffer_l.data;
+        uint64_t offset = 0;
+        for (uint64_t i = 0; i < strlen(cmd); i++) buffer[offset++] = cmd[i];
+        buffer[offset++] = ' ';
+        buffer[offset++] = '\'';
+        for (uint64_t i = 0; i < account_size; i++) {
+            if (account_list[i].nonce == 0 && account_list[i].balance == 0 && (account_list[i].codehash == 0 /*|| account_list[i].codehash == EMPTY_CODEHASH*/)) continue;
+            if (i > 0) buffer[offset++] = ';';
+            uint160_t address = account_index[i];
+            to_hex<160>(address, &buffer[offset]); offset += 40;
+            buffer[offset++] = ',';
+            to_hex<256>(account_list[i].nonce, &buffer[offset]); offset += 64;
+            buffer[offset++] = ',';
+            to_hex<256>(account_list[i].balance, &buffer[offset]); offset += 64;
+            buffer[offset++] = ',';
+            to_hex<256>(account_list[i].codehash, &buffer[offset]); offset += 64;
+            for (uint64_t j = 0; j < keyvalue_size; j++) {
+                if (address == keyvalue_index[j]) {
+                    if (keyvalue_list[j][1] == 0) continue;
+                    buffer[offset++] = ',';
+                    to_hex<256>(keyvalue_list[j][0], &buffer[offset]); offset += 64;
+                    buffer[offset++] = ',';
+                    to_hex<256>(keyvalue_list[j][1], &buffer[offset]); offset += 64;
+                }
+            }
+
+        }
+        buffer[offset++] = '\'';
+        buffer[offset++] = '\0';
+        assert(offset <= size);
+        return exec(buffer);
     }
 };
 
