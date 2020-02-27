@@ -500,7 +500,7 @@ public:
         buffer[offset++] = ' ';
         buffer[offset++] = '\'';
         for (uint64_t i = 0; i < account_size; i++) {
-            if (account_list[i].nonce == 0 && account_list[i].balance == 0 && (account_list[i].codehash == 0 /*|| account_list[i].codehash == EMPTY_CODEHASH*/)) continue;
+            if (account_list[i].nonce == 0 && account_list[i].balance == 0 && (account_list[i].codehash == 0 || account_list[i].codehash == EMPTY_CODEHASH)) continue;
             if (i > 0) buffer[offset++] = ';';
             uint160_t address = account_index[i];
             to_hex<160>(address, &buffer[offset]); offset += 40;
