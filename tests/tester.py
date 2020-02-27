@@ -439,6 +439,8 @@ def txTest(name, item, path):
     }
 
     for release_name, release in releases.items():
+        if not release_name in item: continue
+
         print(release_name)
 
         src = readFile("../src/evm.cpp")
@@ -518,55 +520,79 @@ int main()
         if result != 0: _report("Test failure")
 
 def gsTest(name, item, path):
-    src = readFile("../src/evm.cpp")
-    hdr = readFile("../src/evm.hpp")
-    src = src.replace("#include \"evm.hpp\"", hdr)
-
 #    print(json.dumps(item, indent=2))
-    src += """
+
+    post = item["post"]
+
+    releases = {
+      "Frontier": "FRONTIER",
+      "Homestead": "HOMESTEAD",
+      "EIP150": "TANGERINE_WHISTLE",
+      "EIP158": "SPURIOUS_DRAGON",
+      "Byzantium": "BYZANTIUM",
+      "Constantinople": "CONSTANTINOPLE",
+      "ConstantinopleFix": "PETERSBURG",
+      "Istanbul": "ISTANBUL",
+    }
+
+    for release_name, release in releases.items():
+        if not release_name in post: continue
+
+        print(release_name)
+
+        tests = post[release_name]
+
+        for num, test in enumerate(tests):
+            print("Test " + str(num))
+
+            src = readFile("../src/evm.cpp")
+            hdr = readFile("../src/evm.hpp")
+            src = src.replace("#include \"evm.hpp\"", hdr)
+
+            src += """
 int main()
 {
 """
 
-    env = item["env"]
-    number = hexToInt(env["currentNumber"])
-    timestamp = hexToInt(env["currentTimestamp"])
-    gaslimit = hexToInt(env["currentGasLimit"])
-    coinbase = hexToInt(env["currentCoinbase"])
-    difficulty = hexToInt(env["currentDifficulty"])
-    src += codeInitEnv(number, timestamp, gaslimit, coinbase, difficulty)
+            env = item["env"]
+            number = hexToInt(env["currentNumber"])
+            timestamp = hexToInt(env["currentTimestamp"])
+            gaslimit = hexToInt(env["currentGasLimit"])
+            coinbase = hexToInt(env["currentCoinbase"])
+            difficulty = hexToInt(env["currentDifficulty"])
+            src += codeInitEnv(number, timestamp, gaslimit, coinbase, difficulty)
 
-    src += """
+            src += """
     _Block block(number, timestamp, gaslimit, coinbase, difficulty);
     _State state;
     Storage storage(&state);
 
-    Release release = ISTANBUL; // get_release(block.forknumber());
+    Release release = """ + release + """;
 """
 
-    txn = item["transaction"]
-    sk = hexToInt(txn['secretKey'])
-    pk = derive_pk(sk);
+            txn = item["transaction"]
+            sk = hexToInt(txn['secretKey'])
+            pk = derive_pk(sk);
 
-    nonce = hexToInt(txn["nonce"])
-    gasprice = hexToInt(txn["gasPrice"])
-    gas = hexToInt(txn["gasLimit"][0])
-    address = hexToInt(txn["to"])
-    value = hexToInt(txn["value"][0])
-    data = hexToBin(txn['data'][0])
-    publickey = hexToBin(pk)
-    src += codeInitExec2(nonce, gasprice, gas, address, value, data, publickey)
+            nonce = hexToInt(txn["nonce"])
+            gasprice = hexToInt(txn["gasPrice"])
+            gas = hexToInt(txn["gasLimit"][test["indexes"]["gas"]])
+            address = hexToInt(txn["to"])
+            value = hexToInt(txn["value"][test["indexes"]["value"]])
+            data = hexToBin(txn['data'][test["indexes"]["data"]])
+            publickey = hexToBin(pk)
+            src += codeInitExec2(nonce, gasprice, gas, address, value, data, publickey)
 
-    pre = item["pre"]
-    for key, values in pre.items():
-        account = hexToInt(key)
-        nonce = hexToInt(values["nonce"])
-        balance = hexToInt(values["balance"])
-        code = hexToBin(values['code']);
-        storage = values["storage"];
-        src += codeInitAccount(account, nonce, balance, code, storage)
+            pre = item["pre"]
+            for key, values in pre.items():
+                account = hexToInt(key)
+                nonce = hexToInt(values["nonce"])
+                balance = hexToInt(values["balance"])
+                code = hexToBin(values['code']);
+                storage = values["storage"];
+                src += codeInitAccount(account, nonce, balance, code, storage)
 
-    src += """
+            src += """
     bool pays_gas = true;
     bool success = false;
     _try({
@@ -652,38 +678,41 @@ int main()
     })
 """
 
-    if not "post" in item:
+            if not "hash" in test:
 
-        src += """
+                src += """
     if (success) {
 //        std::cerr << "post: invalid success on failure" << std::endl;
 //        return 1;
     }
 """
 
-    else:
+            else:
 
-        src += """
+                src += """
     if (!success) {
 //        std::cerr << "post: invalid failure on success" << std::endl;
 //        return 1;
     }
 """
 
-        roothash = hexToInt(item["post"]["Istanbul"][0]["hash"])
-        src += codeDoneRoot(roothash)
+                loghash = hexToInt(test["logs"])
+                src += codeDoneLogs(loghash);
 
-    src += """
+#                roothash = hexToInt(test["hash"])
+#                src += codeDoneRoot(roothash)
+
+            src += """
     return 0;
 }
 """
 
-    filename = "/tmp/gs_" + name
-    writeFile(filename + ".cpp", src)
-    result = compileFile(filename + ".cpp", filename)
-    if result != 0: _report("Test fail to compile"); return
-    result = execFile(filename)
-    if result != 0: _report("Test failure")
+            filename = "/tmp/gs_" + name + "_" + release + "_" + str(num)
+            writeFile(filename + ".cpp", src)
+            result = compileFile(filename + ".cpp", filename)
+            if result != 0: _report("Test fail to compile"); return
+            result = execFile(filename)
+            if result != 0: _report("Test failure")
 
 def vmTests(filt):
     paths = listTests("./tests/VMTests", filePrefixes=[filt])
