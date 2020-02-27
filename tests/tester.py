@@ -83,6 +83,7 @@ def hexToInt(s):
 
 def hexToBin(s):
     if s[:2] == "0x": s = s[2:]
+    if len(s) > 0: int(s, 16) # validates
     hexv = ""
     hexs = ("0" if len(s) % 2 != 0 else "") + s
     for i in range(0, len(s) // 2):
@@ -425,7 +426,8 @@ int main()
 def txTest(name, item, path):
 #    print(json.dumps(item, indent=2))
 
-    rlp = hexToBin(item["rlp"])
+    try: rlp = hexToBin(item["rlp"])
+    except: return
 
     releases = {
       "Frontier": "FRONTIER",
@@ -740,11 +742,8 @@ def gsTests(filt):
 
 def main():
     filt = sys.argv[1] if len(sys.argv) == 2 else ""
-    try: vmTests(filt)
-    except: pass
-    try: txTests(filt)
-    except: pass
-    try: gsTests(filt)
-    except: pass
+    vmTests(filt)
+    txTests(filt)
+    gsTests(filt)
 
 if __name__ == '__main__': main()
