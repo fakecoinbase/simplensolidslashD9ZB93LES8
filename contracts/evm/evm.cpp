@@ -1,6 +1,7 @@
 #include <eosio/asset.hpp>
 #include <eosio/eosio.hpp>
 #include <eosio/system.hpp>
+#include <eosio/transaction.hpp>
 
 #include "../../src/evm.hpp"
 
@@ -316,7 +317,7 @@ private:
 
     // vm call back to obtain the current block number
     uint64_t number() {
-        return 0; // implement
+        return eosio::tapos_block_num(); // best I could find in the docs
     }
 
     // vm call back to obtain the current block timestamp
