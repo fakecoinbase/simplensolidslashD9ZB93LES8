@@ -8,6 +8,7 @@
 
 #include "evm.hpp"
 
+// a simple state implementation for testing
 class _State : public State {
 private:
     struct account {
@@ -273,7 +274,18 @@ public:
     };
     inline void remove(const uint160_t &address) {
         if (std::getenv("EVM_DEBUG"))  std::cout << "debug: remove " << address << std::endl;
-        // TODO missing removal
+        for (int i = 0; i < account_size; i++) {
+            if (address == account_index[i]) {
+                account_size--;
+                if (i < account_size) {
+                    account_index[i] = account_index[account_size];
+                    account_list[i].nonce = account_list[account_size].nonce;
+                    account_list[i].balance = account_list[account_size].balance;
+                    account_list[i].codehash = account_list[account_size].codehash;
+                }
+                return;
+            }
+        }
     }
     inline void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) {
         if (std::getenv("EVM_DEBUG")) std::cout << "log0 " << address << std::endl;
@@ -292,6 +304,7 @@ public:
     }
 };
 
+// a simple block implementation for testing
 class _Block : public Block {
 private:
     uint64_t _number = 10000000;
@@ -317,7 +330,8 @@ public:
     }
 };
 
-/* main */
+// this marker is used by the tester to reuse the code above
+// ** main **
 
 static inline int hex(char c)
 {
