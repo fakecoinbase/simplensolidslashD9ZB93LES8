@@ -68,6 +68,7 @@ private:
     uint64_t contract_size = 0;
     uint256_t contract_index[L];
     struct contract contract_list[L];
+    struct rlp logs = { true, 0, nullptr };
     const struct account *find(const uint160_t &account) const {
         for (uint64_t i = 0; i < account_size; i++) {
             if (account == account_index[i]) return &account_list[i];
@@ -255,7 +256,7 @@ public:
             load(hash);
         }
     }
-    ~_State() { reset(); }
+    ~_State() { reset(); free_rlp(logs); }
     void save() {
         uint64_t hash = dump();
         std::stringstream ss;
@@ -363,18 +364,169 @@ public:
     }
     inline void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) {
         if (std::getenv("EVM_DEBUG")) std::cout << "log0 " << address << std::endl;
+        struct rlp *new_list = _new<struct rlp>(logs.size + 1);
+        for (uint64_t i = 0; i < logs.size; i++) new_list[i] = logs.list[i];
+        _delete(logs.list);
+        logs.list = new_list;
+        logs.size++;
+        struct rlp *rlp = &logs.list[logs.size-1];
+        rlp->is_list = true;
+        rlp->size = 3;
+        rlp->list = _new<struct rlp>(rlp->size);
+        rlp->list[0].is_list = false;
+        rlp->list[0].size = 20;
+        rlp->list[0].data = _new<uint8_t>(rlp->list[0].size);
+        uint160_t::to(address, rlp->list[0].data);
+        rlp->list[1].is_list = true;
+        rlp->list[1].size = 0;
+        rlp->list[1].list = nullptr;
+        rlp->list[2].is_list = false;
+        rlp->list[2].size = data_size;
+        rlp->list[2].data = _new<uint8_t>(rlp->list[2].size);
+        for (uint64_t i = 0; i < data_size; i++) rlp->list[2].data[i] = data[i];
     }
     inline void log1(const uint160_t &address, const uint256_t &v1, const uint8_t *data, uint64_t data_size) {
         if (std::getenv("EVM_DEBUG")) std::cout << "log1 " << address << " " << v1 << std::endl;
+        struct rlp *new_list = _new<struct rlp>(logs.size + 1);
+        for (uint64_t i = 0; i < logs.size; i++) new_list[i] = logs.list[i];
+        _delete(logs.list);
+        logs.list = new_list;
+        logs.size++;
+        struct rlp *rlp = &logs.list[logs.size-1];
+        rlp->is_list = true;
+        rlp->size = 3;
+        rlp->list = _new<struct rlp>(rlp->size);
+        rlp->list[0].is_list = false;
+        rlp->list[0].size = 20;
+        rlp->list[0].data = _new<uint8_t>(rlp->list[0].size);
+        uint160_t::to(address, rlp->list[0].data);
+        rlp->list[1].is_list = true;
+        rlp->list[1].size = 1;
+        rlp->list[1].list = _new<struct rlp>(rlp->list[1].size);
+        rlp->list[1].list[0].is_list = false;
+        rlp->list[1].list[0].size = 32;
+        rlp->list[1].list[0].data = _new<uint8_t>(rlp->list[1].list[0].size);
+        uint256_t::to(v1, rlp->list[1].list[0].data);
+        rlp->list[2].is_list = false;
+        rlp->list[2].size = data_size;
+        rlp->list[2].data = _new<uint8_t>(rlp->list[2].size);
+        for (uint64_t i = 0; i < data_size; i++) rlp->list[2].data[i] = data[i];
     }
     inline void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) {
         if (std::getenv("EVM_DEBUG")) std::cout << "log2 " << address << " " << v1 << " " << v2 << std::endl;
+        struct rlp *new_list = _new<struct rlp>(logs.size + 1);
+        for (uint64_t i = 0; i < logs.size; i++) new_list[i] = logs.list[i];
+        _delete(logs.list);
+        logs.list = new_list;
+        logs.size++;
+        struct rlp *rlp = &logs.list[logs.size-1];
+        rlp->is_list = true;
+        rlp->size = 3;
+        rlp->list = _new<struct rlp>(rlp->size);
+        rlp->list[0].is_list = false;
+        rlp->list[0].size = 20;
+        rlp->list[0].data = _new<uint8_t>(rlp->list[0].size);
+        uint160_t::to(address, rlp->list[0].data);
+        rlp->list[1].is_list = true;
+        rlp->list[1].size = 2;
+        rlp->list[1].list = _new<struct rlp>(rlp->list[1].size);
+        rlp->list[1].list[0].is_list = false;
+        rlp->list[1].list[0].size = 32;
+        rlp->list[1].list[0].data = _new<uint8_t>(rlp->list[1].list[0].size);
+        uint256_t::to(v1, rlp->list[1].list[0].data);
+        rlp->list[1].list[1].is_list = false;
+        rlp->list[1].list[1].size = 32;
+        rlp->list[1].list[1].data = _new<uint8_t>(rlp->list[1].list[1].size);
+        uint256_t::to(v2, rlp->list[1].list[1].data);
+        rlp->list[2].is_list = false;
+        rlp->list[2].size = data_size;
+        rlp->list[2].data = _new<uint8_t>(rlp->list[2].size);
+        for (uint64_t i = 0; i < data_size; i++) rlp->list[2].data[i] = data[i];
     }
     inline void log3(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *data, uint64_t data_size) {
         if (std::getenv("EVM_DEBUG")) std::cout << "log3 " << address << " " << v1 << " " << v2 << " " << v3 << std::endl;
+        struct rlp *new_list = _new<struct rlp>(logs.size + 1);
+        for (uint64_t i = 0; i < logs.size; i++) new_list[i] = logs.list[i];
+        _delete(logs.list);
+        logs.list = new_list;
+        logs.size++;
+        struct rlp *rlp = &logs.list[logs.size-1];
+        rlp->is_list = true;
+        rlp->size = 3;
+        rlp->list = _new<struct rlp>(rlp->size);
+        rlp->list[0].is_list = false;
+        rlp->list[0].size = 20;
+        rlp->list[0].data = _new<uint8_t>(rlp->list[0].size);
+        uint160_t::to(address, rlp->list[0].data);
+        rlp->list[1].is_list = true;
+        rlp->list[1].size = 3;
+        rlp->list[1].list = _new<struct rlp>(rlp->list[1].size);
+        rlp->list[1].list[0].is_list = false;
+        rlp->list[1].list[0].size = 32;
+        rlp->list[1].list[0].data = _new<uint8_t>(rlp->list[1].list[0].size);
+        uint256_t::to(v1, rlp->list[1].list[0].data);
+        rlp->list[1].list[1].is_list = false;
+        rlp->list[1].list[1].size = 32;
+        rlp->list[1].list[1].data = _new<uint8_t>(rlp->list[1].list[1].size);
+        uint256_t::to(v2, rlp->list[1].list[1].data);
+        rlp->list[1].list[2].is_list = false;
+        rlp->list[1].list[2].size = 32;
+        rlp->list[1].list[2].data = _new<uint8_t>(rlp->list[1].list[2].size);
+        uint256_t::to(v3, rlp->list[1].list[2].data);
+        rlp->list[2].is_list = false;
+        rlp->list[2].size = data_size;
+        rlp->list[2].data = _new<uint8_t>(rlp->list[2].size);
+        for (uint64_t i = 0; i < data_size; i++) rlp->list[2].data[i] = data[i];
     }
     inline void log4(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *data, uint64_t data_size) {
         if (std::getenv("EVM_DEBUG")) std::cout << "log4 " << address << " " << v1 << " " << v2 << " " << v3 << " " << v4 << std::endl;
+        struct rlp *new_list = _new<struct rlp>(logs.size + 1);
+        for (uint64_t i = 0; i < logs.size; i++) new_list[i] = logs.list[i];
+        _delete(logs.list);
+        logs.list = new_list;
+        logs.size++;
+        struct rlp *rlp = &logs.list[logs.size-1];
+        rlp->is_list = true;
+        rlp->size = 3;
+        rlp->list = _new<struct rlp>(rlp->size);
+        rlp->list[0].is_list = false;
+        rlp->list[0].size = 20;
+        rlp->list[0].data = _new<uint8_t>(rlp->list[0].size);
+        uint160_t::to(address, rlp->list[0].data);
+        rlp->list[1].is_list = true;
+        rlp->list[1].size = 4;
+        rlp->list[1].list = _new<struct rlp>(rlp->list[1].size);
+        rlp->list[1].list[0].is_list = false;
+        rlp->list[1].list[0].size = 32;
+        rlp->list[1].list[0].data = _new<uint8_t>(rlp->list[1].list[0].size);
+        uint256_t::to(v1, rlp->list[1].list[0].data);
+        rlp->list[1].list[1].is_list = false;
+        rlp->list[1].list[1].size = 32;
+        rlp->list[1].list[1].data = _new<uint8_t>(rlp->list[1].list[1].size);
+        uint256_t::to(v2, rlp->list[1].list[1].data);
+        rlp->list[1].list[2].is_list = false;
+        rlp->list[1].list[2].size = 32;
+        rlp->list[1].list[2].data = _new<uint8_t>(rlp->list[1].list[2].size);
+        uint256_t::to(v3, rlp->list[1].list[2].data);
+        rlp->list[1].list[3].is_list = false;
+        rlp->list[1].list[3].size = 32;
+        rlp->list[1].list[3].data = _new<uint8_t>(rlp->list[1].list[3].size);
+        uint256_t::to(v4, rlp->list[1].list[3].data);
+        rlp->list[2].is_list = false;
+        rlp->list[2].size = data_size;
+        rlp->list[2].data = _new<uint8_t>(rlp->list[2].size);
+        for (uint64_t i = 0; i < data_size; i++) rlp->list[2].data[i] = data[i];
+    }
+    uint256_t loghash() {
+        _try({
+            uint64_t size = _catches(dump_rlp)(logs, nullptr, 0);
+            local<uint8_t> buffer_l(size); uint8_t *buffer = buffer_l.data;
+            _catches(dump_rlp)(logs, buffer, size);
+            return sha3(buffer, size);
+        }, Error e, {
+            assert(false);
+        })
+        return 0;
     }
 };
 
