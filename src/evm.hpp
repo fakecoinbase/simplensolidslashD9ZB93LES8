@@ -100,6 +100,11 @@ static void _delete(T *p)
     if (p != nullptr) delete p;
 }
 
+// this replaces dynamic stack allocation which is non standard and
+// causes memory violation problems in the WASM interpreter
+// instead of writing, for instance, uint8_t buffer[size];
+// the following idiom is used
+// local<uint8_t> buffer_l(size); uint8_t *buffer = buffer_l.data;
 template<typename T>
 class local {
 public:
