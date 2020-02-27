@@ -511,7 +511,7 @@ public:
             buffer[offset++] = ',';
             to_hex<256>(account_list[i].codehash, &buffer[offset]); offset += 64;
             for (uint64_t j = 0; j < keyvalue_size; j++) {
-                if (address == keyvalue_index[j]) {
+                if (address == account_index[keyvalue_index[i]]) {
                     if (keyvalue_list[j][1] == 0) continue;
                     buffer[offset++] = ',';
                     to_hex<256>(keyvalue_list[j][0], &buffer[offset]); offset += 64;
