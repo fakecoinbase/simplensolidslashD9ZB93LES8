@@ -188,7 +188,7 @@ public:
         std::cout << "EVM_STATE=" << name << std::endl;
     }
     inline uint64_t get_nonce(const uint160_t &address) const {
-        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: get_nonce " << address << std::endl;
+//        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: get_nonce " << address << std::endl;
         const struct account *account = find(address);
         return account == nullptr ? 0 : account->nonce;
     };
@@ -197,7 +197,7 @@ public:
         update(address, nonce, get_balance(address), get_codehash(address));
     };
     inline uint256_t get_balance(const uint160_t &address) const {
-        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: get_balance " << address << std::endl;
+//        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: get_balance " << address << std::endl;
         const struct account *account = find(address);
         return account == nullptr ? 0 : account->balance;
     };
@@ -206,7 +206,7 @@ public:
         update(address, get_nonce(address), balance, get_codehash(address));
     };
     inline uint256_t get_codehash(const uint160_t &address) const {
-        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: get_codehash " << address << std::endl;
+//        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: get_codehash " << address << std::endl;
         const struct account *account = find(address);
         return account == nullptr ? 0 : account->codehash;
     };
@@ -216,7 +216,7 @@ public:
     };
 
     inline uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
-        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: load_code " << codehash << std::endl;
+//        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: load_code " << codehash << std::endl;
         const struct contract *contract = find(codehash);
         if (contract == nullptr) {
             code_size = 0;
@@ -233,7 +233,7 @@ public:
     };
 
     inline uint256_t load(const uint160_t &address, const uint256_t &key) const {
-        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: load " << address << " " << key << std::endl;
+//        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: load " << address << " " << key << std::endl;
         for (int i = 0; i < keyvalue_size; i++) {
             if (keyvalue_list[i][0] == key && address == account_index[keyvalue_index[i]]) {
                 return keyvalue_list[i][1];
@@ -392,8 +392,7 @@ int main(int argc, const char *argv[])
     _try({
         _Block block;
         _State state;
-        state.set_balance(65535, 10000000);
-        _catches(vm_txn)(block, state, buffer, size, 65535, true);
+        _catches(vm_txn)(block, state, buffer, size, 65535, false);
         state.save();
     }, Error e, {
         std::cerr << progname << ": error " << errors[e] << std::endl; return 1;

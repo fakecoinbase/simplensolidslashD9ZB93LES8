@@ -361,10 +361,10 @@ private:
 
     // vm callback to update the noce
     void set_nonce(const uint160_t &address, const uint64_t &nonce) {
+        eosio::print_f("debug: set_nonce address<0x%> value<0x%>", to_string(address), to_string((uint256_t)nonce));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto itr = _account.find(acc_id);
-            eosio::print_f("debug: set_nonce address<0x%> value<0x%>", to_string(address), to_string((uint256_t)nonce));
             _account.modify(itr, _self, [&](auto& row) { row.nonce = nonce; });
             return;
         }
@@ -384,12 +384,12 @@ private:
 
     // vm callback to update the balance
     void set_balance(const uint160_t &address, const uint256_t &_balance) {
+        eosio::print_f("debug: set_balance address<0x%> value<0x%>", to_string(address), to_string(_balance));
         check(_balance < ((uint256_t)1 << 64), "illegal state, invalid balance");
         uint64_t balance = _balance.cast64();
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto itr = _account.find(acc_id);
-            eosio::print_f("debug: set_balance address<0x%> value<0x%>", to_string(address), to_string(_balance));
             _account.modify(itr, _self, [&](auto& row) { row.balance = balance; });
             return;
         }
@@ -410,6 +410,7 @@ private:
 
     // vm callback to update the account codehash
     void set_codehash(const uint160_t &address, const uint256_t &codehash) {
+        eosio::print_f("debug: set_codehash address<0x%> value<0x%>", to_string(address), to_string(codehash));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto idx = _code.get_index<"code2"_n>();
@@ -425,7 +426,6 @@ private:
             auto idx = _code.get_index<"code3"_n>();
             for (auto itr = idx.find(hash_id); itr != idx.end(); itr++) {
                 if (id256(itr->code) == codehash) {
-                    eosio::print_f("debug: set_codehash address<0x%> value<0x%>", to_string(address), to_string(codehash));
                     if (itr->acc_id == 0) {
                         idx.modify(itr, _self, [&](auto& row) { row.acc_id = acc_id; });
                     } else {
@@ -461,12 +461,12 @@ private:
 
     // vm call back to store code
     void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) {
+        eosio::print_f("debug: store_code codehash<0x%> value<0x%>", to_string(codehash), to_string(code, code_size));
         uint64_t hash_id = id64(codehash);
         auto idx = _code.get_index<"code3"_n>();
         for (auto itr = idx.find(hash_id); itr != idx.end(); itr++) {
             if (id256(itr->code) == codehash) return;
         }
-        eosio::print_f("debug: store_code codehash<0x%> value<0x%>", to_string(codehash), to_string(code, code_size));
         _code.emplace(_self, [&](auto& row) {
             row.code_id = _max(1, _code.available_primary_key());
             row.acc_id = 0;
@@ -491,13 +491,13 @@ private:
 
     // vm callback to update the storage
     void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) {
+        eosio::print_f("debug: store address<0x%> key<0x%> value<0x%>", to_string(address), to_string(key), to_string(value));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             uint64_t key_id = id64(acc_id, key);
             auto idx = _state.get_index<"state3"_n>();
             for (auto itr = idx.find(key_id); itr != idx.end(); itr++) {
                 if (itr->acc_id == acc_id && equals(itr->key, key)) {
-                    eosio::print_f("debug: store address<0x%> key<0x%> value<0x%>", to_string(address), to_string(key), to_string(value));
                     if (value > 0) {
                         idx.modify(itr, _self, [&](auto& row) { row.value = convert(value); });
                     } else {
@@ -521,13 +521,11 @@ private:
 
     // vm call back to clean up accounts
     void remove(const uint160_t &address) {
+        eosio::print_f("debug: remove address<{0x%}>", to_string(address));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto itr = _account.find(acc_id);
-            if (itr->user_id == 0) {
-                eosio::print_f("debug: remove address<{0x%}>", to_string(address));
-                _account.erase(itr);
-            }
+            if (itr->user_id == 0) _account.erase(itr);
         }
     }
 
