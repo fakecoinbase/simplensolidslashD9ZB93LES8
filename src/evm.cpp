@@ -1,4 +1,5 @@
 #include <cstring>
+#include <ctime>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -298,8 +299,9 @@ private:
     uint64_t _gaslimit = 10000000;
     uint160_t _coinbase = 0;
     uint256_t _difficulty = 17179869184;
+    static uint64_t now() { return std::time(nullptr); }
 public:
-    _Block() {}
+    _Block() : _timestamp(now()) {}
     _Block(uint64_t number, uint64_t timestamp, uint64_t gaslimit, const uint160_t& coinbase, const uint256_t& difficulty)
         : _number(number), _timestamp(timestamp), _gaslimit(gaslimit), _coinbase(coinbase), _difficulty(difficulty) {}
     uint64_t forknumber() { return _number; }
@@ -338,50 +340,6 @@ static inline bool parse_hex(const char *hexstr, uint8_t *buffer, uint64_t size)
 
 int main(int argc, const char *argv[])
 {
-/*
-    if (true) {
-        try {
-            uint8_t in[3*32+3*512];
-            uint8_t out[512];
-            for (int i = 0; i < 3*32+3*512; i++) in[i] = 0;
-            in[30] = 2;
-            in[62] = 2;
-            in[94] = 2;
-            for (int i = 3*32+0*512+200; i < 3*32+1*512; i++) in[i] = (uint8_t)3*i;
-            for (int i = 3*32+1*512+310; i < 3*32+2*512; i++) in[i] = (uint8_t)2*i;
-            for (int i = 3*32+2*512+100; i < 3*32+3*512; i++) in[i] = (uint8_t)1*i;
-            for (int i = 0; i < 3*32+3*512; i++) {
-                std::cerr << (int)in[i] << " ";
-            }
-            std::cerr << std::endl;
-            test(3*32+3*512, in, 512, 512, out);
-            for (int i = 0; i < 512; i++) {
-                std::cerr << (int)out[i] << " ";
-            }
-            std::cerr << std::endl;
-        } catch (Error e) {
-            std::cerr << "error " << errors[e] << std::endl; return 1;
-        }
-        return 0;
-    }
-*/
-/*
-    uint256_t v = 27;
-    uint256_t h = uint256_t::from("\xda\xf5\xa7\x79\xae\x97\x2f\x97\x21\x97\x30\x3d\x7b\x57\x47\x46\xc7\xef\x83\xea\xda\xc0\xf2\x79\x1a\xd2\x3d\xb9\x2e\x4c\x8e\x53");
-    uint256_t r = uint256_t::from("\x28\xef\x61\x34\x0b\xd9\x39\xbc\x21\x95\xfe\x53\x75\x67\x86\x60\x03\xe1\xa1\x5d\x3c\x71\xff\x63\xe1\x59\x06\x20\xaa\x63\x62\x76");
-    uint256_t s = uint256_t::from("\x67\xcb\xe9\xd8\x99\x7f\x76\x1a\xec\xb7\x03\x30\x4b\x38\x00\xcc\xf5\x55\xc9\xf3\xdc\x64\x21\x4b\x29\x7f\xb1\x96\x6a\x3b\x6d\x83");
-    std::cerr << v << std::endl;
-    std::cerr << h << std::endl;
-    std::cerr << r << std::endl;
-    std::cerr << s << std::endl;
-    uint256_t a = ecrecover(h, v, r, s);
-    std::cerr << a << std::endl;
-// 000000000000000000000000000000000000000000000000000000000000001b
-// daf5a779ae972f972197303d7b574746c7ef83eadac0f2791ad23db92e4c8e53
-// 28ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276
-// 67cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83
-// 0000000000000000000000009d8a62f656a8d1615c1294fd71e9cfb3e4855a4f
-*/
     const char *progname = argv[0];
     if (argc < 2) { std::cerr << "usage: " << progname << " <hex>" << std::endl; return 1; }
     const char *hexstr = argv[1];
