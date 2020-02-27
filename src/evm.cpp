@@ -8,6 +8,44 @@
 
 #include "evm.hpp"
 
+// just remove spaces from string
+static inline std::string trim(std::string& s)
+{
+    s.erase(0, s.find_first_not_of(" \t\n\r\f\v"));
+    s.erase(s.find_last_not_of(" \t\n\r\f\v")+1);
+    return s;
+}
+
+// executes command and get the hash provided
+static uint256_t exec(const char* cmd) {
+    std::array<char, 128> buffer;
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+    if (!pipe) abort();
+    std::string result;
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) result += buffer.data();
+    result = trim(result);
+    return uhex256(result.c_str());
+}
+
+// handy function to convert hex digit into char
+static char hexc(uint8_t b)
+{
+    assert(b < 16);
+    return b < 10 ? (char)b + '0' : (char)(b - 10) + 'a';
+}
+
+// handy fnction to conver U<N> into hex chars
+template<int N>
+static void to_hex(const U<N>& v, char *chars)
+{
+    local<uint8_t> buffer_l(N/8); uint8_t *buffer = buffer_l.data;
+    U<N>::to(v, buffer);
+    for (uint64_t i = 0; i < N/8; i++) {
+        chars[2*i] = hexc(buffer[i] >> 4);
+        chars[2*i+1] = hexc(buffer[i] & 0xf);
+    }
+}
+
 // a simple state implementation for testing
 class _State : public State {
 private:
@@ -21,36 +59,36 @@ private:
         uint64_t code_size;
     };
     static constexpr int L = 1024;
-    int account_size = 0;
+    uint64_t account_size = 0;
     uint160_t account_index[L];
     struct account account_list[L];
-    int keyvalue_size = 0;
-    int keyvalue_index[L];
+    uint64_t keyvalue_size = 0;
+    uint64_t keyvalue_index[L];
     uint256_t keyvalue_list[L][2];
-    int contract_size = 0;
+    uint64_t contract_size = 0;
     uint256_t contract_index[L];
     struct contract contract_list[L];
     const struct account *find(const uint160_t &account) const {
-        for (int i = 0; i < account_size; i++) {
+        for (uint64_t i = 0; i < account_size; i++) {
             if (account == account_index[i]) return &account_list[i];
         }
         return nullptr;
     }
     const struct contract *find(const uint256_t &codehash) const {
-        for (int i = 0; i < contract_size; i++) {
+        for (uint64_t i = 0; i < contract_size; i++) {
             if (codehash == contract_index[i]) return &contract_list[i];
         }
         return nullptr;
     }
     void reset() {
-        for (int i = 0; i < contract_size; i++) _delete(contract_list[i].code);
+        for (uint64_t i = 0; i < contract_size; i++) _delete(contract_list[i].code);
         account_size = 0;
         keyvalue_size = 0;
         contract_size = 0;
     }
     void update(const uint160_t &account, const uint64_t &nonce, const uint256_t &balance, const uint256_t &codehash) {
-        int index = account_size;
-        for (int i = 0; i < account_size; i++) {
+        uint64_t index = account_size;
+        for (uint64_t i = 0; i < account_size; i++) {
             if (account == account_index[i]) {
                 index = i;
                 break;
@@ -69,8 +107,8 @@ private:
         account_list[index].codehash = codehash;
     }
     void update(const uint256_t &codehash, const uint8_t *buffer, uint64_t size) {
-        int index = contract_size;
-        for (int i = 0; i < contract_size; i++) {
+        uint64_t index = contract_size;
+        for (uint64_t i = 0; i < contract_size; i++) {
             if (codehash == contract_index[i]) {
                 index = i;
                 break;
@@ -101,7 +139,7 @@ private:
         uint64_t offset = 0;
         account_size = b2w32le(&buffer[offset]); offset += 4;
         if (account_size > L) throw INSUFFICIENT_SPACE;
-        for (int i = 0; i < account_size; i++) {
+        for (uint64_t i = 0; i < account_size; i++) {
             account_index[i] = uint160_t::from(&buffer[offset]); offset += 20;
             account_list[i].nonce = uint256_t::from(&buffer[offset]).cast64(); offset += 32;
             account_list[i].balance = uint256_t::from(&buffer[offset]); offset += 32;
@@ -112,7 +150,7 @@ private:
         }
         keyvalue_size = b2w32le(&buffer[offset]); offset += 4;
         if (keyvalue_size > L) throw INSUFFICIENT_SPACE;
-        for (int i = 0; i < keyvalue_size; i++) {
+        for (uint64_t i = 0; i < keyvalue_size; i++) {
             keyvalue_index[i] = b2w32le(&buffer[offset]); offset += 4;
             keyvalue_list[i][0] = uint256_t::from(&buffer[offset]); offset += 32;
             keyvalue_list[i][1] = uint256_t::from(&buffer[offset]); offset += 32;
@@ -121,20 +159,20 @@ private:
     uint64_t dump() const {
         uint64_t size = 0;
         size += 4;
-        for (int i = 0; i < account_size; i++) {
+        for (uint64_t i = 0; i < account_size; i++) {
             uint64_t code_size;
             const uint8_t *code = load_code(account_list[i].codehash, code_size);
             _delete(code);
             size += 20 + 32 + 32 + 4 + code_size + 32;
         }
         size += 4;
-        for (int i = 0; i < keyvalue_size; i++) {
+        for (uint64_t i = 0; i < keyvalue_size; i++) {
             size += 4 + 32 + 32;
         }
         local<uint8_t> buffer_l(size); uint8_t *buffer = buffer_l.data;
         uint64_t offset = 0;
         w2b32le(account_size, &buffer[offset]); offset += 4;
-        for (int i = 0; i < account_size; i++) {
+        for (uint64_t i = 0; i < account_size; i++) {
             uint64_t code_size;
             const uint8_t *code = load_code(account_list[i].codehash, code_size);
             uint160_t::to(account_index[i], &buffer[offset]); offset += 20;
@@ -148,7 +186,7 @@ private:
             _delete(code);
         }
         w2b32le(keyvalue_size, &buffer[offset]); offset += 4;
-        for (int i = 0; i < keyvalue_size; i++) {
+        for (uint64_t i = 0; i < keyvalue_size; i++) {
             w2b32le(keyvalue_index[i], &buffer[offset]); offset += 4;
             uint256_t::to(keyvalue_list[i][0], &buffer[offset]); offset += 32;
             uint256_t::to(keyvalue_list[i][1], &buffer[offset]); offset += 32;
@@ -169,6 +207,42 @@ private:
         std::ofstream fs("states/" + name + ".dat", std::ios::out | std::ios::binary);
         fs.write((const char*)buffer, size);
         return hash;
+    }
+public:
+    uint256_t root(const char *cmd) {
+        uint64_t size = strlen(cmd) + 1 + 1 + account_size * ( 40 + 3 * (1 + 64) ) + keyvalue_size * (2 * (1 + 64)) + (account_size - 1) + 1 + 1;
+        local<char> buffer_l(size); char *buffer = buffer_l.data;
+        uint64_t offset = 0;
+        for (uint64_t i = 0; i < strlen(cmd); i++) buffer[offset++] = cmd[i];
+        buffer[offset++] = ' ';
+        buffer[offset++] = '\'';
+        for (uint64_t i = 0; i < account_size; i++) {
+            if (account_list[i].nonce == 0 && account_list[i].balance == 0 && (account_list[i].codehash == 0 /*|| account_list[i].codehash == EMPTY_CODEHASH*/)) continue;
+            if (i > 0) buffer[offset++] = ';';
+            uint160_t address = account_index[i];
+            to_hex<160>(address, &buffer[offset]); offset += 40;
+            buffer[offset++] = ',';
+            to_hex<256>(account_list[i].nonce, &buffer[offset]); offset += 64;
+            buffer[offset++] = ',';
+            to_hex<256>(account_list[i].balance, &buffer[offset]); offset += 64;
+            buffer[offset++] = ',';
+            to_hex<256>(account_list[i].codehash, &buffer[offset]); offset += 64;
+            for (uint64_t j = 0; j < keyvalue_size; j++) {
+                if (address == keyvalue_index[j]) {
+                    if (keyvalue_list[j][1] == 0) continue;
+                    buffer[offset++] = ',';
+                    to_hex<256>(keyvalue_list[j][0], &buffer[offset]); offset += 64;
+                    buffer[offset++] = ',';
+                    to_hex<256>(keyvalue_list[j][1], &buffer[offset]); offset += 64;
+                }
+            }
+
+        }
+        buffer[offset++] = '\'';
+        buffer[offset++] = '\0';
+        assert(offset <= size);
+        std::cout << buffer << std::endl;
+        return exec(buffer);
     }
 public:
     _State() {
@@ -236,7 +310,7 @@ public:
 
     inline uint256_t load(const uint160_t &address, const uint256_t &key) const {
 //        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: load " << address << " " << key << std::endl;
-        for (int i = 0; i < keyvalue_size; i++) {
+        for (uint64_t i = 0; i < keyvalue_size; i++) {
             if (keyvalue_list[i][0] == key && address == account_index[keyvalue_index[i]]) {
                 return keyvalue_list[i][1];
             }
@@ -246,14 +320,14 @@ public:
     };
     inline void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) {
         if (std::getenv("EVM_DEBUG"))  std::cout << "debug: store " << address << " " << key << " " << value << std::endl;
-        for (int i = 0; i < keyvalue_size; i++) {
+        for (uint64_t i = 0; i < keyvalue_size; i++) {
             if (keyvalue_list[i][0] == key && address == account_index[keyvalue_index[i]]) {
                 keyvalue_list[i][1] = value;
                 return;
             }
         }
-        int index = account_size;
-        for (int i = 0; i < account_size; i++) {
+        uint64_t index = account_size;
+        for (uint64_t i = 0; i < account_size; i++) {
             if (address == account_index[i]) {
                 index = i;
                 break;
@@ -274,7 +348,7 @@ public:
     };
     inline void remove(const uint160_t &address) {
         if (std::getenv("EVM_DEBUG"))  std::cout << "debug: remove " << address << std::endl;
-        for (int i = 0; i < account_size; i++) {
+        for (uint64_t i = 0; i < account_size; i++) {
             if (address == account_index[i]) {
                 account_size--;
                 if (i < account_size) {
