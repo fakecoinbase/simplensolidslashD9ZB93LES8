@@ -4850,7 +4850,7 @@ public:
         uint64_t nonce = get_nonce(address);
         uint256_t balance = get_balance(address);
         uint256_t codehash = get_codehash(address);
-        return nonce == 0 && balance == 0 && codehash == 0;
+        return nonce > 0 || balance > 0 || codehash > 0;
     }
     bool is_empty(const uint160_t &address) {
         uint64_t nonce = get_nonce(address);
