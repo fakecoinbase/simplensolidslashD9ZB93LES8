@@ -258,9 +258,24 @@ def codeDoneReturn(out):
     }
 """
 
+def codeDoneRoot(roothash):
+    return """
+    uint256_t root = state.root("./trie/trie");
+    uint256_t roothash = uhex256(\"""" + intToU256(roothash) + """\");
+    if (root != roothash) {
+        std::cerr << "post: invalid root " << root << " " << roothash << std::endl;
+        return 1;
+    }
+"""
+
 def codeDoneLogs(loghash):
     return """
     uint256_t loghash = uhex256(\"""" + intToU256(loghash) + """\");
+    uint256_t _loghash = state.loghash();
+    if (loghash != _loghash) {
+        std::cerr << "post: invalid loghash " << loghash << " " << _loghash << std::endl;
+        return 1;
+    }
 """
 
 def codeDoneGas(fgas):
@@ -654,6 +669,9 @@ int main()
 //        return 1;
     }
 """
+
+        roothash = hexToInt(item["post"]["Istanbul"][0]["hash"])
+        src += codeDoneRoot(roothash)
 
     src += """
     return 0;
