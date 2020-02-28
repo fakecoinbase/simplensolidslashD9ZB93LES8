@@ -5589,7 +5589,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             })
             storage.end(snapshot, success);
             if (release < HOMESTEAD) success = success || outofgas;
-            stack.push(success);
+            stack.push(success ? (uint256_t)code_address : 0);
             break;
         }
         case CALL: {
@@ -5776,7 +5776,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             })
             storage.end(snapshot, success);
             if (release < HOMESTEAD) success = success || outofgas;
-            stack.push(success);
+            stack.push(success ? (uint256_t)code_address : 0);
             break;
         }
         case STATICCALL: {
