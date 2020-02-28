@@ -99,14 +99,14 @@ def intToU256(v):
     if v < 0 or v > 2**256-1: _die("Not U256:", v)
     return "%064x" % v
 
-def codeInitExec2(nonce, gasprice, gas, address, value, data, publickey):
+def codeInitExec2(nonce, gasprice, gas, has_to, address, value, data, publickey):
     return """
     struct txn txn;
 
     txn.nonce = uhex256(\"""" + intToU256(nonce) + """\").cast64();
     txn.gasprice = uhex256(\"""" + intToU256(gasprice) + """\");
     txn.gaslimit = uhex256(\"""" + intToU256(gas) + """\").cast64();
-    txn.has_to = true;
+    txn.has_to = """ + ("true" if has_to else "false") + """;
     txn.to = (uint160_t)uhex256(\"""" + intToU256(address) + """\");
     txn.value = uhex256(\"""" + intToU256(value) + """\");
     txn.data = (uint8_t*)\"""" + data + """\";
@@ -618,11 +618,12 @@ int main()
             nonce = hexToInt(txn["nonce"])
             gasprice = hexToInt(txn["gasPrice"])
             gas = hexToInt(txn["gasLimit"][gas_index])
+            has_to = txn["to"] != ""
             address = hexToInt(txn["to"])
             value = hexToInt(txn["value"][value_index])
             data = hexToBin(txn['data'][data_index])
             publickey = hexToBin(pk)
-            src += codeInitExec2(nonce, gasprice, gas, address, value, data, publickey)
+            src += codeInitExec2(nonce, gasprice, gas, has_to, address, value, data, publickey)
 
             pre = item["pre"]
             for key, values in pre.items():
