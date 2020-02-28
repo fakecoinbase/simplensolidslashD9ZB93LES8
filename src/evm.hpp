@@ -4692,6 +4692,14 @@ public:
     uint8_t *get_code(const uint160_t &address, uint64_t &code_size) const {
         return load_code(get_codehash(address), code_size);
     }
+    uint8_t *get_call_code(const uint160_t &address, uint64_t &code_size) const {
+        if (is_precompiled(address)) { code_size = 0; return (uint8_t*)(intptr_t)address.cast64(); }
+        return load_code(get_codehash(address), code_size);
+    }
+    void release_code(uint8_t *code) const {
+        if (is_precompiled((uint160_t)(intptr_t)code)) return;
+        _delete(code);
+    }
     uint64_t get_codesize(const uint160_t &address) const {
         uint64_t code_size;
         const uint8_t *code = load_code(get_codehash(address), code_size);
@@ -4850,27 +4858,30 @@ public:
     void create_account(const uint160_t &address) {
         set_codehash(address, EMPTY_CODEHASH);
     }
-    bool exists(const uint160_t &address) {
+    bool exists(const uint160_t &address) const {
         uint64_t nonce = get_nonce(address);
         uint256_t balance = get_balance(address);
         uint256_t codehash = get_codehash(address);
         return nonce > 0 || balance > 0 || codehash > 0;
     }
-    bool is_empty(const uint160_t &address) {
+    bool is_empty(const uint160_t &address) const {
         uint64_t nonce = get_nonce(address);
         uint256_t balance = get_balance(address);
         uint256_t codehash = get_codehash(address);
         return nonce == 0 && balance == 0 && codehash == EMPTY_CODEHASH;
     }
-    bool has_contract(const uint160_t &address) {
+    bool has_contract(const uint160_t &address) const {
         uint64_t nonce = get_nonce(address);
         uint256_t codehash = get_codehash(address);
         return nonce > 0 || (codehash != 0 && codehash != EMPTY_CODEHASH);
     }
+    bool is_precompiled(const uint160_t &address) const {
+        return ECRECOVER <= address && address <= BLAKE2F;
+    }
     void destruct_account(const uint160_t &address) {
         destructed.set(address, true, false);
     }
-    bool is_destructed(const uint160_t &address) {
+    bool is_destructed(const uint160_t &address) const {
         return destructed.get(address, false);
     }
 };
@@ -5374,10 +5385,10 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             _handles0(consume_gas)(gas, gas_memory(release, memory.size(), offset1 + size));
             _handles0(consume_gas)(gas, gas_copy(release, size));
             uint64_t extcode_size;
-            const uint8_t *extcode = storage.get_code(address, extcode_size);
+            uint8_t *extcode = storage.get_code(address, extcode_size);
             uint64_t offset2 = v3 > extcode_size ? extcode_size : v3.cast64();
             memory.burn(offset1, size, &extcode[offset2], _min(size, extcode_size - offset2));
-            _delete(extcode);
+            storage.release_code(extcode);
             break;
         }
         case RETURNDATASIZE: { stack.push(return_size); break; }
@@ -5614,7 +5625,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             if (!storage.exists(code_address)) {
                 if (release >= SPURIOUS_DRAGON) {
                     if (value == 0) {
-                        if ((intptr_t)code > BLAKE2F) {
+                        if (!storage.is_precompiled(code_address)) {
                             return_size = 0;
                             credit_gas(gas, call_gas);
                             storage.end(snapshot, true);
@@ -5629,7 +5640,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             storage.sub_balance(owner_address, value);
             storage.add_balance(code_address, value);
             uint64_t code_size;
-            const uint8_t *code = storage.get_code(code_address, code_size);
+            uint8_t *code = storage.get_call_code(code_address, code_size);
             bool success;
             _try({
                 success = _catches(vm_run)(release, block, storage,
@@ -5643,7 +5654,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                 success = false;
                 return_size = 0;
             })
-            _delete(code);
+            storage.release_code(code);
             storage.end(snapshot, success);
             memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
             stack.push(success);
@@ -5668,7 +5679,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             memory.dump(args_offset, args_size, args_data);
             uint64_t snapshot = storage.begin();
             uint64_t code_size;
-            const uint8_t *code = storage.get_code(code_address, code_size);
+            uint8_t *code = storage.get_call_code(code_address, code_size);
             bool success;
             _try({
                 success = _catches(vm_run)(release, block, storage,
@@ -5682,7 +5693,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                 success = false;
                 return_size = 0;
             })
-            _delete(code);
+            storage.release_code(code);
             storage.end(snapshot, success);
             memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
             stack.push(success);
@@ -5714,7 +5725,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             memory.dump(args_offset, args_size, args_data);
             uint64_t snapshot = storage.begin();
             uint64_t code_size;
-            const uint8_t *code = storage.get_code(code_address, code_size);
+            uint8_t *code = storage.get_call_code(code_address, code_size);
             bool success;
             _try({
                 success = _catches(vm_run)(release, block, storage,
@@ -5728,7 +5739,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                 success = false;
                 return_size = 0;
             })
-            _delete(code);
+            storage.release_code(code);
             storage.end(snapshot, success);
             memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
             stack.push(success);
@@ -5796,7 +5807,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             memory.dump(args_offset, args_size, args_data);
             uint64_t snapshot = storage.begin();
             uint64_t code_size;
-            const uint8_t *code = storage.get_code(code_address, code_size);
+            uint8_t *code = storage.get_call_code(code_address, code_size);
             bool success;
             _try({
                 success = _catches(vm_run)(release, block, storage,
@@ -5810,7 +5821,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                 success = false;
                 return_size = 0;
             })
-            _delete(code);
+            storage.release_code(code);
             storage.end(snapshot, success);
             memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
             stack.push(success);
@@ -5887,12 +5898,12 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
         if (storage.get_balance(from) < txn.value) _trythrow(INSUFFICIENT_BALANCE);
         if (txn.has_to) { // message call
             uint64_t code_size;
-            const uint8_t *code = storage.get_code(to, code_size);
+            uint8_t *code = storage.get_call_code(to, code_size);
             if (!storage.exists(to)) {
                 if (release >= SPURIOUS_DRAGON) {
                     if (txn.value == 0) {
-                        if ((intptr_t)code > BLAKE2F) {
-                            _delete(code);
+                        if (!storage.is_precompiled(to)) {
+                            storage.release_code(code);
                             goto skip;
                         }
                     }
@@ -5907,7 +5918,7 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
                             from, txn.value, txn.data, txn.data_size,
                             return_data, return_size, return_capacity, gas,
                             false, 0);
-            _delete(code);
+            storage.release_code(code);
         } else { // contract creation
             if (storage.has_contract(to)) _trythrow(CODE_CONFLICT);
             storage.create_account(to);
