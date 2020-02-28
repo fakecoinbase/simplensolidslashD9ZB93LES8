@@ -5377,7 +5377,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             const uint8_t *extcode = storage.get_code(address, extcode_size);
             uint64_t offset2 = v3 > extcode_size ? extcode_size : v3.cast64();
             memory.burn(offset1, size, &extcode[offset2], _min(size, extcode_size - offset2));
-            _delete(code);
+            _delete(extcode);
             break;
         }
         case RETURNDATASIZE: { stack.push(return_size); break; }
