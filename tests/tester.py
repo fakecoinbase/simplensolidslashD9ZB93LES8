@@ -1,7 +1,5 @@
-#pip3 install ecdsa --user
-#pip3 install pyyaml --user
+#pip3 install ecdsa pyyaml --user
 import ecdsa, json, os, subprocess, sys, yaml
-
 
 def derive_pk(e):
     signing_key = ecdsa.SigningKey.from_secret_exponent(e, curve=ecdsa.SECP256k1)
@@ -218,8 +216,9 @@ def codeDoneAccount(account, nonce, balance, code, storage):
     if balance != None:
         src += """
         uint256_t balance = uhex256(\"""" + intToU256(balance) + """\");
-        if (balance != state.get_balance(account)) {
-            std::cerr << "post: invalid balance" << std::endl;
+        uint256_t _balance = state.get_balance(account);
+        if (balance != _balance) {
+            std::cerr << "post: invalid balance " << _balance << " " << balance << std::endl;
             return 1;
         }
 """
@@ -709,9 +708,13 @@ int main()
         _delete(return_data);
 
         uint64_t refund_gas = storage.get_refund();
+        uint64_t used_gas_before_refund = txn.gaslimit.cast64() - gas;
+        credit_gas(gas, _min(refund_gas, used_gas_before_refund / 2));
         uint64_t used_gas = txn.gaslimit.cast64() - gas;
-        credit_gas(gas, _min(refund_gas, used_gas / 2));
-        if (pays_gas) storage.add_balance(from, gas * txn.gasprice);
+        if (pays_gas) {
+            storage.add_balance(from, gas * txn.gasprice);
+            storage.add_balance(block.coinbase(), used_gas * txn.gasprice);
+        }
 
         storage.flush();
     }, Error e, {
