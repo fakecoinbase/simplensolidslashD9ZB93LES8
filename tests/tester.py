@@ -453,7 +453,7 @@ int main()
     result = compileFile(filename + ".cpp", filename)
     if result != 0: _report("Test fail to compile"); return
     result = execFile(filename)
-    if result != 0: _report("Test failure")
+    if result != 0: _report("Test failure"); os.remove(filename)
 
 def txTest(name, item, path):
 #    print(json.dumps(item, indent=2))
@@ -551,7 +551,7 @@ int main()
         result = compileFile(filename + ".cpp", filename)
         if result != 0: _report("Test fail to compile"); continue
         result = execFile(filename)
-        if result != 0: _report("Test failure")
+        if result != 0: _report("Test failure"); os.remove(filename)
 
 def gsTest(name, item, path):
 #    print(json.dumps(item, indent=2))
@@ -721,42 +721,21 @@ int main()
     })
 """
 
+            loghash = hexToInt(test["logs"])
+            src += codeDoneLogs(loghash);
+
             result = find_expect(item['expect'], gas_index, value_index, data_index, release_name)
+            for key, values in result.items():
+                if key == "//comment": continue
+                account = hexToInt(str(key))
+                nonce = valToInt(values["nonce"]) if "nonce" in values else None
+                balance = valToInt(values["balance"]) if "balance" in values else None
+                code = hexToBin(values['code']) if "code" in values else None
+                storage = values["storage"] if "storage" in values else {}
+                src += codeDoneAccount(account, nonce, balance, code, storage)
 
-#            print(json.dumps(result, indent=2))
-
-            if not "hash" in test:
-
-                src += """
-    if (success) {
-//        std::cerr << "post: invalid success on failure" << std::endl;
-//        return 1;
-    }
-"""
-
-            else:
-
-                src += """
-    if (!success) {
-//        std::cerr << "post: invalid failure on success" << std::endl;
-//        return 1;
-    }
-"""
-
-                loghash = hexToInt(test["logs"])
-                src += codeDoneLogs(loghash);
-
-                for key, values in result.items():
-                    if key == "//comment": continue
-                    account = hexToInt(str(key))
-                    nonce = valToInt(values["nonce"]) if "nonce" in values else None
-                    balance = valToInt(values["balance"]) if "balance" in values else None
-                    code = hexToBin(values['code']) if "code" in values else None
-                    storage = values["storage"] if "storage" in values else {}
-                    src += codeDoneAccount(account, nonce, balance, code, storage)
-
-#                roothash = hexToInt(test["hash"])
-#                src += codeDoneRoot(roothash)
+#            roothash = hexToInt(test["hash"])
+#            src += codeDoneRoot(roothash)
 
             src += """
     return 0;
@@ -768,7 +747,7 @@ int main()
             result = compileFile(filename + ".cpp", filename)
             if result != 0: _report("Test fail to compile"); return
             result = execFile(filename)
-            if result != 0: _report("Test failure")
+            if result != 0: _report("Test failure"); os.remove(filename)
 
 def vmTests(filt):
     paths = listTests("./tests/VMTests", filePrefixes=[filt])
