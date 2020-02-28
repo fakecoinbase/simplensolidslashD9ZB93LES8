@@ -4649,10 +4649,7 @@ protected:
     Log logs; // storage for logs
     uint64_t refund_gas = 0; // gas refund accumulator, refund is performed at the very end
 public:
-    // register precompiled contracts
-    Storage(State *_underlying) : underlying(_underlying) {
-        for (uint8_t i = ECRECOVER; i <= BLAKE2F; i++) register_code(i, (uint8_t*)(intptr_t)i, 0);
-    }
+    Storage(State *_underlying) : underlying(_underlying) {}
     // nonce access methods
     uint64_t get_nonce(const uint160_t &address) const {
         return nonces.get(address, underlying->get_nonce(address));
