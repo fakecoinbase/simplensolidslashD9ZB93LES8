@@ -404,10 +404,7 @@ int main()
         if (std::getenv("EVM_DEBUG")) std::cerr << "vm exception " << errors[e] << std::endl;
     })
     storage.end(snapshot, success);
-    uint64_t refund_gas = storage.get_refund();
-    uint64_t used_gas = gaslimit - gas;
-    credit_gas(gas, _min(refund_gas, used_gas / 2));
-//    storage.add_balance(origin, gas * gasprice);
+    // gas seems not to be detucted on vm Tests
     storage.flush();
 """
 
