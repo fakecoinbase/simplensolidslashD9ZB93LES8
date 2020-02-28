@@ -5936,9 +5936,13 @@ skip:
     _delete(return_data);
 
     uint64_t refund_gas = storage.get_refund();
+    uint64_t used_gas_before_refund = txn.gaslimit.cast64() - gas;
+    credit_gas(gas, _min(refund_gas, used_gas_before_refund / 2));
     uint64_t used_gas = txn.gaslimit.cast64() - gas;
-    credit_gas(gas, _min(refund_gas, used_gas / 2));
-    if (pays_gas) storage.add_balance(from, gas * txn.gasprice);
+    if (pays_gas) {
+        storage.add_balance(from, gas * txn.gasprice);
+        storage.add_balance(block.coinbase(), used_gas * txn.gasprice);
+    }
 
     storage.flush();
 }
