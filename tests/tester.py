@@ -218,7 +218,7 @@ def codeDoneAccount(account, nonce, balance, code, storage):
         uint256_t balance = uhex256(\"""" + intToU256(balance) + """\");
         uint256_t _balance = state.get_balance(account);
         if (balance != _balance) {
-            std::cerr << "post: invalid balance " << _balance << " " << balance << std::endl;
+            std::cerr << "post: invalid balance " << account << " " << _balance << " " << balance << std::endl;
             return 1;
         }
 """
