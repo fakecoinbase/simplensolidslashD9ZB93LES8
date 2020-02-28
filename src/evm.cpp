@@ -58,7 +58,7 @@ private:
         uint8_t *code;
         uint64_t code_size;
     };
-    static constexpr int L = 1024;
+    static constexpr int L = 4096;
     uint64_t account_size = 0;
     uint160_t account_index[L];
     struct account account_list[L];
@@ -96,7 +96,7 @@ private:
             }
         }
         if (index == account_size) {
-            if (account_size == L) throw INSUFFICIENT_SPACE;
+            assert(account_size < L);
             account_index[account_size] = account;
             account_list[account_size].nonce = 0;
             account_list[account_size].balance = 0;
@@ -116,7 +116,7 @@ private:
             }
         }
         if (index == contract_size) {
-            if (contract_size == L) throw INSUFFICIENT_SPACE;
+            assert(contract_size < L);
             contract_index[contract_size] = codehash;
             contract_list[contract_size].code = nullptr;
             contract_list[contract_size].code_size = 0;
@@ -139,7 +139,7 @@ private:
         fs.read((char*)buffer, size);
         uint64_t offset = 0;
         account_size = b2w32le(&buffer[offset]); offset += 4;
-        if (account_size > L) throw INSUFFICIENT_SPACE;
+        assert(account_size <= L);
         for (uint64_t i = 0; i < account_size; i++) {
             account_index[i] = uint160_t::from(&buffer[offset]); offset += 20;
             account_list[i].nonce = uint256_t::from(&buffer[offset]).cast64(); offset += 32;
@@ -150,7 +150,7 @@ private:
             update(account_list[i].codehash, &buffer[code_offset], code_size);
         }
         keyvalue_size = b2w32le(&buffer[offset]); offset += 4;
-        if (keyvalue_size > L) throw INSUFFICIENT_SPACE;
+        assert(keyvalue_size <= L);
         for (uint64_t i = 0; i < keyvalue_size; i++) {
             keyvalue_index[i] = b2w32le(&buffer[offset]); offset += 4;
             keyvalue_list[i][0] = uint256_t::from(&buffer[offset]); offset += 32;
@@ -299,13 +299,13 @@ public:
             }
         }
         if (index == account_size) {
-            if (account_size == L) throw INSUFFICIENT_SPACE;
+            assert(account_size < L);
             account_list[account_size].nonce = 0;
             account_list[account_size].balance = 0;
             account_list[account_size].codehash = 0;
             account_size++;
         }
-        if (keyvalue_size == L) throw INSUFFICIENT_SPACE;
+        assert (keyvalue_size < L);
         keyvalue_index[keyvalue_size] = index;
         keyvalue_list[keyvalue_size][0] = key;
         keyvalue_list[keyvalue_size][1] = value;
