@@ -4277,6 +4277,14 @@ private:
             if (limit == 0) limit--; // special case, overflow
         }
     }
+    // makes sure a page is allocated prior to access
+    void ensure_page(uint64_t page_index) {
+        assert(page_index < page_count);
+        if (pages[page_index] == nullptr) {
+            pages[page_index] = _new<uint8_t>(P);
+            for (uint64_t i = 0; i < P; i++) pages[page_index][i] = 0;
+        }
+    }
     // expands the page table to create room
     void expand(uint64_t end) {
         if (end == 0) return;
@@ -4290,10 +4298,6 @@ private:
             _delete(pages);
             pages = new_pages;
             page_count = new_page_count;
-        }
-        if (pages[page_index] == nullptr) {
-            pages[page_index] = _new<uint8_t>(P);
-            for (uint64_t i = 0; i < P; i++) pages[page_index][i] = 0;
         }
         mark(end);
     }
@@ -4309,7 +4313,7 @@ private:
     void set(uint64_t i, uint8_t v) {
         uint64_t page_index = i / P;
         uint64_t byte_index = i % P;
-        assert(page_index < page_count);
+        ensure_page(page_index);
         assert(pages[page_index] != nullptr);
         pages[page_index][byte_index] = v;
     }
