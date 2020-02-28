@@ -369,7 +369,7 @@ public:
         }
         return v;
     }
-    static  void to(const bigint &v, uint8_t *buffer, uint64_t size) {
+    static void to(const bigint &v, uint8_t *buffer, uint64_t size) {
         uint64_t B = _min(size, 4*v.W);
         for (uint64_t j = 0; j < size-B; j++) buffer[j] = 0;
         for (uint64_t j = size-B; j < size; j++) {
@@ -5395,6 +5395,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint64_t offset1 = v1.cast64(), size = v3.cast64();
             _handles0(consume_gas)(gas, gas_memory(release, memory.size(), offset1 + size));
             _handles0(consume_gas)(gas, gas_copy(release, size));
+            if (size > return_size) _throw0(OUTOFBOUNDS_VALUE); // this seems to be an exception among copy
             uint64_t offset2 = v2 > return_size ? return_size : v2.cast64();
             memory.burn(offset1, size, &return_data[offset2], _min(size, return_size - offset2));
             break;
@@ -5563,20 +5564,25 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             _handles0(consume_gas)(gas, gas_memory(release, memory.size(), init_offset + init_size));
             uint64_t create_gas = gas_cap(release, gas, gas);
             _handles0(consume_gas)(gas, create_gas);
-            if (storage.get_balance(owner_address) < value) _throw0(INSUFFICIENT_BALANCE);
+            if (storage.get_balance(owner_address) < value) {
+                return_size = 0;
+                credit_gas(gas, create_gas);
+                stack.push(false);
+                break;
+            }
             local<uint8_t> init_l(init_size); uint8_t *init = init_l.data;
             memory.dump(init_offset, init_size, init);
             uint160_t code_address = _handles0(gen_contract_address)(owner_address, storage.get_nonce(owner_address));
             storage.increment_nonce(owner_address);
-            if (storage.has_contract(code_address)) _throw0(CODE_CONFLICT);
             uint64_t snapshot = storage.begin();
-            storage.create_account(code_address);
-            if (release >= SPURIOUS_DRAGON) storage.set_nonce(code_address, 1);
-            storage.sub_balance(owner_address, value);
-            storage.add_balance(code_address, value);
             bool outofgas = false;
             bool success;
             _try({
+                if (storage.has_contract(code_address)) _trythrow(CODE_CONFLICT);
+                storage.create_account(code_address);
+                if (release >= SPURIOUS_DRAGON) storage.set_nonce(code_address, 1);
+                storage.sub_balance(owner_address, value);
+                storage.add_balance(code_address, value);
                 success = _catches(vm_run)(release, block, storage,
                                 origin_address, gas_price,
                                 code_address, init, init_size,
@@ -5615,31 +5621,35 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             _handles0(consume_gas)(gas, call_gas);
             credit_gas(call_gas, gas_stipend_call(release, value > 0));
             if (read_only && value != 0) _throw0(ILLEGAL_UPDATE);
-            if (storage.get_balance(owner_address) < value) _throw0(INSUFFICIENT_BALANCE);
+            if (storage.get_balance(owner_address) < value) {
+                return_size = 0;
+                credit_gas(gas, call_gas);
+                stack.push(false);
+                break;
+            }
             local<uint8_t> args_data_l(args_size); uint8_t *args_data = args_data_l.data;
             memory.dump(args_offset, args_size, args_data);
-            uint64_t snapshot = storage.begin();
-            if (!storage.exists(code_address)) {
-                if (release >= SPURIOUS_DRAGON) {
-                    if (value == 0) {
-                        if (!storage.is_precompiled(code_address)) {
+            if (release >= SPURIOUS_DRAGON) {
+                if (value == 0) {
+                    if (!storage.is_precompiled(code_address)) {
+                        if (!storage.exists(code_address)) {
                             return_size = 0;
                             credit_gas(gas, call_gas);
-                            storage.end(snapshot, true);
                             memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
                             stack.push(true);
                             break;
                         }
                     }
                 }
-                storage.create_account(code_address);
             }
-            storage.sub_balance(owner_address, value);
-            storage.add_balance(code_address, value);
+            uint64_t snapshot = storage.begin();
             uint64_t code_size;
             uint8_t *code = storage.get_call_code(code_address, code_size);
             bool success;
             _try({
+                if (!storage.exists(code_address)) storage.create_account(code_address);
+                storage.sub_balance(owner_address, value);
+                storage.add_balance(code_address, value);
                 success = _catches(vm_run)(release, block, storage,
                                 origin_address, gas_price,
                                 code_address, code, code_size,
@@ -5647,13 +5657,13 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                                 return_data, return_size, return_capacity, call_gas,
                                 false, depth+1);
                 credit_gas(gas, call_gas);
+                memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
             }, Error e, {
                 success = false;
                 return_size = 0;
             })
             storage.release_code(code);
             storage.end(snapshot, success);
-            memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
             stack.push(success);
             break;
         }
@@ -5671,7 +5681,12 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint64_t call_gas = gas_cap(release, gas, reserved_gas);
             _handles0(consume_gas)(gas, call_gas);
             credit_gas(call_gas, gas_stipend_call(release, value > 0));
-            if (storage.get_balance(owner_address) < value) _throw0(INSUFFICIENT_BALANCE);
+            if (storage.get_balance(owner_address) < value) {
+                return_size = 0;
+                credit_gas(gas, call_gas);
+                stack.push(false);
+                break;
+            }
             local<uint8_t> args_data_l(args_size); uint8_t *args_data = args_data_l.data;
             memory.dump(args_offset, args_size, args_data);
             uint64_t snapshot = storage.begin();
@@ -5686,13 +5701,13 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                                 return_data, return_size, return_capacity, call_gas,
                                 false, depth+1);
                 credit_gas(gas, call_gas);
+                memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
             }, Error e, {
                 success = false;
                 return_size = 0;
             })
             storage.release_code(code);
             storage.end(snapshot, success);
-            memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
             stack.push(success);
             break;
         }
@@ -5732,13 +5747,13 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                                 return_data, return_size, return_capacity, call_gas,
                                 false, depth+1);
                 credit_gas(gas, call_gas);
+                memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
             }, Error e, {
                 success = false;
                 return_size = 0;
             })
             storage.release_code(code);
             storage.end(snapshot, success);
-            memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
             stack.push(success);
             break;
         }
@@ -5750,20 +5765,25 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             _handles0(consume_gas)(gas, gas_sha3(release, init_size));
             uint64_t create_gas = gas_cap(release, gas, gas);
             _handles0(consume_gas)(gas, create_gas);
-            if (storage.get_balance(owner_address) < value) _throw0(INSUFFICIENT_BALANCE);
+            if (storage.get_balance(owner_address) < value) {
+                return_size = 0;
+                credit_gas(gas, create_gas);
+                stack.push(false);
+                break;
+            }
             local<uint8_t> init_l(init_size); uint8_t *init = init_l.data;
             memory.dump(init_offset, init_size, init);
             uint160_t code_address = gen_contract_address(owner_address, salt, sha3(init, init_size));
             storage.increment_nonce(owner_address);
-            if (storage.has_contract(code_address)) _throw0(CODE_CONFLICT);
             uint64_t snapshot = storage.begin();
-            storage.create_account(code_address);
-            if (release >= SPURIOUS_DRAGON) storage.set_nonce(code_address, 1);
-            storage.sub_balance(owner_address, value);
-            storage.add_balance(code_address, value);
             bool outofgas = false;
             bool success;
             _try({
+                if (storage.has_contract(code_address)) _trythrow(CODE_CONFLICT);
+                storage.create_account(code_address);
+                if (release >= SPURIOUS_DRAGON) storage.set_nonce(code_address, 1);
+                storage.sub_balance(owner_address, value);
+                storage.add_balance(code_address, value);
                 success = _catches(vm_run)(release, block, storage,
                                 origin_address, gas_price,
                                 code_address, init, init_size,
@@ -5814,13 +5834,13 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                                 return_data, return_size, return_capacity, call_gas,
                                 true, depth+1);
                 credit_gas(gas, call_gas);
+                memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
             }, Error e, {
                 success = false;
                 return_size = 0;
             })
             storage.release_code(code);
             storage.end(snapshot, success);
-            memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
             stack.push(success);
             break;
         }
@@ -5884,29 +5904,19 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
         if (storage.get_balance(from) < gas_cost) _throw(INSUFFICIENT_BALANCE);
         storage.sub_balance(from, gas_cost);
     }
+    if (storage.get_balance(from) < txn.value) _throw(INSUFFICIENT_BALANCE);
 
-    bool success = false;
     uint64_t return_size = 0;
     uint64_t return_capacity = 0;
     uint8_t *return_data = nullptr;
 
+    bool success;
     uint64_t snapshot = storage.begin();
-    _try({
-        if (storage.get_balance(from) < txn.value) _trythrow(INSUFFICIENT_BALANCE);
-        if (txn.has_to) { // message call
-            uint64_t code_size;
-            uint8_t *code = storage.get_call_code(to, code_size);
-            if (!storage.exists(to)) {
-                if (release >= SPURIOUS_DRAGON) {
-                    if (txn.value == 0) {
-                        if (!storage.is_precompiled(to)) {
-                            storage.release_code(code);
-                            goto skip;
-                        }
-                    }
-                }
-                storage.create_account(to);
-            }
+    if (txn.has_to) { // message call
+        uint64_t code_size;
+        uint8_t *code = storage.get_call_code(to, code_size);
+        _try({
+            if (!storage.exists(to)) storage.create_account(to);
             storage.sub_balance(from, txn.value);
             storage.add_balance(to, txn.value);
             success = _catches(vm_run)(release, block, storage,
@@ -5915,8 +5925,13 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
                             from, txn.value, txn.data, txn.data_size,
                             return_data, return_size, return_capacity, gas,
                             false, 0);
-            storage.release_code(code);
-        } else { // contract creation
+        }, Error e, {
+            success = false;
+            gas = 0;
+        })
+        storage.release_code(code);
+    } else { // contract creation
+        _try({
             if (storage.has_contract(to)) _trythrow(CODE_CONFLICT);
             storage.create_account(to);
             if (release >= SPURIOUS_DRAGON) storage.set_nonce(to, 1);
@@ -5933,12 +5948,11 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
                 _catches(consume_gas)(gas, gas_create(release, return_size));
                 storage.register_code(to, return_data, return_size);
             }
-        }
-    }, Error e, {
-        success = false;
-        gas = 0;
-    })
-skip:
+        }, Error e, {
+            success = false;
+            gas = 0;
+        })
+    }
     storage.end(snapshot, success);
 
     _delete(return_data);

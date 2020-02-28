@@ -599,9 +599,8 @@ int main()
             src += """
     _Block block(number, timestamp, gaslimit, coinbase, difficulty);
     _State state;
-    Storage storage(&state);
-
     Release release = """ + release + """;
+    Storage storage(&state);
 """
 
             txn = item["transaction"]
@@ -633,41 +632,32 @@ int main()
 
             src += """
     bool pays_gas = true;
-    bool success = false;
     _try({
-        if (txn.nonce != storage.get_nonce(from)) _trythrow(NONCE_MISMATCH);
-        uint160_t to = txn.has_to ? txn.to : _catches(gen_contract_address)(from, storage.get_nonce(from));
+        if (txn.nonce != storage.get_nonce(from)) _throw(NONCE_MISMATCH);
+        uint160_t to = txn.has_to ? txn.to : _handles(gen_contract_address)(from, storage.get_nonce(from));
         storage.increment_nonce(from);
 
-        // check for overflow
+        if (txn.gaslimit > block.gaslimit()) _throw(OUTOFBOUNDS_VALUE);
         uint64_t gas = txn.gaslimit.cast64();
-        _catches(consume_gas)(gas, gas_intrinsic(release, txn.has_to, txn.data, txn.data_size));
+        _handles(consume_gas)(gas, gas_intrinsic(release, txn.has_to, txn.data, txn.data_size));
         uint256_t gas_cost = txn.gaslimit * txn.gasprice;
         if (pays_gas) {
-            if (storage.get_balance(from) < gas_cost) _trythrow(INSUFFICIENT_BALANCE);
+            if (storage.get_balance(from) < gas_cost) _throw(INSUFFICIENT_BALANCE);
             storage.sub_balance(from, gas_cost);
         }
+        if (storage.get_balance(from) < txn.value) _throw(INSUFFICIENT_BALANCE);
 
         uint64_t return_size = 0;
         uint64_t return_capacity = 0;
         uint8_t *return_data = nullptr;
 
+        bool success;
         uint64_t snapshot = storage.begin();
-        _try({
-            if (storage.get_balance(from) < txn.value) _trythrow(INSUFFICIENT_BALANCE);
-            if (txn.has_to) { // message call
-                uint64_t code_size;
-                const uint8_t *code = storage.get_code(to, code_size);
-                if (!storage.exists(to)) {
-                    if (release >= SPURIOUS_DRAGON) {
-                        if (txn.value > 0) {
-                            if ((intptr_t)code > BLAKE2F) {
-                                goto skip;
-                            }
-                        }
-                    }
-                    storage.create_account(to);
-                }
+        if (txn.has_to) { // message call
+            uint64_t code_size;
+            uint8_t *code = storage.get_call_code(to, code_size);
+            _try({
+                if (!storage.exists(to)) storage.create_account(to);
                 storage.sub_balance(from, txn.value);
                 storage.add_balance(to, txn.value);
                 success = _catches(vm_run)(release, block, storage,
@@ -676,8 +666,14 @@ int main()
                                 from, txn.value, txn.data, txn.data_size,
                                 return_data, return_size, return_capacity, gas,
                                 false, 0);
-                _delete(code);
-            } else { // contract creation
+            }, Error e, {
+                success = false;
+                gas = 0;
+                if (std::getenv("EVM_DEBUG")) std::cerr << "vm exception " << errors[e] << std::endl;
+            })
+            storage.release_code(code);
+        } else { // contract creation
+            _try({
                 if (storage.has_contract(to)) _trythrow(CODE_CONFLICT);
                 storage.create_account(to);
                 if (release >= SPURIOUS_DRAGON) storage.set_nonce(to, 1);
@@ -694,13 +690,12 @@ int main()
                     _catches(consume_gas)(gas, gas_create(release, return_size));
                     storage.register_code(to, return_data, return_size);
                 }
-            }
-        }, Error e, {
-            success = false;
-            gas = 0;
-            if (std::getenv("EVM_DEBUG")) std::cerr << "vm exception " << errors[e] << std::endl;
-        })
-    skip:
+            }, Error e, {
+                success = false;
+                gas = 0;
+                if (std::getenv("EVM_DEBUG")) std::cerr << "vm exception " << errors[e] << std::endl;
+            })
+        }
         storage.end(snapshot, success);
 
         _delete(return_data);
@@ -716,7 +711,6 @@ int main()
 
         storage.flush();
     }, Error e, {
-        success = false;
         if (std::getenv("EVM_DEBUG")) std::cerr << "vm exception " << errors[e] << std::endl;
     })
 """
