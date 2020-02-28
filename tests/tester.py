@@ -168,7 +168,7 @@ def codeDoneLocation(location, number):
             uint256_t number = uhex256(\"""" + intToU256(number) + """\");
             uint256_t _number = state.load(account, location);
             if (number != _number) {
-                std::cerr << "post: invalid storage " << location << " " << _number << " " << number << std::endl;
+                std::cerr << "post: invalid storage " << account << " " << location << " " << _number << " " << number << std::endl;
                 return 1;
             }
         }
