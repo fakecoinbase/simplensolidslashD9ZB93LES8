@@ -1,5 +1,6 @@
-#pip install ecdsa --user
-import ecdsa, json, os, subprocess, sys
+#pip3 install ecdsa --user
+#pip3 install pyyaml --user
+import ecdsa, json, os, subprocess, sys, yaml
 
 
 def derive_pk(e):
@@ -80,6 +81,11 @@ def hexToInt(s):
     if s[:2] == "0x": s = s[2:]
     if s == "": s = "0"
     return int(s, 16)
+
+def valToInt(s):
+    if s[:2] == "0x": return hexToInt(s)
+    if s == "": s = "0"
+    return int(s)
 
 def hexToBin(s):
     if s[:2] == "0x": s = s[2:]
@@ -164,7 +170,7 @@ def codeDoneLocation(location, number):
             uint256_t number = uhex256(\"""" + intToU256(number) + """\");
             uint256_t _number = state.load(account, location);
             if (number != _number) {
-                std::cerr << "post: invalid storage" << std::endl;
+                std::cerr << "post: invalid storage " << _number << " " << number << std::endl;
                 return 1;
             }
         }
@@ -198,19 +204,30 @@ def codeDoneAccount(account, nonce, balance, code, storage):
     src = """
     {
         uint160_t account = (uint160_t)uhex256(\"""" + intToU256(account) + """\");
-        uint256_t nonce = uhex256(\"""" + intToU256(nonce) + """\");
-        uint256_t balance = uhex256(\"""" + intToU256(balance) + """\");
-        uint8_t *code = (uint8_t*)\"""" + code + """\";
-        uint64_t code_size = """ + str(len(code) // 4) + """;
+"""
 
+    if nonce != None:
+        src += """
+        uint256_t nonce = uhex256(\"""" + intToU256(nonce) + """\");
         if (nonce != state.get_nonce(account)) {
             std::cerr << "post: invalid nonce" << std::endl;
             return 1;
         }
+"""
+
+    if balance != None:
+        src += """
+        uint256_t balance = uhex256(\"""" + intToU256(balance) + """\");
         if (balance != state.get_balance(account)) {
             std::cerr << "post: invalid balance" << std::endl;
             return 1;
         }
+"""
+
+    if code != None:
+        src += """
+        uint8_t *code = (uint8_t*)\"""" + code + """\";
+        uint64_t code_size = """ + str(len(code) // 4) + """;
 
         uint256_t codehash = state.get_codehash(account);
         uint64_t _code_size;
@@ -226,10 +243,12 @@ def codeDoneAccount(account, nonce, balance, code, storage):
             }
         }
 """
+
     for subkey, subvalue in storage.items():
-        location = hexToInt(subkey)
+        location = hexToInt(str(subkey))
         number = hexToInt(subvalue)
         src += codeDoneLocation(location, number)
+
     src += """
     }
 """
@@ -302,6 +321,23 @@ def codeDoneRlp(_hash, sender):
         return 1;
     }
 """
+
+def find_expect(expect, gas_index, value_index, data_index, release_name):
+    for item in expect:
+        gas_indexes = item["indexes"]["gas"]
+        if isinstance(gas_indexes, int) and gas_indexes > -1 and gas_index != gas_indexes: continue
+        if isinstance(gas_indexes, list) and not gas_index in gas_indexes: continue
+        value_indexes = item["indexes"]["value"]
+        if isinstance(value_indexes, int) and value_indexes > -1 and value_index != value_indexes: continue
+        if isinstance(value_indexes, list) and not value_index in value_indexes: continue
+        data_indexes = item["indexes"]["data"]
+        if isinstance(data_indexes, int) and data_indexes > -1 and data_index != data_indexes: continue
+        if isinstance(data_indexes, list) and not data_index in data_indexes: continue
+        networks = item["network"]
+        if release_name == "Frontier" and not "Frontier" in networks: continue
+        if release_name != "Istanbul" and not "Frontier" in networks and not "Homestead" in networks: continue
+        return item["result"]
+    _die("Could not find expects")
 
 def vmTest(name, item, path):
     src = readFile("../src/evm.cpp")
@@ -576,12 +612,16 @@ int main()
             sk = hexToInt(txn['secretKey'])
             pk = derive_pk(sk);
 
+            gas_index = test["indexes"]["gas"]
+            value_index = test["indexes"]["value"]
+            data_index = test["indexes"]["data"]
+
             nonce = hexToInt(txn["nonce"])
             gasprice = hexToInt(txn["gasPrice"])
-            gas = hexToInt(txn["gasLimit"][test["indexes"]["gas"]])
+            gas = hexToInt(txn["gasLimit"][gas_index])
             address = hexToInt(txn["to"])
-            value = hexToInt(txn["value"][test["indexes"]["value"]])
-            data = hexToBin(txn['data'][test["indexes"]["data"]])
+            value = hexToInt(txn["value"][value_index])
+            data = hexToBin(txn['data'][data_index])
             publickey = hexToBin(pk)
             src += codeInitExec2(nonce, gasprice, gas, address, value, data, publickey)
 
@@ -680,6 +720,10 @@ int main()
     })
 """
 
+            result = find_expect(item['expect'], gas_index, value_index, data_index, release_name)
+
+#            print(json.dumps(result, indent=2))
+
             if not "hash" in test:
 
                 src += """
@@ -700,6 +744,15 @@ int main()
 
                 loghash = hexToInt(test["logs"])
                 src += codeDoneLogs(loghash);
+
+                for key, values in result.items():
+                    if key == "//comment": continue
+                    account = hexToInt(str(key))
+                    nonce = valToInt(values["nonce"]) if "nonce" in values else None
+                    balance = valToInt(values["balance"]) if "balance" in values else None
+                    code = hexToBin(values['code']) if "code" in values else None
+                    storage = values["storage"] if "storage" in values else {}
+                    src += codeDoneAccount(account, nonce, balance, code, storage)
 
 #                roothash = hexToInt(test["hash"])
 #                src += codeDoneRoot(roothash)
@@ -736,8 +789,13 @@ def gsTests(filt):
     paths = listTests("./tests/GeneralStateTests", filePrefixes=[filt])
     for path in paths:
         data = readFile(path)
+        path_filler = path.replace('/GeneralStateTests/', '/src/GeneralStateTestsFiller/').replace('.json', 'Filler.json')
+        if not os.path.isfile(path_filler):
+            path_filler = path.replace('/GeneralStateTests/', '/src/GeneralStateTestsFiller/').replace('.json', 'Filler.yml')
+        data_filler = readFile(path_filler)
         for name, item in data.items():
             print(path, name)
+            item['expect'] = data_filler[name]['expect']
             gsTest(name, item, path)
 
 def main():
