@@ -5613,7 +5613,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint64_t snapshot = storage.begin();
             if (!storage.exists(code_address)) {
                 if (release >= SPURIOUS_DRAGON) {
-                    if (value > 0) {
+                    if (value == 0) {
                         if ((intptr_t)code > BLAKE2F) {
                             return_size = 0;
                             credit_gas(gas, call_gas);
@@ -5890,7 +5890,7 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
             const uint8_t *code = storage.get_code(to, code_size);
             if (!storage.exists(to)) {
                 if (release >= SPURIOUS_DRAGON) {
-                    if (txn.value > 0) {
+                    if (txn.value == 0) {
                         if ((intptr_t)code > BLAKE2F) {
                             _delete(code);
                             goto skip;
