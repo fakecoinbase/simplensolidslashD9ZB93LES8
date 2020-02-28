@@ -633,19 +633,19 @@ int main()
             src += """
     bool pays_gas = true;
     _try({
-        if (txn.nonce != storage.get_nonce(from)) _throw(NONCE_MISMATCH);
-        uint160_t to = txn.has_to ? txn.to : _handles(gen_contract_address)(from, storage.get_nonce(from));
+        if (txn.nonce != storage.get_nonce(from)) _trythrow(NONCE_MISMATCH);
+        uint160_t to = txn.has_to ? txn.to : _catches(gen_contract_address)(from, storage.get_nonce(from));
         storage.increment_nonce(from);
 
-        if (txn.gaslimit > block.gaslimit()) _throw(OUTOFBOUNDS_VALUE);
+        if (txn.gaslimit > block.gaslimit()) _trythrow(OUTOFBOUNDS_VALUE);
         uint64_t gas = txn.gaslimit.cast64();
-        _handles(consume_gas)(gas, gas_intrinsic(release, txn.has_to, txn.data, txn.data_size));
+        _catches(consume_gas)(gas, gas_intrinsic(release, txn.has_to, txn.data, txn.data_size));
         uint256_t gas_cost = txn.gaslimit * txn.gasprice;
         if (pays_gas) {
-            if (storage.get_balance(from) < gas_cost) _throw(INSUFFICIENT_BALANCE);
+            if (storage.get_balance(from) < gas_cost) _trythrow(INSUFFICIENT_BALANCE);
             storage.sub_balance(from, gas_cost);
         }
-        if (storage.get_balance(from) < txn.value) _throw(INSUFFICIENT_BALANCE);
+        if (storage.get_balance(from) < txn.value) _trythrow(INSUFFICIENT_BALANCE);
 
         uint64_t return_size = 0;
         uint64_t return_capacity = 0;
