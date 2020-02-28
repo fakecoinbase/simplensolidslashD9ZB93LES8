@@ -639,8 +639,8 @@ int main()
     bool success = false;
     _try({
         if (txn.nonce != storage.get_nonce(from)) _trythrow(NONCE_MISMATCH);
-        storage.increment_nonce(from);
         uint160_t to = txn.has_to ? txn.to : _catches(gen_contract_address)(from, storage.get_nonce(from));
+        storage.increment_nonce(from);
 
         // check for overflow
         uint64_t gas = txn.gaslimit.cast64();
