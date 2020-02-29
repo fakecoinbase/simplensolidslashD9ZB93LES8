@@ -4190,19 +4190,20 @@ static uint64_t gas_datacopy(Release release, uint64_t size)
 }
 
 // calculation of gas consumption for bigmodexp precompiled contract
-static uint64_t gas_bigmodexp(Release release, uint64_t base_len, uint64_t exp_len, uint64_t mod_len, const bigint &exp)
+static uint64_t gas_bigmodexp(Release release, uint64_t base_len, uint64_t exp_len, uint64_t mod_len, const bigint &exp_cap)
 {
-    uint64_t max_len = _max(base_len, mod_len);
-    uint64_t base_gas;
+    uint256_t max_len = _max(base_len, mod_len);
+    uint256_t base_gas;
     if (max_len <= 64) base_gas = max_len * max_len;
     else if (max_len <= 1024) base_gas = (max_len * max_len) / 4 + (96 * max_len - 3072);
     else base_gas = (max_len * max_len) / 16 + (480 * max_len - 199680);
-    bigint exp_cap = exp % ((bigint)1 << 256);
     uint64_t log2_exp = exp_cap > 0 ? exp_cap.bitlen() - 1 : 0;
-    uint64_t exp_gas;
-    if (exp_len <= 32) exp_gas = log2_exp;
-    else exp_gas = 8 * (exp_len - 32) + log2_exp;
-    return (base_gas * _max(exp_gas, 1)) / _gas(release, GasBigModExpDiv);
+    uint256_t exp_gas;
+    if (exp_len <= 32) exp_gas = _max(log2_exp, 1);
+    else exp_gas = 8 * ((uint256_t)exp_len - 32) + log2_exp;
+    uint256_t used_gas = (base_gas * exp_gas) / _gas(release, GasBigModExpDiv);
+    if ((used_gas >> 64) > 0) return ~(uint64_t)0;
+    return used_gas.cast64();
 }
 
 // calculation of gas consumption for bn256add precompiled contract
@@ -5054,27 +5055,41 @@ static void _throws(vm_bigmodexp)(Release release,
     uint64_t exp_len = (_exp_len % (_1 << 64)).cast64();
     uint64_t mod_len = (_mod_len % (_1 << 64)).cast64();
     bigint base;
+    uint64_t base_mul;
     {
         uint64_t size2 = base_len;
         uint64_t minsize2 = _min(size2, call_size - minsize1);
         base = bigint::from(&call_data[minsize1], minsize2); minsize1 += minsize2;
-        if (base > 0) base <<= 8 * (size2 - minsize2);
+        base_mul = size2 - minsize2;
     }
     bigint exp;
+    uint64_t exp_mul;
     {
         uint64_t size2 = exp_len;
         uint64_t minsize2 = _min(size2, call_size - minsize1);
         exp = bigint::from(&call_data[minsize1], minsize2); minsize1 += minsize2;
-        if (exp > 0) exp <<= 8 * (size2 - minsize2);
+        exp_mul = size2 - minsize2;
     }
     bigint mod;
+    uint64_t mod_mul;
     {
         uint64_t size2 = mod_len;
         uint64_t minsize2 = _min(size2, call_size - minsize1);
         mod = bigint::from(&call_data[minsize1], minsize2); minsize1 += minsize2;
-        if (mod > 0) mod <<= 8 * (size2 - minsize2);
+        mod_mul = size2 - minsize2;
     }
-    _handles(consume_gas)(gas, gas_bigmodexp(release, base_len, exp_len, mod_len, exp));
+    bigint exp_cap = exp;
+    uint64_t exp_cap_mul = exp_mul;
+    if (exp_len > 32) {
+        uint64_t cap = exp_len - 32;
+        if (cap > exp_cap_mul) exp_cap >>= 8 * (cap - exp_cap_mul);
+        exp_cap_mul -= _min(exp_cap_mul, cap);
+    }
+    if (exp_cap > 0) exp_cap <<= 8 * exp_cap_mul;
+    _handles(consume_gas)(gas, gas_bigmodexp(release, base_len, exp_len, mod_len, exp_cap));
+    if (exp > 0) exp <<= 8 * exp_mul;
+    if (base > 0) base <<= 8 * base_mul;
+    if (mod > 0) mod <<= 8 * mod_mul;
     bigint res = mod == 0 ? 0 : bigint::powmod(base, exp, mod);
     return_size = mod_len;
     _ensure_capacity(return_data, return_size, return_capacity);
