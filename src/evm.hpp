@@ -4338,6 +4338,9 @@ public:
         if (size > 0) mark(offset + size);
         for (uint64_t i = 0; i < size; i++) buffer[i] = get(offset+i);
     }
+    void burn(uint64_t offset, const uint8_t *buffer, uint64_t size) {
+        burn(offset, size, buffer, size);
+    }
     void burn(uint64_t offset, uint64_t size, const uint8_t *buffer, uint64_t burnsize) {
         assert(offset + size >= offset);
         if (size > 0) expand(offset + size);
@@ -5412,7 +5415,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint64_t offset1 = v1.cast64(), size = v3.cast64();
             _handles0(consume_gas)(gas, gas_memory(release, memory.size(), offset1 + size));
             _handles0(consume_gas)(gas, gas_copy(release, size));
-            if (size > return_size) _throw0(OUTOFBOUNDS_VALUE); // this seems to be an exception among copy
+            if (v2 + size > return_size) _throw0(OUTOFBOUNDS_VALUE); // this seems to be an exception among copy
             uint64_t offset2 = v2 > return_size ? return_size : v2.cast64();
             memory.burn(offset1, size, &return_data[offset2], _min(size, return_size - offset2));
             break;
@@ -5450,7 +5453,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             _handles0(consume_gas)(gas, gas_memory(release, memory.size(), offset + 1));
             uint8_t buffer[1];
             buffer[0] = v2.byte(0);
-            memory.burn(offset, 1, buffer, 1);
+            memory.burn(offset, buffer, 1);
             break;
         }
         case SLOAD: { uint256_t address = stack.pop(); stack.push(storage.load(owner_address, address)); break; }
@@ -5652,7 +5655,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                         if (!storage.exists(code_address)) {
                             return_size = 0;
                             credit_gas(gas, call_gas);
-                            memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
+                            memory.burn(ret_offset, return_data, _min(ret_size, return_size));
                             stack.push(true);
                             break;
                         }
@@ -5674,7 +5677,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                                 return_data, return_size, return_capacity, call_gas,
                                 false, depth+1);
                 credit_gas(gas, call_gas);
-                memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
+                memory.burn(ret_offset, return_data, _min(ret_size, return_size));
             }, Error e, {
                 success = false;
                 return_size = 0;
@@ -5718,7 +5721,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                                 return_data, return_size, return_capacity, call_gas,
                                 false, depth+1);
                 credit_gas(gas, call_gas);
-                memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
+                memory.burn(ret_offset, return_data, _min(ret_size, return_size));
             }, Error e, {
                 success = false;
                 return_size = 0;
@@ -5764,7 +5767,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                                 return_data, return_size, return_capacity, call_gas,
                                 false, depth+1);
                 credit_gas(gas, call_gas);
-                memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
+                memory.burn(ret_offset, return_data, _min(ret_size, return_size));
             }, Error e, {
                 success = false;
                 return_size = 0;
@@ -5851,7 +5854,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                                 return_data, return_size, return_capacity, call_gas,
                                 true, depth+1);
                 credit_gas(gas, call_gas);
-                memory.burn(ret_offset, ret_size, return_data, _min(ret_size, return_size));
+                memory.burn(ret_offset, return_data, _min(ret_size, return_size));
             }, Error e, {
                 success = false;
                 return_size = 0;
