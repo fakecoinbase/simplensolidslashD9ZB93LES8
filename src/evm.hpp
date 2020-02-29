@@ -179,9 +179,18 @@ public:
         }
         return 0;
     }
+    uint64_t cast64() const {
+        uint64_t _W = W;
+        while (_W > 0 && data[_W-1] == 0) _W--;
+        assert(_W <= 2);
+        return 0
+            | (uint64_t)(W > 1 ? data[1] : 0) << 32
+            | (uint64_t)(W > 0 ? data[0] : 0);
+    }
     inline bool bit(uint64_t index) const {
         uint64_t i = index / 32;
         uint64_t j = index % 32;
+        if (i >= W) return false;
         return (data[i] & (1 << j)) > 0;
     }
     bigint& operator++() {
@@ -4190,18 +4199,18 @@ static uint64_t gas_datacopy(Release release, uint64_t size)
 }
 
 // calculation of gas consumption for bigmodexp precompiled contract
-static uint64_t gas_bigmodexp(Release release, uint64_t base_len, uint64_t exp_len, uint64_t mod_len, const bigint &exp_cap)
+static uint64_t gas_bigmodexp(Release release, const bigint& base_len, const bigint& exp_len, const bigint& mod_len, const bigint& exp_cap)
 {
-    uint256_t max_len = _max(base_len, mod_len);
-    uint256_t base_gas;
+    bigint max_len = base_len > mod_len ? base_len : mod_len;
+    bigint base_gas;
     if (max_len <= 64) base_gas = max_len * max_len;
     else if (max_len <= 1024) base_gas = (max_len * max_len) / 4 + (96 * max_len - 3072);
     else base_gas = (max_len * max_len) / 16 + (480 * max_len - 199680);
     uint64_t log2_exp = exp_cap > 0 ? exp_cap.bitlen() - 1 : 0;
-    uint256_t exp_gas;
+    bigint exp_gas;
     if (exp_len <= 32) exp_gas = _max(log2_exp, 1);
-    else exp_gas = 8 * ((uint256_t)exp_len - 32) + log2_exp;
-    uint256_t used_gas = (base_gas * exp_gas) / _gas(release, GasBigModExpDiv);
+    else exp_gas = 8 * (exp_len - 32) + log2_exp;
+    bigint used_gas = (base_gas * exp_gas) / _gas(release, GasBigModExpDiv);
     if ((used_gas >> 64) > 0) return ~(uint64_t)0;
     return used_gas.cast64();
 }
