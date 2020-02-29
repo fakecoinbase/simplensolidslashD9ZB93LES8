@@ -448,7 +448,7 @@ int main()
 }
 """
 
-    filename = "/tmp/vm_" + name
+    filename = "cache/vm_" + name
     writeFile(filename + ".cpp", src)
     result = compileFile(filename + ".cpp", filename)
     if result != 0: _report("Test fail to compile"); return
@@ -546,7 +546,7 @@ int main()
     return 0;
 }
 """
-        filename = "/tmp/tx_" + name + "_" + release
+        filename = "cache/tx_" + name + "_" + release
         writeFile(filename + ".cpp", src)
         result = compileFile(filename + ".cpp", filename)
         if result != 0: _report("Test fail to compile"); continue
@@ -736,7 +736,7 @@ int main()
 }
 """
 
-            filename = "/tmp/gs_" + name + "_" + release + "_" + str(num)
+            filename = "cache/gs_" + name + "_" + release + "_" + str(num)
             writeFile(filename + ".cpp", src)
             result = compileFile(filename + ".cpp", filename)
             if result != 0: _report("Test fail to compile"); return
