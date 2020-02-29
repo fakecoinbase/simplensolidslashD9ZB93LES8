@@ -5631,24 +5631,22 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint160_t code_address = (uint160_t)stack.pop();
             uint256_t value = stack.pop();
             uint256_t v1 = stack.pop(), v2 = stack.pop(), v3 = stack.pop(), v4 = stack.pop();
+            if (read_only && value != 0) _throw0(ILLEGAL_UPDATE);
             _handles0(memory_check)(v1, v2);
             _handles0(memory_check)(v3, v4);
             uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
-            _handles0(consume_gas)(gas, gas_memory(release, memory.size(), ret_offset + ret_size));
+            _handles0(consume_gas)(gas, gas_memory(release, memory.size(), _max(args_offset + args_size, ret_offset + ret_size)));
             _handles0(consume_gas)(gas, gas_call(release, value > 0, storage.is_empty(code_address), storage.exists(code_address)));
             uint64_t reserved_gas = v0 > gas ? gas : v0.cast64();
             uint64_t call_gas = gas_cap(release, gas, reserved_gas);
             _handles0(consume_gas)(gas, call_gas);
             credit_gas(call_gas, gas_stipend_call(release, value > 0));
-            if (read_only && value != 0) _throw0(ILLEGAL_UPDATE);
             if (storage.get_balance(owner_address) < value) {
                 return_size = 0;
                 credit_gas(gas, call_gas);
                 stack.push(false);
                 break;
             }
-            local<uint8_t> args_data_l(args_size); uint8_t *args_data = args_data_l.data;
-            memory.dump(args_offset, args_size, args_data);
             if (release >= SPURIOUS_DRAGON) {
                 if (value == 0) {
                     if (!storage.is_precompiled(code_address)) {
@@ -5662,6 +5660,8 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                     }
                 }
             }
+            local<uint8_t> args_data_l(args_size); uint8_t *args_data = args_data_l.data;
+            memory.dump(args_offset, args_size, args_data);
             uint64_t snapshot = storage.begin();
             uint64_t code_size;
             uint8_t *code = storage.get_call_code(code_address, code_size);
@@ -5695,7 +5695,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             _handles0(memory_check)(v1, v2);
             _handles0(memory_check)(v3, v4);
             uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
-            _handles0(consume_gas)(gas, gas_memory(release, memory.size(), ret_offset + ret_size));
+            _handles0(consume_gas)(gas, gas_memory(release, memory.size(), _max(args_offset + args_size, ret_offset + ret_size)));
             _handles0(consume_gas)(gas, gas_call(release, value > 0, false, true));
             uint64_t reserved_gas = v0 > gas ? gas : v0.cast64();
             uint64_t call_gas = gas_cap(release, gas, reserved_gas);
@@ -5748,7 +5748,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             _handles0(memory_check)(v1, v2);
             _handles0(memory_check)(v3, v4);
             uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
-            _handles0(consume_gas)(gas, gas_memory(release, memory.size(), ret_offset + ret_size));
+            _handles0(consume_gas)(gas, gas_memory(release, memory.size(), _max(args_offset + args_size, ret_offset + ret_size)));
             _handles0(consume_gas)(gas, gas_call(release, false, false, true));
             uint64_t reserved_gas = v0 > gas ? gas : v0.cast64();
             uint64_t call_gas = gas_cap(release, gas, reserved_gas);
@@ -5834,12 +5834,11 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             _handles0(memory_check)(v1, v2);
             _handles0(memory_check)(v3, v4);
             uint64_t args_offset = v1.cast64(), args_size = v2.cast64(), ret_offset = v3.cast64(), ret_size = v4.cast64();
-            _handles0(consume_gas)(gas, gas_memory(release, memory.size(), ret_offset + ret_size));
+            _handles0(consume_gas)(gas, gas_memory(release, memory.size(), _max(args_offset + args_size, ret_offset + ret_size)));
             _handles0(consume_gas)(gas, gas_call(release, false, false, true));
             uint64_t reserved_gas = v0 > gas ? gas : v0.cast64();
             uint64_t call_gas = gas_cap(release, gas, reserved_gas);
             _handles0(consume_gas)(gas, call_gas);
-            storage.add_balance(code_address, 0);
             local<uint8_t> args_data_l(args_size); uint8_t *args_data = args_data_l.data;
             memory.dump(args_offset, args_size, args_data);
             uint64_t snapshot = storage.begin();
@@ -5847,6 +5846,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint8_t *code = storage.get_call_code(code_address, code_size);
             bool success;
             _try({
+                if (!storage.exists(code_address)) storage.create_account(code_address);
                 success = _catches(vm_run)(release, block, storage,
                                 origin_address, gas_price,
                                 code_address, code, code_size,
