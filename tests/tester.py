@@ -245,7 +245,7 @@ def codeDoneAccount(account, nonce, balance, code, storage):
 
     for subkey, subvalue in storage.items():
         location = hexToInt(str(subkey))
-        number = hexToInt(subvalue)
+        number = valToInt(subvalue)
         src += codeDoneLocation(location, number)
 
     src += """
@@ -322,6 +322,7 @@ def codeDoneRlp(_hash, sender):
 """
 
 def find_expect(expect, gas_index, value_index, data_index, release_name):
+    if release_name == "Istanbul": release_name = '>=Istanbul'
     for item in expect:
         gas_indexes = item["indexes"]["gas"]
         if isinstance(gas_indexes, int) and gas_indexes > -1 and gas_index != gas_indexes: continue
@@ -333,8 +334,7 @@ def find_expect(expect, gas_index, value_index, data_index, release_name):
         if isinstance(data_indexes, int) and data_indexes > -1 and data_index != data_indexes: continue
         if isinstance(data_indexes, list) and not data_index in data_indexes: continue
         networks = item["network"]
-        if release_name == "Frontier" and not "Frontier" in networks: continue
-        if release_name != "Istanbul" and not "Frontier" in networks and not "Homestead" in networks: continue
+        if not release_name in networks: continue
         return item["result"]
     _die("Could not find expects")
 

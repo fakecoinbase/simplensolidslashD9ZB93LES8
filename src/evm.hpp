@@ -3036,7 +3036,7 @@ enum GasType : uint8_t {
 // gas cost contants
 // declares both the original values and their new values (for some of them)
 // given platform upgrades/new releases
-enum GasCost : uint64_t {
+enum GasCost : uint32_t {
     _GasNone = 0,
     _GasQuickStep = 2,
     _GasFastestStep = 3,
