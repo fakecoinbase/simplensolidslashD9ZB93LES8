@@ -4270,13 +4270,6 @@ private:
     uint64_t limit = 0; // 256 bit aligned, except for the very last one
     uint64_t page_count = 0;
     uint8_t **pages = nullptr;
-    // marks the memory limit
-    void mark(uint64_t end) {
-        if (end > limit) {
-            limit = ((end + 31) / 32) * 32;
-            if (limit == 0) limit--; // special case, overflow
-        }
-    }
     // makes sure a page is allocated prior to access
     void ensure_page(uint64_t page_index) {
         assert(page_index < page_count);
@@ -4322,25 +4315,38 @@ public:
         for (uint64_t i = 0; i < page_count; i++) _delete(pages[i]);
         _delete(pages);
     }
+    // current memory limit
     inline uint64_t size() const { return limit; }
+    // marks the memory limit, if exceeded
+    void mark(uint64_t end) {
+        if (end > limit) {
+            limit = ((end + 31) / 32) * 32;
+            if (limit == 0) limit--; // special case, overflow
+        }
+    }
+    // loads a 256-bit word in memory
     uint256_t load(uint64_t offset) {
         uint8_t buffer[32];
         dump(offset, 32, buffer);
         return uint256_t::from(buffer);
     }
+    // stores a 256-bit word in memory
     void store(uint64_t offset, const uint256_t& v) {
         uint8_t buffer[32];
         uint256_t::to(v, buffer);
         burn(offset, 32, buffer, 32);
     }
+    // dumps memory to a buffer
     void dump(uint64_t offset, uint64_t size, uint8_t *buffer) {
         assert(offset + size >= offset);
         if (size > 0) mark(offset + size);
         for (uint64_t i = 0; i < size; i++) buffer[i] = get(offset+i);
     }
+    // burns memory from a buffer
     void burn(uint64_t offset, const uint8_t *buffer, uint64_t size) {
         burn(offset, size, buffer, size);
     }
+    // burns memory from a buffer, padding right with zeros
     void burn(uint64_t offset, uint64_t size, const uint8_t *buffer, uint64_t burnsize) {
         assert(offset + size >= offset);
         if (size > 0) expand(offset + size);
@@ -5584,14 +5590,14 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             _handles0(consume_gas)(gas, gas_memory(release, memory.size(), init_offset + init_size));
             uint64_t create_gas = gas_cap(release, gas, gas);
             _handles0(consume_gas)(gas, create_gas);
+            local<uint8_t> init_l(init_size); uint8_t *init = init_l.data;
+            memory.dump(init_offset, init_size, init);
             if (storage.get_balance(owner_address) < value) {
                 return_size = 0;
                 credit_gas(gas, create_gas);
                 stack.push(false);
                 break;
             }
-            local<uint8_t> init_l(init_size); uint8_t *init = init_l.data;
-            memory.dump(init_offset, init_size, init);
             uint160_t code_address = _handles0(gen_contract_address)(owner_address, storage.get_nonce(owner_address));
             storage.increment_nonce(owner_address);
             uint64_t snapshot = storage.begin();
@@ -5641,6 +5647,9 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint64_t call_gas = gas_cap(release, gas, reserved_gas);
             _handles0(consume_gas)(gas, call_gas);
             credit_gas(call_gas, gas_stipend_call(release, value > 0));
+            local<uint8_t> args_data_l(args_size); uint8_t *args_data = args_data_l.data;
+            memory.dump(args_offset, args_size, args_data);
+            memory.mark(ret_offset + ret_size);
             if (storage.get_balance(owner_address) < value) {
                 return_size = 0;
                 credit_gas(gas, call_gas);
@@ -5660,8 +5669,6 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                     }
                 }
             }
-            local<uint8_t> args_data_l(args_size); uint8_t *args_data = args_data_l.data;
-            memory.dump(args_offset, args_size, args_data);
             uint64_t snapshot = storage.begin();
             uint64_t code_size;
             uint8_t *code = storage.get_call_code(code_address, code_size);
@@ -5701,14 +5708,15 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint64_t call_gas = gas_cap(release, gas, reserved_gas);
             _handles0(consume_gas)(gas, call_gas);
             credit_gas(call_gas, gas_stipend_call(release, value > 0));
+            local<uint8_t> args_data_l(args_size); uint8_t *args_data = args_data_l.data;
+            memory.dump(args_offset, args_size, args_data);
+            memory.mark(ret_offset + ret_size);
             if (storage.get_balance(owner_address) < value) {
                 return_size = 0;
                 credit_gas(gas, call_gas);
                 stack.push(false);
                 break;
             }
-            local<uint8_t> args_data_l(args_size); uint8_t *args_data = args_data_l.data;
-            memory.dump(args_offset, args_size, args_data);
             uint64_t snapshot = storage.begin();
             uint64_t code_size;
             uint8_t *code = storage.get_call_code(code_address, code_size);
@@ -5755,6 +5763,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             _handles0(consume_gas)(gas, call_gas);
             local<uint8_t> args_data_l(args_size); uint8_t *args_data = args_data_l.data;
             memory.dump(args_offset, args_size, args_data);
+            memory.mark(ret_offset + ret_size);
             uint64_t snapshot = storage.begin();
             uint64_t code_size;
             uint8_t *code = storage.get_call_code(code_address, code_size);
@@ -5785,14 +5794,14 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             _handles0(consume_gas)(gas, gas_sha3(release, init_size));
             uint64_t create_gas = gas_cap(release, gas, gas);
             _handles0(consume_gas)(gas, create_gas);
+            local<uint8_t> init_l(init_size); uint8_t *init = init_l.data;
+            memory.dump(init_offset, init_size, init);
             if (storage.get_balance(owner_address) < value) {
                 return_size = 0;
                 credit_gas(gas, create_gas);
                 stack.push(false);
                 break;
             }
-            local<uint8_t> init_l(init_size); uint8_t *init = init_l.data;
-            memory.dump(init_offset, init_size, init);
             uint160_t code_address = gen_contract_address(owner_address, salt, sha3(init, init_size));
             storage.increment_nonce(owner_address);
             uint64_t snapshot = storage.begin();
@@ -5841,6 +5850,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             _handles0(consume_gas)(gas, call_gas);
             local<uint8_t> args_data_l(args_size); uint8_t *args_data = args_data_l.data;
             memory.dump(args_offset, args_size, args_data);
+            memory.mark(ret_offset + ret_size);
             uint64_t snapshot = storage.begin();
             uint64_t code_size;
             uint8_t *code = storage.get_call_code(code_address, code_size);
