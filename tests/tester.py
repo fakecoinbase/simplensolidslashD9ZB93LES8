@@ -8,7 +8,7 @@ def derive_pk(e):
     return "%064x%064x" % (x, y)
 
 def _report(*msg):
-    print("== " + sys.argv[0] + ":", *msg, file=sys.stderr)
+    print("\033[91m== " + sys.argv[0] + ":\x1b[0m", *msg, file=sys.stderr)
 
 def _die(*msg, exit_code=1):
     _report(*msg)
