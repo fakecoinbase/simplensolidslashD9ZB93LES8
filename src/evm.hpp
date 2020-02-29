@@ -4983,7 +4983,13 @@ static void _throws(vm_ecrecover)(Release release,
     uint256_t v = uint256_t::from(&buffer[offset]); offset += 32;
     uint256_t r = uint256_t::from(&buffer[offset]); offset += 32;
     uint256_t s = uint256_t::from(&buffer[offset]); offset += 32;
-    uint256_t address = (uint256_t)_handles(ecrecover)(h, v, r, s);
+    uint256_t address;
+    _try({
+        address = (uint256_t)_catches(ecrecover)(h, v, r, s);
+    }, Error e, {
+        return_size = 0;
+        return;
+    })
     return_size = 32;
     _ensure_capacity(return_data, return_size, return_capacity);
     uint256_t::to(address, return_data, return_size);
@@ -5034,19 +5040,30 @@ static void _throws(vm_bigmodexp)(Release release,
     uint256_t _base_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
     uint256_t _exp_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
     uint256_t _mod_len = uint256_t::from(&buffer1[offset1]); offset1 += 32;
-    if (((_base_len + _exp_len + _mod_len) >> 64) > 0) _throw(OUTOFBOUNDS_VALUE);
-    uint64_t base_len = _base_len.cast64();
-    uint64_t exp_len = _exp_len.cast64();
-    uint64_t mod_len = _mod_len.cast64();
-    uint64_t size2 = base_len + exp_len + mod_len;
-    local<uint8_t> buffer2_l(size2); uint8_t *buffer2 = buffer2_l.data;
-    uint64_t minsize2 = _min(size2, call_size - minsize1);
-    for (uint64_t i = 0; i < minsize2; i++) buffer2[i] = call_data[minsize1 + i];
-    for (uint64_t i = minsize2; i < size2; i++) buffer2[i] = 0;
-    uint64_t offset2 = 0;
-    bigint base = bigint::from(&buffer2[offset2], base_len); offset2 += base_len;
-    bigint exp = bigint::from(&buffer2[offset2], exp_len); offset2 += exp_len;
-    bigint mod = bigint::from(&buffer2[offset2], mod_len); offset2 += mod_len;
+    uint64_t base_len = (_base_len % (_1 << 64)).cast64();
+    uint64_t exp_len = (_exp_len % (_1 << 64)).cast64();
+    uint64_t mod_len = (_mod_len % (_1 << 64)).cast64();
+    bigint base;
+    {
+        uint64_t size2 = base_len;
+        uint64_t minsize2 = _min(size2, call_size - minsize1);
+        base = bigint::from(&call_data[minsize1], minsize2); minsize1 += minsize2;
+        if (base > 0) base <<= 8 * (size2 - minsize2);
+    }
+    bigint exp;
+    {
+        uint64_t size2 = exp_len;
+        uint64_t minsize2 = _min(size2, call_size - minsize1);
+        exp = bigint::from(&call_data[minsize1], minsize2); minsize1 += minsize2;
+        if (exp > 0) exp <<= 8 * (size2 - minsize2);
+    }
+    bigint mod;
+    {
+        uint64_t size2 = mod_len;
+        uint64_t minsize2 = _min(size2, call_size - minsize1);
+        mod = bigint::from(&call_data[minsize1], minsize2); minsize1 += minsize2;
+        if (mod > 0) mod <<= 8 * (size2 - minsize2);
+    }
     _handles(consume_gas)(gas, gas_bigmodexp(release, base_len, exp_len, mod_len, exp));
     bigint res = mod == 0 ? 0 : bigint::powmod(base, exp, mod);
     return_size = mod_len;
