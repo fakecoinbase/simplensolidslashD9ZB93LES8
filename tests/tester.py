@@ -63,10 +63,9 @@ def compileFile(fnamein, fnameout):
         "-Wall",
         "-Wno-vla",
         "-Wno-unused-variable",
-        "-Wno-unused-but-set-variable",
         "-Wno-unused-function",
         "-Wno-maybe-uninitialized",
-        "-Os",
+        "-O0", # -Os crashes on some tests
         "-o",
         fnameout,
         fnamein,
