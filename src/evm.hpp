@@ -2385,6 +2385,7 @@ static uint160_t _throws(ecrecover)(const uint256_t &_h, const uint256_t &_v, co
     bigint y = bigint::powmod(((r * r) % P * r) % P + 7, (P + 1) / 4, P);
     if ((v == 28) == ((y % 2) == 0)) y = P - y;
     G0 q(r, y);
+    if (!q.is_valid()) _throw0(INVALID_SIGNATURE);
     bigint u = Q - (h % Q);
     bigint z = bigint::powmod(r, Q - 2, Q);
     G0 t = ((q * s) + (G * u)) * z;
