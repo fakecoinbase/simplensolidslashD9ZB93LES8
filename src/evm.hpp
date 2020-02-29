@@ -4865,7 +4865,7 @@ public:
         uint64_t nonce = get_nonce(address);
         uint256_t balance = get_balance(address);
         uint256_t codehash = get_codehash(address);
-        return nonce == 0 && balance == 0 && codehash == EMPTY_CODEHASH;
+        return nonce == 0 && balance == 0 && (codehash == 0 || codehash == EMPTY_CODEHASH);
     }
     bool has_contract(const uint160_t &address) const {
         uint64_t nonce = get_nonce(address);
