@@ -5247,7 +5247,6 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
     uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas,
     bool read_only, uint64_t depth)
 {
-    if (depth > CALL_DEPTH) _throw0(RECURSION_LIMITED);
     if (code_size == 0) { // do nothing if contract code is empty
         if ((intptr_t)code < 256) { // but first test for precompiled contract
             uint8_t opc = (intptr_t)code;
@@ -5608,7 +5607,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             _handles0(consume_gas)(gas, create_gas);
             local<uint8_t> init_l(init_size); uint8_t *init = init_l.data;
             memory.dump(init_offset, init_size, init);
-            if (storage.get_balance(owner_address) < value) {
+            if (depth >= CALL_DEPTH || storage.get_balance(owner_address) < value) {
                 return_size = 0;
                 credit_gas(gas, create_gas);
                 stack.push(false);
@@ -5666,7 +5665,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             local<uint8_t> args_data_l(args_size); uint8_t *args_data = args_data_l.data;
             memory.dump(args_offset, args_size, args_data);
             memory.mark(ret_offset + ret_size);
-            if (storage.get_balance(owner_address) < value) {
+            if (depth >= CALL_DEPTH || storage.get_balance(owner_address) < value) {
                 return_size = 0;
                 credit_gas(gas, call_gas);
                 stack.push(false);
@@ -5727,7 +5726,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             local<uint8_t> args_data_l(args_size); uint8_t *args_data = args_data_l.data;
             memory.dump(args_offset, args_size, args_data);
             memory.mark(ret_offset + ret_size);
-            if (storage.get_balance(owner_address) < value) {
+            if (depth >= CALL_DEPTH || storage.get_balance(owner_address) < value) {
                 return_size = 0;
                 credit_gas(gas, call_gas);
                 stack.push(false);
@@ -5780,6 +5779,12 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             local<uint8_t> args_data_l(args_size); uint8_t *args_data = args_data_l.data;
             memory.dump(args_offset, args_size, args_data);
             memory.mark(ret_offset + ret_size);
+            if (depth >= CALL_DEPTH) {
+                return_size = 0;
+                credit_gas(gas, call_gas);
+                stack.push(false);
+                break;
+            }
             uint64_t snapshot = storage.begin();
             uint64_t code_size;
             uint8_t *code = storage.get_call_code(code_address, code_size);
@@ -5812,7 +5817,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             _handles0(consume_gas)(gas, create_gas);
             local<uint8_t> init_l(init_size); uint8_t *init = init_l.data;
             memory.dump(init_offset, init_size, init);
-            if (storage.get_balance(owner_address) < value) {
+            if (depth >= CALL_DEPTH || storage.get_balance(owner_address) < value) {
                 return_size = 0;
                 credit_gas(gas, create_gas);
                 stack.push(false);
@@ -5867,6 +5872,12 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             local<uint8_t> args_data_l(args_size); uint8_t *args_data = args_data_l.data;
             memory.dump(args_offset, args_size, args_data);
             memory.mark(ret_offset + ret_size);
+            if (depth >= CALL_DEPTH) {
+                return_size = 0;
+                credit_gas(gas, call_gas);
+                stack.push(false);
+                break;
+            }
             uint64_t snapshot = storage.begin();
             uint64_t code_size;
             uint8_t *code = storage.get_call_code(code_address, code_size);
@@ -5970,7 +5981,7 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
                             to, code, code_size,
                             from, txn.value, txn.data, txn.data_size,
                             return_data, return_size, return_capacity, gas,
-                            false, 0);
+                            false, 1);
         }, Error e, {
             success = false;
             gas = 0;
@@ -5988,7 +5999,7 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
                             to, txn.data, txn.data_size,
                             from, txn.value, nullptr, 0,
                             return_data, return_size, return_capacity, gas,
-                            false, 0);
+                            false, 1);
             if (success) {
                 _catches(code_size_check)(release, return_size);
                 _catches(consume_gas)(gas, gas_create(release, return_size));
