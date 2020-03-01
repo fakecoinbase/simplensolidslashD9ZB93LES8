@@ -5617,7 +5617,6 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint160_t code_address = _handles0(gen_contract_address)(owner_address, storage.get_nonce(owner_address));
             storage.increment_nonce(owner_address);
             uint64_t snapshot = storage.begin();
-            bool outofgas = false;
             bool success;
             _try({
                 if (storage.has_contract(code_address)) _trythrow(CODE_CONFLICT);
@@ -5633,18 +5632,19 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                                 false, depth+1);
                 if (success) {
                     _catches(code_size_check)(release, return_size);
-                    _catches(consume_gas)(create_gas, gas_create(release, return_size));
-                    storage.register_code(code_address, return_data, return_size);
-                    return_size = 0;
+                    _try({
+                        _catches(consume_gas)(create_gas, gas_create(release, return_size));
+                        storage.register_code(code_address, return_data, return_size);
+                    }, Error e ,{
+                        if (release >= HOMESTEAD) _trythrow(e);
+                    })
                 }
                 credit_gas(gas, create_gas);
             }, Error e, {
-                if (e == GAS_EXAUSTED) outofgas = true;
                 success = false;
-                return_size = 0;
             })
+            return_size = 0;
             storage.end(snapshot, success);
-            if (release < HOMESTEAD) success = success || outofgas;
             stack.push(success ? (uint256_t)code_address : 0);
             break;
         }
@@ -5827,7 +5827,6 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint160_t code_address = gen_contract_address(owner_address, salt, sha3(init, init_size));
             storage.increment_nonce(owner_address);
             uint64_t snapshot = storage.begin();
-            bool outofgas = false;
             bool success;
             _try({
                 if (storage.has_contract(code_address)) _trythrow(CODE_CONFLICT);
@@ -5843,18 +5842,19 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                                 false, depth+1);
                 if (success) {
                     _catches(code_size_check)(release, return_size);
-                    _catches(consume_gas)(create_gas, gas_create(release, return_size));
-                    storage.register_code(code_address, return_data, return_size);
-                    return_size = 0;
+                    _try({
+                        _catches(consume_gas)(create_gas, gas_create(release, return_size));
+                        storage.register_code(code_address, return_data, return_size);
+                    }, Error e ,{
+                        if (release >= HOMESTEAD) _trythrow(e);
+                    })
                 }
                 credit_gas(gas, create_gas);
             }, Error e, {
-                if (e == GAS_EXAUSTED) outofgas = true;
                 success = false;
-                return_size = 0;
             })
+            return_size = 0;
             storage.end(snapshot, success);
-            if (release < HOMESTEAD) success = success || outofgas;
             stack.push(success ? (uint256_t)code_address : 0);
             break;
         }
@@ -6003,8 +6003,12 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
                             false, 1);
             if (success) {
                 _catches(code_size_check)(release, return_size);
-                _catches(consume_gas)(gas, gas_create(release, return_size));
-                storage.register_code(to, return_data, return_size);
+                _try({
+                    _catches(consume_gas)(gas, gas_create(release, return_size));
+                    storage.register_code(to, return_data, return_size);
+                }, Error e ,{
+                    if (release >= HOMESTEAD) _trythrow(e);
+                })
             }
         }, Error e, {
             success = false;
