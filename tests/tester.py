@@ -55,7 +55,7 @@ def writeFile(fname, fcontents):
         f.write(fcontents)
 
 def compileFile(fnamein, fnameout):
-    if os.path.isfile(fnameout): return 0;
+    if os.path.isfile(fnameout): return 0
     return subprocess.call([
         "g++",
         "-std=c++11",
@@ -169,7 +169,7 @@ def codeDoneLocation(location, number):
             uint256_t _number = state.load(account, location);
             if (number != _number) {
                 std::cerr << "post: invalid storage " << account << " " << location << " " << _number << " " << number << std::endl;
-                return 1;
+                result = 1;
             }
         }
 """
@@ -187,7 +187,7 @@ def codeInitAccount(account, nonce, balance, code, storage):
         state.store_code(codehash, code, code_size);
         state.set_nonce(account, nonce);
         state.set_balance(account, balance);
-        state.set_codehash(account, codehash);
+        if (nonce > 0 || balance > 0 || code_size > 0) state.set_codehash(account, codehash);
 """
     for subkey, subvalue in storage.items():
         location = hexToInt(subkey)
@@ -209,7 +209,7 @@ def codeDoneAccount(account, nonce, balance, code, storage):
         uint256_t nonce = uhex256(\"""" + intToU256(nonce) + """\");
         if (nonce != state.get_nonce(account)) {
             std::cerr << "post: invalid nonce" << std::endl;
-            return 1;
+            result = 1;
         }
 """
 
@@ -219,7 +219,7 @@ def codeDoneAccount(account, nonce, balance, code, storage):
         uint256_t _balance = state.get_balance(account);
         if (balance != _balance) {
             std::cerr << "post: invalid balance " << account << " " << _balance << " " << balance << std::endl;
-            return 1;
+            result = 1;
         }
 """
 
@@ -233,12 +233,13 @@ def codeDoneAccount(account, nonce, balance, code, storage):
         const uint8_t *_code = state.load_code(codehash, _code_size);
         if (code_size != _code_size) {
             std::cerr << "post: invalid account code_size" << std::endl;
-            return 1;
+            result = 1;
         }
         for (uint64_t i = 0; i < _code_size; i++) {
             if (code[i] != _code[i]) {
                 std::cerr << "post: invalid account code" << std::endl;
-                return 1;
+                result = 1;
+                break;
             }
         }
 """
@@ -263,7 +264,7 @@ def codeDoneReturn(out):
         std::cerr << std::endl;
         for (uint64_t i = 0; i < return_size; i++) std::cerr << " " << (int)return_data[i];
         std::cerr << std::endl;
-        return 1;
+        result = 1;
     }
     for (uint64_t i = 0; i < out_size; i++) {
         if (out_data[i] != return_data[i]) {
@@ -272,7 +273,8 @@ def codeDoneReturn(out):
             std::cerr << std::endl;
             for (uint64_t i = 0; i < out_size; i++) std::cerr << " " << (int)return_data[i];
             std::cerr << std::endl;
-            return 1;
+            result = 1;
+            break;
         }
     }
 """
@@ -283,7 +285,7 @@ def codeDoneRoot(roothash):
     uint256_t roothash = uhex256(\"""" + intToU256(roothash) + """\");
     if (root != roothash) {
         std::cerr << "post: invalid root " << root << " " << roothash << std::endl;
-        return 1;
+        result = 1;
     }
 """
 
@@ -293,7 +295,7 @@ def codeDoneLogs(loghash):
     uint256_t _loghash = state.loghash();
     if (loghash != _loghash) {
         std::cerr << "post: invalid loghash " << loghash << " " << _loghash << std::endl;
-        return 1;
+        result = 1;
     }
 """
 
@@ -302,7 +304,7 @@ def codeDoneGas(fgas):
     uint256_t fgas = uhex256(\"""" + intToU256(fgas) + """\");
     if (gas != fgas) {
         std::cerr << "post: invalid gas " << fgas << " " << gas << std::endl;
-        return 1;
+        result = 1;
     }
 """
 
@@ -311,13 +313,13 @@ def codeDoneRlp(_hash, sender):
     uint256_t _h = uhex256(\"""" + intToU256(_hash) + """\");
     if (h != _h) {
         std::cerr << "post: invalid hash " << h << " " << _h << std::endl;
-        return 1;
+        result = 1;
     }
 
     uint160_t _from = (uint160_t)uhex256(\"""" + intToU256(sender) + """\");
     if (from != _from) {
         std::cerr << "post: invalid sender" << std::endl;
-        return 1;
+        result = 1;
     }
 """
 
@@ -406,6 +408,7 @@ int main()
     storage.end(snapshot, success);
     // gas seems not to be detucted on vm Tests
     storage.flush();
+    int result = 0;
 """
 
     if not "out" in item:
@@ -413,7 +416,7 @@ int main()
         src += """
     if (success) {
         std::cerr << "post: invalid success on failure" << std::endl;
-        return 1;
+        result = 1;
     }
 """
 
@@ -422,7 +425,7 @@ int main()
         src += """
     if (!success) {
         std::cerr << "post: invalid failure on success" << std::endl;
-        return 1;
+        result = 1;
     }
 """
         out = hexToBin(item["out"])
@@ -444,7 +447,7 @@ int main()
         src += codeDoneGas(fgas)
 
     src += """
-    return 0;
+    return result;
 }
 """
 
@@ -453,7 +456,7 @@ int main()
     result = compileFile(filename + ".cpp", filename)
     if result != 0: _report("Test fail to compile"); return
     result = execFile(filename)
-    if result != 0: _report("Test failure"); os.remove(filename)
+    if result != 0: _report("Test failure")#; os.remove(filename)
 
 def txTest(name, item, path):
 #    print(json.dumps(item, indent=2))
@@ -519,13 +522,14 @@ int main()
         success = false;
         if (std::getenv("EVM_DEBUG")) std::cerr << "vm exception " << errors[e] << std::endl;
     })
+    int result = 0;
 """
         if not "hash" in data:
 
             src += """
     if (success) {
         std::cerr << "post: invalid success on failure" << std::endl;
-        return 1;
+        result = 1;
     }
 """
 
@@ -534,7 +538,7 @@ int main()
             src += """
     if (!success) {
         std::cerr << "post: invalid failure on success" << std::endl;
-        return 1;
+        result = 1;
     }
 """
             _hash = hexToInt(data["hash"])
@@ -543,7 +547,7 @@ int main()
             src += codeDoneRlp(_hash, sender);
 
         src += """
-    return 0;
+    return result;
 }
 """
         filename = "cache/tx_" + name + "_" + release
@@ -551,7 +555,7 @@ int main()
         result = compileFile(filename + ".cpp", filename)
         if result != 0: _report("Test fail to compile"); continue
         result = execFile(filename)
-        if result != 0: _report("Test failure"); os.remove(filename)
+        if result != 0: _report("Test failure")#; os.remove(filename)
 
 def gsTest(name, item, path):
 #    print(json.dumps(item, indent=2))
@@ -713,6 +717,7 @@ int main()
     }, Error e, {
         if (std::getenv("EVM_DEBUG")) std::cerr << "vm exception " << errors[e] << std::endl;
     })
+    int result = 0;
 """
 
             loghash = hexToInt(test["logs"])
@@ -732,7 +737,7 @@ int main()
 #            src += codeDoneRoot(roothash)
 
             src += """
-    return 0;
+    return result;
 }
 """
 
@@ -741,7 +746,7 @@ int main()
             result = compileFile(filename + ".cpp", filename)
             if result != 0: _report("Test fail to compile"); return
             result = execFile(filename)
-            if result != 0: _report("Test failure"); os.remove(filename)
+            if result != 0: _report("Test failure")#; os.remove(filename)
 
 def vmTests(filt):
     paths = listTests("./tests/VMTests", filePrefixes=[filt])
