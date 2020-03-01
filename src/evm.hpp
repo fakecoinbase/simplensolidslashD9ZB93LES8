@@ -5641,12 +5641,13 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                     }, Error e ,{
                         if (release >= HOMESTEAD) _trythrow(e);
                     })
+                    return_size = 0;
                 }
                 credit_gas(gas, create_gas);
             }, Error e, {
                 success = false;
+                return_size = 0;
             })
-            return_size = 0;
             storage.end(snapshot, success);
             stack.push(success ? (uint256_t)code_address : 0);
             break;
@@ -5851,12 +5852,13 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                     }, Error e ,{
                         if (release >= HOMESTEAD) _trythrow(e);
                     })
+                    return_size = 0;
                 }
                 credit_gas(gas, create_gas);
             }, Error e, {
                 success = false;
+                return_size = 0;
             })
-            return_size = 0;
             storage.end(snapshot, success);
             stack.push(success ? (uint256_t)code_address : 0);
             break;
