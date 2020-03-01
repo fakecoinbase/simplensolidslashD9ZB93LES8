@@ -5915,7 +5915,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
         case SELFDESTRUCT: {
             uint160_t to = (uint160_t)stack.pop();
             uint256_t amount = storage.get_balance(owner_address);
-            _handles0(consume_gas)(gas, gas_selfdestruct(release, amount > 0, storage.is_empty(owner_address), storage.exists(owner_address)));
+            _handles0(consume_gas)(gas, gas_selfdestruct(release, amount > 0, storage.is_empty(to), storage.exists(to)));
             if (!storage.is_destructed(owner_address)) storage.add_refund(gas_refund_selfdestruct(release));
             storage.add_balance(to, amount);
             storage.set_balance(owner_address, 0);
