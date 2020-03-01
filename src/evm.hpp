@@ -5108,12 +5108,16 @@ static void _throws(vm_bn256add)(Release release,
     uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
 {
     _handles(consume_gas)(gas, gas_bn256add(release));
-    if (call_size != 2 * 2 * 32) _throw(INVALID_SIZE);
-    uint64_t call_offset = 0;
-    bigint x1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
-    bigint y1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
-    bigint x2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
-    bigint y2 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+    uint64_t size = 2 * 2 * 32;
+    local<uint8_t> buffer_l(size); uint8_t *buffer = buffer_l.data;
+    uint64_t minsize = _min(size, call_size);
+    for (uint64_t i = 0; i < minsize; i++) buffer[i] = call_data[i];
+    for (uint64_t i = minsize; i < size; i++) buffer[i] = 0;
+    uint64_t offset = 0;
+    bigint x1 = bigint::from(&call_data[offset], 32); offset += 32;
+    bigint y1 = bigint::from(&call_data[offset], 32); offset += 32;
+    bigint x2 = bigint::from(&call_data[offset], 32); offset += 32;
+    bigint y2 = bigint::from(&call_data[offset], 32); offset += 32;
     if (x1 >= G1::P()) _throw(INVALID_ENCODING);
     if (y1 >= G1::P()) _throw(INVALID_ENCODING);
     if (x2 >= G1::P()) _throw(INVALID_ENCODING);
@@ -5127,11 +5131,14 @@ static void _throws(vm_bn256add)(Release release,
         if (!p2.is_valid()) _throw(INVALID_ENCODING);
     }
     G1 p3 = (p1 + p2).affine();
+    bigint x3 = p3.x;
+    bigint y3 = p3.y;
+    if (p3.is_inf()) { x3 = 0; y3 = 0; }
     return_size = 2 * 32;
     _ensure_capacity(return_data, return_size, return_capacity);
     uint64_t return_offset = 0;
-    bigint::to(p3.x, &return_data[return_offset], 32); return_offset += 32;
-    bigint::to(p3.y, &return_data[return_offset], 32); return_offset += 32;
+    bigint::to(x3, &return_data[return_offset], 32); return_offset += 32;
+    bigint::to(y3, &return_data[return_offset], 32); return_offset += 32;
 }
 
 static void _throws(vm_bn256scalarmul)(Release release,
@@ -5139,11 +5146,15 @@ static void _throws(vm_bn256scalarmul)(Release release,
     uint8_t *&return_data, uint64_t &return_size, uint64_t &return_capacity, uint64_t &gas)
 {
     _handles(consume_gas)(gas, gas_bn256scalarmul(release));
-    if (call_size != 2 * 32 + 32) _throw(INVALID_SIZE);
-    uint64_t call_offset = 0;
-    bigint x1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
-    bigint y1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
-    bigint e = bigint::from(&call_data[call_offset], 32); call_offset += 32;
+    uint64_t size = 2 * 32 + 32;
+    local<uint8_t> buffer_l(size); uint8_t *buffer = buffer_l.data;
+    uint64_t minsize = _min(size, call_size);
+    for (uint64_t i = 0; i < minsize; i++) buffer[i] = call_data[i];
+    for (uint64_t i = minsize; i < size; i++) buffer[i] = 0;
+    uint64_t offset = 0;
+    bigint x1 = bigint::from(&call_data[offset], 32); offset += 32;
+    bigint y1 = bigint::from(&call_data[offset], 32); offset += 32;
+    bigint e = bigint::from(&call_data[offset], 32); offset += 32;
     if (x1 >= G1::P()) _throw(INVALID_ENCODING);
     if (y1 >= G1::P()) _throw(INVALID_ENCODING);
     G1 p1 = G1(x1, y1);
@@ -5151,11 +5162,14 @@ static void _throws(vm_bn256scalarmul)(Release release,
         if (!p1.is_valid()) _throw(INVALID_ENCODING);
     }
     G1 p2 = (p1 * e).affine();
+    bigint x2 = p2.x;
+    bigint y2 = p2.y;
+    if (p2.is_inf()) { x2 = 0; y2 = 0; }
     return_size = 2 * 32;
     _ensure_capacity(return_data, return_size, return_capacity);
     uint64_t return_offset = 0;
-    bigint::to(p2.x, &return_data[return_offset], 32); return_offset += 32;
-    bigint::to(p2.y, &return_data[return_offset], 32); return_offset += 32;
+    bigint::to(x2, &return_data[return_offset], 32); return_offset += 32;
+    bigint::to(y2, &return_data[return_offset], 32); return_offset += 32;
 }
 
 static void _throws(vm_bn256pairing)(Release release,
