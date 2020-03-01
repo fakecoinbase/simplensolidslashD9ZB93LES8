@@ -4779,12 +4779,14 @@ public:
         uint64_t serial2 = balances.snapshot();
         uint64_t serial3 = contracts.snapshot();
         uint64_t serial4 = data.snapshot();
-        uint64_t serial5 = logs.snapshot();
+        uint64_t serial5 = destructed.snapshot();
+        uint64_t serial6 = logs.snapshot();
         assert(serial1 == serial2);
         assert(serial1 == serial3);
         assert(serial1 == serial4);
+        assert(serial1 == serial5);
         refund_gas_snapshot[serial1-1] = refund_gas;
-        uint64_t serial = serial1 << 32 | serial5;
+        uint64_t serial = serial1 << 32 | serial6;
         return serial;
     }
     void commit(uint64_t serial) {
@@ -4794,6 +4796,7 @@ public:
         balances.commit(serial1);
         contracts.commit(serial1);
         data.commit(serial1);
+        destructed.commit(serial1);
         logs.commit(serial2);
     }
     void rollback(uint64_t serial) {
@@ -4803,6 +4806,7 @@ public:
         balances.rollback(serial1);
         contracts.rollback(serial1);
         data.rollback(serial1);
+        destructed.rollback(serial1);
         logs.rollback(serial2);
         refund_gas = refund_gas_snapshot[serial1-1];
     }
