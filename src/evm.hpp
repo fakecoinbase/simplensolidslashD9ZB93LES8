@@ -5436,6 +5436,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint64_t offset1 = v1.cast64(), size = v3.cast64();
             _handles0(consume_gas)(gas, gas_memory(release, memory.size(), offset1 + size));
             _handles0(consume_gas)(gas, gas_copy(release, size));
+            if (v2 + size < v2) _throw0(OUTOFBOUNDS_VALUE);
             if (v2 + size > return_size) _throw0(OUTOFBOUNDS_VALUE); // this seems to be an exception among copy
             uint64_t offset2 = v2 > return_size ? return_size : v2.cast64();
             memory.burn(offset1, size, &return_data[offset2], _min(size, return_size - offset2));
