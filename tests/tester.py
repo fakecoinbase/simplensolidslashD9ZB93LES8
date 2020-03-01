@@ -451,7 +451,7 @@ int main()
 }
 """
 
-    filename = "cache/vm_" + name
+    filename = "cache/vm_" + path.split('/')[-2] + name
     writeFile(filename + ".cpp", src)
     result = compileFile(filename + ".cpp", filename)
     if result != 0: _report("Test fail to compile"); return
@@ -550,14 +550,14 @@ int main()
     return result;
 }
 """
-        filename = "cache/tx_" + name + "_" + release
+        filename = "cache/tx_" + path.split('/')[-2] + name + "_" + release
         writeFile(filename + ".cpp", src)
         result = compileFile(filename + ".cpp", filename)
         if result != 0: _report("Test fail to compile"); continue
         result = execFile(filename)
         if result != 0: _report("Test failure")#; os.remove(filename)
 
-def gsTest(name, item, path):
+def stTest(name, item, path):
 #    print(json.dumps(item, indent=2))
 
     post = item["post"]
@@ -741,7 +741,7 @@ int main()
 }
 """
 
-            filename = "cache/gs_" + name + "_" + release + "_" + str(num)
+            filename = "cache/st_" + path.split('/')[-2] + name + "_" + release + "_" + str(num)
             writeFile(filename + ".cpp", src)
             result = compileFile(filename + ".cpp", filename)
             if result != 0: _report("Test fail to compile"); return
@@ -764,7 +764,7 @@ def txTests(filt):
             print(path, name)
             txTest(name, item, path)
 
-def gsTests(filt):
+def stTests(filt):
     paths = listTests("./tests/GeneralStateTests", filePrefixes=[filt])
     for path in paths:
         data = readFile(path)
@@ -775,12 +775,12 @@ def gsTests(filt):
         for name, item in data.items():
             print(path, name)
             item['expect'] = data_filler[name]['expect']
-            gsTest(name, item, path)
+            stTest(name, item, path)
 
 def main():
     filt = sys.argv[1] if len(sys.argv) == 2 else ""
     vmTests(filt)
     txTests(filt)
-    gsTests(filt)
+    stTests(filt)
 
 if __name__ == '__main__': main()
