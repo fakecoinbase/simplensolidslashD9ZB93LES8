@@ -5114,16 +5114,16 @@ static void _throws(vm_bn256add)(Release release,
     for (uint64_t i = 0; i < minsize; i++) buffer[i] = call_data[i];
     for (uint64_t i = minsize; i < size; i++) buffer[i] = 0;
     uint64_t offset = 0;
-    bigint x1 = bigint::from(&call_data[offset], 32); offset += 32;
-    bigint y1 = bigint::from(&call_data[offset], 32); offset += 32;
-    bigint x2 = bigint::from(&call_data[offset], 32); offset += 32;
-    bigint y2 = bigint::from(&call_data[offset], 32); offset += 32;
+    bigint x1 = bigint::from(&buffer[offset], 32); offset += 32;
+    bigint y1 = bigint::from(&buffer[offset], 32); offset += 32;
+    bigint x2 = bigint::from(&buffer[offset], 32); offset += 32;
+    bigint y2 = bigint::from(&buffer[offset], 32); offset += 32;
     if (x1 >= G1::P()) _throw(INVALID_ENCODING);
     if (y1 >= G1::P()) _throw(INVALID_ENCODING);
     if (x2 >= G1::P()) _throw(INVALID_ENCODING);
     if (y2 >= G1::P()) _throw(INVALID_ENCODING);
-    G1 p1 = G1(x1, y1);
-    G1 p2 = G1(x2, y2);
+    G1 p1(x1, y1);
+    G1 p2(x2, y2);
     if (!(x1 == 0 && y1 == 0)) {
         if (!p1.is_valid()) _throw(INVALID_ENCODING);
     }
@@ -5152,12 +5152,12 @@ static void _throws(vm_bn256scalarmul)(Release release,
     for (uint64_t i = 0; i < minsize; i++) buffer[i] = call_data[i];
     for (uint64_t i = minsize; i < size; i++) buffer[i] = 0;
     uint64_t offset = 0;
-    bigint x1 = bigint::from(&call_data[offset], 32); offset += 32;
-    bigint y1 = bigint::from(&call_data[offset], 32); offset += 32;
-    bigint e = bigint::from(&call_data[offset], 32); offset += 32;
+    bigint x1 = bigint::from(&buffer[offset], 32); offset += 32;
+    bigint y1 = bigint::from(&buffer[offset], 32); offset += 32;
+    bigint e = bigint::from(&buffer[offset], 32); offset += 32;
     if (x1 >= G1::P()) _throw(INVALID_ENCODING);
     if (y1 >= G1::P()) _throw(INVALID_ENCODING);
-    G1 p1 = G1(x1, y1);
+    G1 p1(x1, y1);
     if (!(x1 == 0 && y1 == 0)) {
         if (!p1.is_valid()) _throw(INVALID_ENCODING);
     }
