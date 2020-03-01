@@ -5636,7 +5636,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                                 code_address, init, init_size,
                                 owner_address, value, nullptr, 0,
                                 return_data, return_size, return_capacity, create_gas,
-                                false, depth+1);
+                                read_only, depth+1);
                 if (success) {
                     _catches(code_size_check)(release, return_size);
                     _try({
@@ -5706,7 +5706,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                                 code_address, code, code_size,
                                 owner_address, value, args_data, args_size,
                                 return_data, return_size, return_capacity, call_gas,
-                                false, depth+1);
+                                read_only, depth+1);
                 credit_gas(gas, call_gas);
                 memory.burn(ret_offset, return_data, _min(ret_size, return_size));
             }, Error e, {
@@ -5751,7 +5751,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                                 owner_address, code, code_size,
                                 owner_address, value, args_data, args_size,
                                 return_data, return_size, return_capacity, call_gas,
-                                false, depth+1);
+                                read_only, depth+1);
                 credit_gas(gas, call_gas);
                 memory.burn(ret_offset, return_data, _min(ret_size, return_size));
             }, Error e, {
@@ -5804,7 +5804,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                                 owner_address, code, code_size,
                                 caller_address, call_value, args_data, args_size,
                                 return_data, return_size, return_capacity, call_gas,
-                                false, depth+1);
+                                read_only, depth+1);
                 credit_gas(gas, call_gas);
                 memory.burn(ret_offset, return_data, _min(ret_size, return_size));
             }, Error e, {
@@ -5847,7 +5847,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
                                 code_address, init, init_size,
                                 owner_address, value, nullptr, 0,
                                 return_data, return_size, return_capacity, create_gas,
-                                false, depth+1);
+                                read_only, depth+1);
                 if (success) {
                     _catches(code_size_check)(release, return_size);
                     _try({
