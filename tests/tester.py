@@ -451,7 +451,7 @@ int main()
 }
 """
 
-    filename = "cache/vm_" + path.split('/')[-2] + name
+    filename = "cache/vm/" + path.split('/')[-2] + "/" + name
     writeFile(filename + ".cpp", src)
     result = compileFile(filename + ".cpp", filename)
     if result != 0: _report("Test fail to compile"); return
@@ -550,7 +550,7 @@ int main()
     return result;
 }
 """
-        filename = "cache/tx_" + path.split('/')[-2] + name + "_" + release
+        filename = "cache/tx/" + path.split('/')[-2] + "/" + name + "_" + release
         writeFile(filename + ".cpp", src)
         result = compileFile(filename + ".cpp", filename)
         if result != 0: _report("Test fail to compile"); continue
@@ -741,7 +741,7 @@ int main()
 }
 """
 
-            filename = "cache/st_" + path.split('/')[-2] + name + "_" + release + "_" + str(num)
+            filename = "cache/st/" + path.split('/')[-2] + "/" + name + "_" + release + "_" + str(num)
             writeFile(filename + ".cpp", src)
             result = compileFile(filename + ".cpp", filename)
             if result != 0: _report("Test fail to compile"); return
