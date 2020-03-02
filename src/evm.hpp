@@ -4388,6 +4388,7 @@ public:
     virtual void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) = 0;
     virtual void log3(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *data, uint64_t data_size) = 0;
     virtual void log4(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *data, uint64_t data_size) = 0;
+    virtual void clear(const uint160_t &address) = 0;
     virtual void remove(const uint160_t &address) = 0;
 };
 
@@ -4665,6 +4666,7 @@ protected:
     Store<uint160_t, uint256_t> balances; // storage area for balances
     Store<uint160_t, uint256_t> contracts; // storage area for code
     Store<uint416_t, uint256_t> data; // storage area for data
+    Store<uint160_t, bool> created; // creation flag
     Store<uint160_t, bool> destructed; // destruction flag
     Log logs; // storage for logs
     uint64_t refund_gas = 0; // gas refund accumulator, refund is performed at the very end
@@ -4732,19 +4734,25 @@ public:
     // data access methods
     uint256_t load(const uint160_t &address, const uint256_t &key) const {
         uint416_t extkey = ((uint416_t)address << 256) | (uint416_t)key;
-        return data.get(extkey, underlying->load(address, key));
+        return data.get(extkey, _load(address, key));
     }
     void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) {
         uint416_t extkey = ((uint416_t)address << 256) | (uint416_t)key;
-        data.set(extkey, value, underlying->load(address, key));
+        data.set(extkey, value, _load(address, key));
     }
     // loads original value directly from the state
-    uint256_t _load(const uint160_t &address, const uint256_t &key) {
-        return underlying->load(address, key);
+    uint256_t _load(const uint160_t &address, const uint256_t &key) const {
+        return created.get(address, false) ? 0 : underlying->load(address, key);
     }
-    // address data removal
+    // address storage clearing
+    void clear(const uint160_t &address) {
+        created.set(address, true, false);
+    }
+    // address removal
     void remove(const uint160_t &address) {
-        underlying->remove(address);
+        set_nonce(address, 0);
+        set_balance(address, 0);
+        set_codehash(address, 0);
     }
     // refund access methods
     uint64_t get_refund() {
@@ -4780,14 +4788,16 @@ public:
         uint64_t serial2 = balances.snapshot();
         uint64_t serial3 = contracts.snapshot();
         uint64_t serial4 = data.snapshot();
-        uint64_t serial5 = destructed.snapshot();
-        uint64_t serial6 = logs.snapshot();
+        uint64_t serial5 = created.snapshot();
+        uint64_t serial6 = destructed.snapshot();
+        uint64_t serial7 = logs.snapshot();
         assert(serial1 == serial2);
         assert(serial1 == serial3);
         assert(serial1 == serial4);
         assert(serial1 == serial5);
+        assert(serial1 == serial6);
         refund_gas_snapshot[serial1-1] = refund_gas;
-        uint64_t serial = serial1 << 32 | serial6;
+        uint64_t serial = serial1 << 32 | serial7;
         return serial;
     }
     void commit(uint64_t serial) {
@@ -4797,6 +4807,7 @@ public:
         balances.commit(serial1);
         contracts.commit(serial1);
         data.commit(serial1);
+        created.commit(serial1);
         destructed.commit(serial1);
         logs.commit(serial2);
     }
@@ -4807,6 +4818,7 @@ public:
         balances.rollback(serial1);
         contracts.rollback(serial1);
         data.rollback(serial1);
+        created.rollback(serial1);
         destructed.rollback(serial1);
         logs.rollback(serial2);
         refund_gas = refund_gas_snapshot[serial1-1];
@@ -4820,6 +4832,13 @@ public:
     // method to persist changes to the state, called at the end of a transaction
     void flush() {
         Store<uint160_t, bool> touched;
+        for (uint64_t i = 0; i < created.size; i++) {
+            for (auto keys = created.table[i]; keys != nullptr; keys = keys->next) {
+                if (keys->values != nullptr) {
+                    if (keys->values->value) underlying->clear(keys->key);
+                }
+            }
+        }
         for (uint64_t i = 0; i < nonces.size; i++) {
             for (auto keys = nonces.table[i]; keys != nullptr; keys = keys->next) {
                 if (keys->values != nullptr) {
@@ -4881,6 +4900,7 @@ public:
     // handy methods to test/modify address state
     void create_account(const uint160_t &address) {
         set_codehash(address, EMPTY_CODEHASH);
+        clear(address);
     }
     bool exists(const uint160_t &address) const {
         uint64_t nonce = get_nonce(address);
@@ -5916,7 +5936,6 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint8_t *code = storage.get_call_code(code_address, code_size);
             bool success;
             _try({
-                if (!storage.exists(code_address)) storage.create_account(code_address);
                 success = _catches(vm_run)(release, block, storage,
                                 origin_address, gas_price,
                                 code_address, code, code_size,

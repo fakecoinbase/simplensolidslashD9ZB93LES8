@@ -311,6 +311,19 @@ public:
         keyvalue_list[keyvalue_size][1] = value;
         keyvalue_size++;
     };
+    inline void clear(const uint160_t &address) {
+        if (std::getenv("EVM_DEBUG"))  std::cout << "debug: clear " << address << std::endl;
+        for (uint64_t i = 0; i < keyvalue_size; i++) {
+            if (address == account_index[keyvalue_index[i]]) {
+                keyvalue_size--;
+                if (i < keyvalue_size) {
+                    keyvalue_index[i] = keyvalue_index[keyvalue_size];
+                    keyvalue_list[i][0] = keyvalue_list[keyvalue_size][0];
+                    keyvalue_list[i][1] = keyvalue_list[keyvalue_size][1];
+                }
+            }
+        }
+    }
     inline void remove(const uint160_t &address) {
         if (std::getenv("EVM_DEBUG"))  std::cout << "debug: remove " << address << std::endl;
         for (uint64_t i = 0; i < account_size; i++) {
