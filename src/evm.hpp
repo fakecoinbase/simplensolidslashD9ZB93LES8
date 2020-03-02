@@ -2239,8 +2239,8 @@ struct CurvePoint_t {
         bigint u2 = (b.x * z1z1) % P();
         bigint s1 = (a.y * ((b.z * z2z2) % P())) % P();
         bigint s2 = (a.z * ((b.y * z1z1) % P())) % P();
-        bigint h = u2 + neg(u1);
-        bigint t = s2 + neg(s1);
+        bigint h = (u2 + neg(u1)) % P();
+        bigint t = (s2 + neg(s1)) % P();
         if (h == 0 && t == 0) { *this = a.twice(); return *this; }
         bigint _t = h + h;
         bigint i = (_t * _t) % P();
@@ -5131,9 +5131,13 @@ static void _throws(vm_bn256add)(Release release,
         if (!p2.is_valid()) _throw(INVALID_ENCODING);
     }
     G1 p3 = p1 + p2;
-    bigint x3 = p3.x;
-    bigint y3 = p3.y;
-    if (p3.is_inf()) { x3 = 0; y3 = 0; }
+    bigint x3 = 0;
+    bigint y3 = 0;
+    if (!p3.is_inf()) {
+        p3 = p3.affine();
+        x3 = p3.x;
+        y3 = p3.y;
+    }
     return_size = 2 * 32;
     _ensure_capacity(return_data, return_size, return_capacity);
     uint64_t return_offset = 0;
@@ -5162,9 +5166,13 @@ static void _throws(vm_bn256scalarmul)(Release release,
         if (!p1.is_valid()) _throw(INVALID_ENCODING);
     }
     G1 p2 = p1 * e;
-    bigint x2 = p2.x;
-    bigint y2 = p2.y;
-    if (p2.is_inf()) { x2 = 0; y2 = 0; }
+    bigint x2 = 0;
+    bigint y2 = 0;
+    if (!p2.is_inf()) {
+        p2 = p2.affine();
+        x2 = p2.x;
+        y2 = p2.y;
+    }
     return_size = 2 * 32;
     _ensure_capacity(return_data, return_size, return_capacity);
     uint64_t return_offset = 0;
