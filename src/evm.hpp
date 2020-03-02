@@ -348,7 +348,7 @@ public:
             x1 = mulmod(x1, t, v3);
             x2 = mulmod(x2, t, v3);
         }
-        return x1;
+        return x1 % v3;
     }
     static const bigint addmod(const bigint &v1, const bigint &v2, const bigint &v3) { return (v1 + v2) % v3; }
     static const bigint mulmod(const bigint &v1, const bigint &v2, const bigint &v3) { return (v1 * v2) % v3; }
@@ -734,7 +734,7 @@ struct U {
             x1 = U<2*N>::mod(U<2*N>::mul(x1, t), x3);
             x2 = U<2*N>::mod(U<2*N>::mul(x2, t), x3);
         }
-        return U<N>(x1);
+        return U<N>(U<2*N>::mod(x1, x3));
     }
 
     // does not deal properly with N = 96, when the lower word is only 32-bits
@@ -1085,7 +1085,7 @@ struct U<64> {
             x1 = U<128>::mod(U<128>::mul(x1, t), x3);
             x2 = U<128>::mod(U<128>::mul(x2, t), x3);
         }
-        return U<64>(x1);
+        return U<64>(U<128>::mod(x1, x3));
     }
 
     inline uint64_t cast64() const { return n; }
@@ -1431,7 +1431,7 @@ struct U<32> {
             x1 = (x1 * t) % x3;
             x2 = (x2 * t) % x3;
         }
-        return U<32>{(uint32_t)x1};
+        return U<32>{(uint32_t)(x1 % x3)};
     }
 
     inline uint64_t cast64() const { return n; }
