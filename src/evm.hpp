@@ -4898,9 +4898,9 @@ public:
         }
     }
     // handy methods to test/modify address state
-    void create_account(const uint160_t &address) {
+    void create_account(const uint160_t &address, bool clear_storage) {
         set_codehash(address, EMPTY_CODEHASH);
-        clear(address);
+        if (clear_storage) clear(address);
     }
     bool exists(const uint160_t &address) const {
         uint64_t nonce = get_nonce(address);
@@ -5670,7 +5670,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             bool success;
             _try({
                 if (storage.has_contract(code_address)) _trythrow(CODE_CONFLICT);
-                storage.create_account(code_address);
+                storage.create_account(code_address, true);
                 if (release >= SPURIOUS_DRAGON) storage.set_nonce(code_address, 1);
                 storage.sub_balance(owner_address, value);
                 storage.add_balance(code_address, value);
@@ -5741,7 +5741,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             uint8_t *code = storage.get_call_code(code_address, code_size);
             bool success;
             _try({
-                if (!storage.exists(code_address)) storage.create_account(code_address);
+                if (!storage.exists(code_address)) storage.create_account(code_address, false);
                 storage.sub_balance(owner_address, value);
                 storage.add_balance(code_address, value);
                 success = _catches(vm_run)(release, block, storage,
@@ -5881,7 +5881,7 @@ static bool _throws(vm_run)(Release release, Block &block, Storage &storage,
             bool success;
             _try({
                 if (storage.has_contract(code_address)) _trythrow(CODE_CONFLICT);
-                storage.create_account(code_address);
+                storage.create_account(code_address, true);
                 if (release >= SPURIOUS_DRAGON) storage.set_nonce(code_address, 1);
                 storage.sub_balance(owner_address, value);
                 storage.add_balance(code_address, value);
@@ -6025,7 +6025,7 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
         uint64_t code_size;
         uint8_t *code = storage.get_call_code(to, code_size);
         _try({
-            if (!storage.exists(to)) storage.create_account(to);
+            if (!storage.exists(to)) storage.create_account(to, false);
             storage.sub_balance(from, txn.value);
             storage.add_balance(to, txn.value);
             success = _catches(vm_run)(release, block, storage,
@@ -6042,7 +6042,7 @@ static void _throws(vm_txn)(Block &block, State &state, const uint8_t *buffer, u
     } else { // contract creation
         _try({
             if (storage.has_contract(to)) _trythrow(CODE_CONFLICT);
-            storage.create_account(to);
+            storage.create_account(to, true);
             if (release >= SPURIOUS_DRAGON) storage.set_nonce(to, 1);
             storage.sub_balance(from, txn.value);
             storage.add_balance(to, txn.value);
