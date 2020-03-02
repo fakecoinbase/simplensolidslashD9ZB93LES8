@@ -35,7 +35,7 @@
     #define _handles0(F) F _handles_args0
     #define _throw(E) { _ex = (E); return; }
     #define _throw0(E) return (_ex = (E), 0)
-    #define _try(C, X, H) { Error _exlocal = NONE; switch(0) { default: { C } } if (_exlocal != NONE) { X = _exlocal; { H } } }
+    #define _try(C, X, H) { Error _extemp = NONE; { Error _exlocal = _extemp; switch(0) { default: { C } } _extemp = _exlocal; } if (_extemp != NONE) { X = _extemp; { H } } }
     #define _catches(F) F _catches_args
     #define _trythrow(E) { _exlocal = (E); break; }
 #endif // NATIVE_EXCEPTIONS
