@@ -691,8 +691,12 @@ int main()
                                 false, 0);
                 if (success) {
                     _catches(code_size_check)(release, return_size);
-                    _catches(consume_gas)(gas, gas_create(release, return_size));
-                    storage.register_code(to, return_data, return_size);
+                    _try({
+                        _catches(consume_gas)(gas, gas_create(release, return_size));
+                        storage.register_code(to, return_data, return_size);
+                    }, Error e ,{
+                        if (release >= HOMESTEAD) _trythrow(e);
+                    })
                 }
             }, Error e, {
                 success = false;
