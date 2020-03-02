@@ -661,7 +661,7 @@ int main()
             uint64_t code_size;
             uint8_t *code = storage.get_call_code(to, code_size);
             _try({
-                if (!storage.exists(to)) storage.create_account(to);
+                if (!storage.exists(to)) storage.create_account(to, false);
                 storage.sub_balance(from, txn.value);
                 storage.add_balance(to, txn.value);
                 success = _catches(vm_run)(release, block, storage,
@@ -679,7 +679,7 @@ int main()
         } else { // contract creation
             _try({
                 if (storage.has_contract(to)) _trythrow(CODE_CONFLICT);
-                storage.create_account(to);
+                storage.create_account(to, true);
                 if (release >= SPURIOUS_DRAGON) storage.set_nonce(to, 1);
                 storage.sub_balance(from, txn.value);
                 storage.add_balance(to, txn.value);
