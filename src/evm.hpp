@@ -2170,7 +2170,7 @@ struct Gen12_t {
         Gen6 t1 = (x + y) * (x.multau() + y) - (t0 + t0.multau());
         return Gen12(t0.twice(), t1);
     }
-    bool is_one() const { Gen12 t = *this; t.canon(); return t.x.is_zero() && t.y.is_one(); }
+    bool is_one() const { Gen12 t = canon(); return t.x.is_zero() && t.y.is_one(); }
     Gen12 canon() const { return Gen12(x.canon(), y.canon()); }
     Gen12& operator=(const bigint& v) { x = 0; y = v; return *this; }
     Gen12& operator*=(const Gen12& v2) {
