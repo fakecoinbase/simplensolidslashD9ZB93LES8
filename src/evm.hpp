@@ -4670,7 +4670,7 @@ protected:
     Store<uint160_t, bool> destructed; // destruction flag
     Log logs; // storage for logs
     uint64_t refund_gas = 0; // gas refund accumulator, refund is performed at the very end
-    uint64_t refund_gas_snapshot[CALL_DEPTH]; // refund gas snapshot stack
+    uint64_t refund_gas_snapshot[CALL_DEPTH+1]; // refund gas snapshot stack
 public:
     Storage(State *_underlying) : underlying(_underlying) {}
     // nonce access methods
