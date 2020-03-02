@@ -5130,7 +5130,7 @@ static void _throws(vm_bn256add)(Release release,
     if (!(x2 == 0 && y2 == 0)) {
         if (!p2.is_valid()) _throw(INVALID_ENCODING);
     }
-    G1 p3 = (p1 + p2).affine();
+    G1 p3 = p1 + p2;
     bigint x3 = p3.x;
     bigint y3 = p3.y;
     if (p3.is_inf()) { x3 = 0; y3 = 0; }
@@ -5161,7 +5161,7 @@ static void _throws(vm_bn256scalarmul)(Release release,
     if (!(x1 == 0 && y1 == 0)) {
         if (!p1.is_valid()) _throw(INVALID_ENCODING);
     }
-    G1 p2 = (p1 * e).affine();
+    G1 p2 = p1 * e;
     bigint x2 = p2.x;
     bigint y2 = p2.y;
     if (p2.is_inf()) { x2 = 0; y2 = 0; }
