@@ -519,7 +519,19 @@ private:
         }
     };
 
-    // vm call back to clean up accounts
+    // vm call back to clear account storage
+    void clear(const uint160_t &address) {
+        eosio::print_f("debug: clear address<{0x%}>", to_string(address));
+        uint64_t acc_id = get_account(address);
+        if (acc_id > 0) {
+            auto idx = _state.get_index<"state2"_n>();
+            for (auto itr = idx.find(acc_id); itr != idx.end(); itr++) {
+                idx.erase(itr);
+            }
+        }
+    }
+
+    // vm call back to delete account
     void remove(const uint160_t &address) {
         eosio::print_f("debug: remove address<{0x%}>", to_string(address));
         uint64_t acc_id = get_account(address);
