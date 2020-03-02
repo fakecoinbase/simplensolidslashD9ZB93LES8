@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <new>
+#include <vector>
 
 #ifndef NDEBUG
 #include <cstdlib>
@@ -2530,7 +2531,7 @@ static Gen12 bn256check(const Gen12 &v)
     Gen12 t8 = ((t7 * t3.frob().conj() * t6).sqr() * t7 * t4.frob2()).sqr();
     return (t8 * t1.conj()).sqr() * t8 * t1.frob() * t2 * t2.frob();
 }
-static bool bn256pairing(G1 *a, G2 *b, uint64_t count)
+static bool bn256pairing(std::vector<G1> &a, std::vector<G2> &b, uint64_t count)
 {
     Gen12 prod; prod = 1;
     for (uint64_t i = 0; i < count; i++) {
@@ -5187,15 +5188,15 @@ static void _throws(vm_bn256pairing)(Release release,
     if (call_size % (2 * 32 + 2 * 2 * 32) != 0) _throw(INVALID_SIZE);
     uint64_t count = call_size / (2 * 32 + 2 * 2 * 32);
     _handles(consume_gas)(gas, gas_bn256pairing(release, count));
-    local<G1> curve_points_l(count); G1 *curve_points = curve_points_l.data;
-    local<G2> twist_points_l(count); G2 *twist_points = twist_points_l.data;
+    std::vector<G1> curve_points(count);
+    std::vector<G2> twist_points(count);
     uint64_t call_offset = 0;
     for (uint64_t i = 0; i < count; i++) {
         bigint x1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
         bigint y1 = bigint::from(&call_data[call_offset], 32); call_offset += 32;
         if (x1 >= G1::P()) _throw(INVALID_ENCODING);
         if (y1 >= G1::P()) _throw(INVALID_ENCODING);
-        G1 g1 = G1(x1, y1);
+        G1 g1(x1, y1);
         if (!(x1 == 0 && y1 == 0)) {
             if (!g1.is_valid()) _throw(INVALID_ENCODING);
         }
@@ -5208,7 +5209,7 @@ static void _throws(vm_bn256pairing)(Release release,
         if (xy2 >= G1::P()) _throw(INVALID_ENCODING);
         if (yx2 >= G1::P()) _throw(INVALID_ENCODING);
         if (yy2 >= G1::P()) _throw(INVALID_ENCODING);
-        G2 g2 = G2(Gen2(xx2, xy2), Gen2(yx2, yy2));
+        G2 g2(Gen2(xx2, xy2), Gen2(yx2, yy2));
         if (!(xx2 == 0 && xy2 == 0 && yx2 == 0 && yy2 == 0)) {
             if (!g2.is_valid()) _throw(INVALID_ENCODING);
         }
