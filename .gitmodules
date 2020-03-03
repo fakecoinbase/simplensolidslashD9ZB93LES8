@@ -1,0 +1,6 @@
+[submodule "support/eosio.contracts"]
+	path = support/eosio.contracts
+	url = https://github.com/EOSIO/eosio.contracts
+[submodule "support/tests"]
+	path = support/tests
+	url = https://github.com/ethereum/tests.git
