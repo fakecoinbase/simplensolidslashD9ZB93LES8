@@ -518,7 +518,7 @@ int main()
             std::cerr << txn.s << std::endl;
         }
         from = _catches(ecrecover)(h2, txn.v, txn.r, txn.s);
-        uint64_t gas = txn.gaslimit.cast64();
+        uint64_t gas = (txn.gaslimit >> 64) > 0 ? ~(uint64_t)0 : txn.gaslimit.cast64();
         _catches(consume_gas)(gas, gas_intrinsic(release, txn.has_to, txn.data, txn.data_size));
     }, Error e, {
         success = false;
