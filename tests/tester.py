@@ -458,7 +458,7 @@ int main()
     result = execFile(filename)
     if result != 0: _report("Test failure")#; os.remove(filename)
 
-def txTest(name, item, path):
+def ttTest(name, item, path):
 #    print(json.dumps(item, indent=2))
 
     try: rlp = hexToBin(item["rlp"])
@@ -552,7 +552,7 @@ int main()
     return result;
 }
 """
-        filename = "cache/tx/" + path.split('/')[-2] + "/" + name + "_" + release
+        filename = "cache/tt/" + path.split('/')[-2] + "/" + name + "_" + release
         writeFile(filename + ".cpp", src)
         result = compileFile(filename + ".cpp", filename)
         if result != 0: _report("Test fail to compile"); continue
@@ -762,13 +762,13 @@ def vmTests(filt):
             print(path, name)
             vmTest(name, item, path)
 
-def txTests(filt):
+def ttTests(filt):
     paths = listTests("./tests/TransactionTests", filePrefixes=[filt])
     for path in paths:
         data = readFile(path)
         for name, item in data.items():
             print(path, name)
-            txTest(name, item, path)
+            ttTest(name, item, path)
 
 def stTests(filt):
     paths = listTests("./tests/GeneralStateTests", filePrefixes=[filt])
@@ -786,7 +786,7 @@ def stTests(filt):
 def main():
     filt = sys.argv[1] if len(sys.argv) == 2 else ""
     vmTests(filt)
-    txTests(filt)
+    ttTests(filt)
     stTests(filt)
 
 if __name__ == '__main__': main()
