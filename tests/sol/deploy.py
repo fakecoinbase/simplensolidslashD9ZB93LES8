@@ -171,7 +171,10 @@ def txn_transfer(nonce, contract, to, amount):
     fields['gasprice'] = 1
     fields['gaslimit'] = 100000
     fields['to'] = contract
+#    fields['to'] = to
     fields['data'] = data
+#    fields['data'] = b''
+#    fields['value'] = amount
     fields['v'] = n2b(27)
     return txn_encode(fields);
 
