@@ -92,6 +92,7 @@ def valToInt(s):
 
 def hexToBin(s):
     if s[:2] == "0x": s = s[2:]
+    if len(s) > 2*4*1024: raise ValueError('too big')
     if len(s) > 0: int(s, 16) # validates
     hexv = ""
     hexs = ("0" if len(s) % 2 != 0 else "") + s
