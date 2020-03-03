@@ -4670,9 +4670,12 @@ protected:
     Store<uint160_t, bool> destructed; // destruction flag
     Log logs; // storage for logs
     uint64_t refund_gas = 0; // gas refund accumulator, refund is performed at the very end
-    uint64_t refund_gas_snapshot[CALL_DEPTH+1]; // refund gas snapshot stack
+    uint64_t *refund_gas_snapshot = nullptr; // refund gas snapshot stack
 public:
-    Storage(State *_underlying) : underlying(_underlying) {}
+    Storage(State *_underlying) : underlying(_underlying) {
+        refund_gas_snapshot = _new<uint64_t>(CALL_DEPTH+1);
+    }
+    ~Storage() { _delete(refund_gas_snapshot); }
     // nonce access methods
     uint64_t get_nonce(const uint160_t &address) const {
         return nonces.get(address, underlying->get_nonce(address));
