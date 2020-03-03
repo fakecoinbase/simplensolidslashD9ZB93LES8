@@ -1,5 +1,5 @@
 #pip3 install ecdsa pyyaml --user
-import ecdsa, json, os, subprocess, sys, yaml
+import ecdsa, json, os, subprocess, sys, time, yaml
 
 def derive_pk(e):
     signing_key = ecdsa.SigningKey.from_secret_exponent(e, curve=ecdsa.SECP256k1)
@@ -73,7 +73,12 @@ def compileFile(fnamein, fnameout):
     ])
 
 def execFile(fnamein):
-    return subprocess.call([fnamein])
+    start = time.time()
+    result = subprocess.call([fnamein])
+    end = time.time()
+    ellapsed = int((end - start) * 1000)
+    if ellapsed > 15: print("\033[93m[" + str(ellapsed) + "ms]\x1b[0m")
+    return result
 
 def hexToInt(s):
     if s[:2] == "0x": s = s[2:]
