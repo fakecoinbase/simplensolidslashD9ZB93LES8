@@ -231,14 +231,14 @@ def main():
     if not len(sys.argv) in [4, 5, 6]:
         print('usage: python3 ' + sys.argv[0] + ' address <from> <nonce>                    -- contract address')
         print('usage: python3 ' + sys.argv[0] + ' create <nonce> <binfile>                  -- contract creation transaction')
-        print('usage: python3 ' + sys.argv[0] + ' create <nonce> <binfile> <supply>         -- contract creation w/ supply transaction')
+#        print('usage: python3 ' + sys.argv[0] + ' create <nonce> <binfile> <supply>         -- contract creation w/ supply transaction')
         print('usage: python3 ' + sys.argv[0] + ' wrap <nonce> <contract> <amount>          -- token wrap transaction')
         print('usage: python3 ' + sys.argv[0] + ' unwrap <nonce> <contract> <amount>        -- token unwrap transaction')
         print('usage: python3 ' + sys.argv[0] + ' transfer <nonce> <contract> <to> <amount> -- token transfer transaction')
         print('usage: python3 ' + sys.argv[0] + ' transfer <nonce> <to> <amount>            -- native transfer transaction')
         return
     if len(sys.argv) == 4 and sys.argv[1] == 'create': print(b2h(txn_contract(int(sys.argv[2]), sys.argv[3])))
-    if len(sys.argv) == 5 and sys.argv[1] == 'create': print(b2h(txn_contract(int(sys.argv[2]), sys.argv[3], int(sys.argv[4]))))
+#    if len(sys.argv) == 5 and sys.argv[1] == 'create': print(b2h(txn_contract(int(sys.argv[2]), sys.argv[3], int(sys.argv[4]))))
     if len(sys.argv) == 4 and sys.argv[1] == 'address': print(b2h(txn_address(sys.argv[2], int(sys.argv[3]))))
     if len(sys.argv) == 5 and sys.argv[1] == 'wrap': print(b2h(txn_wrap(int(sys.argv[2]), sys.argv[3], int(sys.argv[4]))))
     if len(sys.argv) == 5 and sys.argv[1] == 'unwrap': print(b2h(txn_unwrap(int(sys.argv[2]), sys.argv[3], int(sys.argv[4]))))
