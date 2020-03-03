@@ -153,19 +153,9 @@ public:
     // - If the associated entry in the Accounts Table has no Associated EOSIO Account
     // - OR if the transaction has not been authorized by the Associated EOSIO Account
     [[eosio::action]]
-    void raw(const string& data, const checksum160& _sender) {
-        check(data.size() % 2 == 0, "hexadecimal string should have an even size");
-        uint64_t size = data.size() / 2;
-        local<uint8_t> buffer_l(size); uint8_t *buffer = buffer_l.data;
-        for (uint64_t i = 0; i < data.size(); i++) {
-            char c = data[i];
-            check(('0' <= c && c <= '9') || ('A' <= c && c <= 'F') || ('a' <= c && c <= 'f'), "invalid hexadecimal character");
-            uint64_t j = i/2;
-            buffer[j] <<= 4;
-            if (c >= 'a') { buffer[j] |= (uint8_t)(c - 'a' + 10); continue; }
-            if (c >= 'A') { buffer[j] |= (uint8_t)(c - 'A' + 10); continue; }
-            buffer[j] |= (uint8_t)(c - '0');
-        }
+    void raw(const std::vector<char>& rawdata, const checksum160& _sender) {
+        const uint8_t *buffer = (const uint8_t*)rawdata.data();
+        uint64_t size = rawdata.size();
         uint160_t sender = convert(_sender);
         struct txn txn = {0, 0, 0, false, 0, 0, nullptr, 0, false, 0, 0, 0};
         _try({
