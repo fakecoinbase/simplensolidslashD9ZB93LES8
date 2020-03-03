@@ -1,4 +1,4 @@
-#pip3 install ecdsa pyyaml --user
+# pip3 install ecdsa pyyaml --user
 import ecdsa, json, os, subprocess, sys, time, yaml
 
 def derive_pk(e):
@@ -761,7 +761,7 @@ int main()
             if result != 0: _report("Test failure")#; os.remove(filename)
 
 def vmTests(filt):
-    paths = listTests("./tests/VMTests", filePrefixes=[filt])
+    paths = listTests("../support/tests/VMTests", filePrefixes=[filt])
     for path in paths:
         data = readFile(path)
         for name, item in data.items():
@@ -769,7 +769,7 @@ def vmTests(filt):
             vmTest(name, item, path)
 
 def ttTests(filt):
-    paths = listTests("./tests/TransactionTests", filePrefixes=[filt])
+    paths = listTests("../support/tests/TransactionTests", filePrefixes=[filt])
     for path in paths:
         data = readFile(path)
         for name, item in data.items():
@@ -777,7 +777,7 @@ def ttTests(filt):
             ttTest(name, item, path)
 
 def stTests(filt):
-    paths = listTests("./tests/GeneralStateTests", filePrefixes=[filt])
+    paths = listTests("../support/tests/GeneralStateTests", filePrefixes=[filt])
     for path in paths:
         data = readFile(path)
         path_filler = path.replace('/GeneralStateTests/', '/src/GeneralStateTestsFiller/').replace('.json', 'Filler.json')
