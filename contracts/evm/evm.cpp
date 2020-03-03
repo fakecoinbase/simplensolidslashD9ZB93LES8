@@ -351,7 +351,7 @@ private:
 
     // vm callback to update the noce
     void set_nonce(const uint160_t &address, const uint64_t &nonce) {
-        eosio::print_f("debug: set_nonce address<0x%> value<0x%>", to_string(address), to_string((uint256_t)nonce));
+        //eosio::print_f("debug: set_nonce address<0x%> value<0x%>", to_string(address), to_string((uint256_t)nonce));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto itr = _account.find(acc_id);
@@ -374,7 +374,7 @@ private:
 
     // vm callback to update the balance
     void set_balance(const uint160_t &address, const uint256_t &_balance) {
-        eosio::print_f("debug: set_balance address<0x%> value<0x%>", to_string(address), to_string(_balance));
+        //eosio::print_f("debug: set_balance address<0x%> value<0x%>", to_string(address), to_string(_balance));
         check(_balance < ((uint256_t)1 << 64), "illegal state, invalid balance");
         uint64_t balance = _balance.cast64();
         uint64_t acc_id = get_account(address);
@@ -400,7 +400,7 @@ private:
 
     // vm callback to update the account codehash
     void set_codehash(const uint160_t &address, const uint256_t &codehash) {
-        eosio::print_f("debug: set_codehash address<0x%> value<0x%>", to_string(address), to_string(codehash));
+        //eosio::print_f("debug: set_codehash address<0x%> value<0x%>", to_string(address), to_string(codehash));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto idx = _code.get_index<"code2"_n>();
@@ -451,7 +451,7 @@ private:
 
     // vm call back to store code
     void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) {
-        eosio::print_f("debug: store_code codehash<0x%> value<0x%>", to_string(codehash), to_string(code, code_size));
+        //eosio::print_f("debug: store_code codehash<0x%> value<0x%>", to_string(codehash), to_string(code, code_size));
         uint64_t hash_id = id64(codehash);
         auto idx = _code.get_index<"code3"_n>();
         for (auto itr = idx.find(hash_id); itr != idx.end(); itr++) {
@@ -481,7 +481,7 @@ private:
 
     // vm callback to update the storage
     void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) {
-        eosio::print_f("debug: store address<0x%> key<0x%> value<0x%>", to_string(address), to_string(key), to_string(value));
+        //eosio::print_f("debug: store address<0x%> key<0x%> value<0x%>", to_string(address), to_string(key), to_string(value));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             uint64_t key_id = id64(acc_id, key);
@@ -499,7 +499,6 @@ private:
         }
         if (value > 0) {
             if (acc_id == 0) acc_id = insert_account(address, 0, 0, 0);
-            eosio::print_f("debug: store address<0x%> key<0x%> value<0x%>", to_string(address), to_string(key), to_string(value));
             _state.emplace(_self, [&](auto& row) {
                 row.key_id = _max(1, _state.available_primary_key());
                 row.acc_id = acc_id;
@@ -511,7 +510,7 @@ private:
 
     // vm call back to clear account storage
     void clear(const uint160_t &address) {
-        eosio::print_f("debug: clear address<{0x%}>", to_string(address));
+        //eosio::print_f("debug: clear address<{0x%}>", to_string(address));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto idx = _state.get_index<"state2"_n>();
@@ -523,7 +522,7 @@ private:
 
     // vm call back to delete account
     void remove(const uint160_t &address) {
-        eosio::print_f("debug: remove address<{0x%}>", to_string(address));
+        //eosio::print_f("debug: remove address<{0x%}>", to_string(address));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto itr = _account.find(acc_id);
@@ -592,7 +591,7 @@ private:
 
     // generates a low collision 64-bit id for 64/256-bit acc_id/keys
     static uint64_t id64(uint64_t acc_id, const checksum256 &key) {
-        return id64(convert(key));
+        return id64(acc_id, convert(key));
     }
 
     // generates a low collision 64-bit id for 64/256-bit acc_id/keys
