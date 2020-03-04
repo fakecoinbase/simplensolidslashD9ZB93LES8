@@ -27,10 +27,10 @@ The test setup and procedure is documented in a [separate file](tests/README.md)
 - The code is self contained and does not rely on additional libraries
 - The final contract .wasm is arount 200Kb (compiled with -O=z). It produces a "deadline exceeded" error when submitted but works (it seems to be the case when the .wasm is beyond 190Kb)
 - CHAIN_ID is hardcoded but can be modified by editting the interpreter [[evm.cpp](https://github.com/simplensolid/eosio-challenge-D9ZB93LES8/blob/5070afc9f55a86a544ad0f295410d130d0742bde/src/evm.hpp#L2720)]
-- The implementation supports all releases of Ethereum based on the `forknumber()` [[evm.cpp](https://github.com/simplensolid/eosio-challenge-D9ZB93LES8/blob/5070afc9f55a86a544ad0f295410d130d0742bde/contracts/evm/evm.cpp#L301)] method implemented by the contract and the `releaseforkblock` table hardcoded into the interpreter [[evm.cpp](https://github.com/simplensolid/eosio-challenge-D9ZB93LES8/blob/5070afc9f55a86a544ad0f295410d130d0742bde/src/evm.hpp#L2737)]
+- The implementation supports all releases of Ethereum based on the `forknumber()` method implemented by the contract [[evm.cpp](https://github.com/simplensolid/eosio-challenge-D9ZB93LES8/blob/5070afc9f55a86a544ad0f295410d130d0742bde/contracts/evm/evm.cpp#L301)] and the `releaseforkblock` table hardcoded into the interpreter [[evm.cpp](https://github.com/simplensolid/eosio-challenge-D9ZB93LES8/blob/5070afc9f55a86a544ad0f295410d130d0742bde/src/evm.hpp#L2737)]
 - Current block number returned is the one provided by `eosio::tapos_block_num()`, as no other alternative was found in the EOSIO platform documentation
-- All tests passed running in standalone mode (not as an EOSIO contract), except a small inconsistent set documented in [failing.txt](tests/failing.txt). For those, this implementation behaves as the reference implementation (`geth`)
-- We had to modify `max-transaction-time` and `max_block_cpu_usage` in order to be able to run our ERC-20 test
+- All tests passed running in standalone mode, except a small inconsistent set documented in [failing.txt](tests/failing.txt). For those, this implementation behaves as the reference implementation (`geth`)
+- We had to modify `max-transaction-time` and `max_block_cpu_usage` in order to be able to run our ERC-20 test (by a 10x factor)
 - The bigint and ECDSA portions of this implementation are not optimized
 
 ## Performance issues
