@@ -4472,7 +4472,9 @@ public:
     }
     void clear() {
         for (uint64_t i = 0; i < size; i++) {
-            _delete(table[i]); key_count--;
+            if (table[i] != nullptr) {
+                _delete(table[i]); key_count--;
+            }
             table[i] = nullptr;
         }
         assert(key_count == 0);
