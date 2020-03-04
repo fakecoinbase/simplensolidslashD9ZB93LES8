@@ -1,9 +1,12 @@
+# Transaction tests that seem inconsistent, expect error where it whould not happen or vice-versa
 ./tests/TransactionTests/ttGasLimit/TransactionWithGasLimitxPriceOverflow.json
 ./tests/TransactionTests/ttRSValue/TransactionWithRvalueTooHigh.json
 ./tests/TransactionTests/ttRSValue/TransactionWithSvalueLargerThan_c_secp256k1n_x05.json
 ./tests/TransactionTests/ttRSValue/TransactionWithSvalueTooHigh.json
 ./tests/TransactionTests/ttSignature/RSsecp256k1.json
 
+# General state tests that seem inconsistent regarding gas usage
+# For these tests the implementation follows the behaviour of geth
 ./tests/GeneralStateTests/stCallCreateCallCodeTest/Call1024PreCalls.json
 ./tests/GeneralStateTests/stChangedEIP150/Call1024PreCalls.json
 ./tests/GeneralStateTests/stCreate2/create2checkFieldsInInitcode.json
