@@ -343,10 +343,9 @@ public:
         v0.pack();
         bigint x1 = 1;
         bigint x2 = v1;
-        for (uint64_t n = 32*v0.W; n > 0; n--) {
-            bigint t = v0.bit(n - 1) ? x2 : x1;
-            x1 = mulmod(x1, t, v3);
-            x2 = mulmod(x2, t, v3);
+        for (uint64_t i = 32*v0.W; i > 0; i--) {
+            x1 = mulmod(x1, x1, v3);
+            if (v2.bit(i - 1)) x1 = mulmod(x1, x2, v3);
         }
         return x1 % v3;
     }
@@ -730,9 +729,8 @@ struct U {
         U<2*N> x2 = v1;
         U<2*N> x3 = v3;
         for (uint64_t i = v2.bitlen(); i > 0; i--) {
-            U<2*N> t = v2.bit(i - 1) ? x2 : x1;
-            x1 = U<2*N>::mod(U<2*N>::mul(x1, t), x3);
-            x2 = U<2*N>::mod(U<2*N>::mul(x2, t), x3);
+            x1 = U<2*N>::mod(U<2*N>::mul(x1, x1), x3);
+            if (v2.bit(i - 1)) x1 = U<2*N>::mod(U<2*N>::mul(x1, x2), x3);
         }
         return U<N>(U<2*N>::mod(x1, x3));
     }
@@ -1081,9 +1079,8 @@ struct U<64> {
         U<128> x2 = v1;
         U<128> x3 = v3;
         for (uint64_t i = v2.bitlen(); i > 0; i--) {
-            U<128> t = v2.bit(i - 1) ? x2 : x1;
-            x1 = U<128>::mod(U<128>::mul(x1, t), x3);
-            x2 = U<128>::mod(U<128>::mul(x2, t), x3);
+            x1 = U<128>::mod(U<128>::mul(x1, x1), x3);
+            if (v2.bit(i - 1)) x1 = U<128>::mod(U<128>::mul(x1, x2), x3);
         }
         return U<64>(U<128>::mod(x1, x3));
     }
@@ -1427,9 +1424,8 @@ struct U<32> {
         uint64_t x2 = (uint64_t)v1.n;
         uint64_t x3 = (uint64_t)v3.n;
         for (uint64_t i = 32; i > 0; i--) {
-            uint64_t t = v2.bit(i - 1) ? x2 : x1;
-            x1 = (x1 * t) % x3;
-            x2 = (x2 * t) % x3;
+            x1 = (x1 * x1) % x3;
+            if (v2.bit(i - 1)) x1 = (x1 * x2) % x3;
         }
         return U<32>{(uint32_t)(x1 % x3)};
     }
