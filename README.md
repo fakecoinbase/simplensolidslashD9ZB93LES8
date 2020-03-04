@@ -16,7 +16,7 @@ they are self documented with comments and written with readability in mind.
 Additional files are required for testing:
 
 - [evm.cpp](src/evm.cpp) This is the standalone environment used as base for tests
-- [teste.py](tests/tester.py) This the script that coordinates the execution of tests
+- [tester.py](tests/tester.py) This the script that coordinates the execution of tests
 - [deploy.py](tests/sol/deploy.py) This the script helps packaging EVM bytecode into unsigned transactions to be used in the raw action
 - [WSYS.sol](tests/sol/WSYS.sol) This is the sample ERC-20 contract that implements Wrapped SYS (WSYS)
 
@@ -26,10 +26,10 @@ The test setup and procedure is documented in a separate file.
 
 - The code is self contained and does not rely on additional libraries
 - The final contract .wasm is arount 200kb (compiled with -O=z)
-- CHAIN_ID is hardcoded but can be modified by editting the interpreter [evm.cpp](src/evm.hpp)
-- The implementation supports all releases of Ethereum based on the forknumber() [evm.cpp](contracts/evm/evm.cpp) method implemented by the contract and the releaseforkblock table hardcoded into the interpreter [evm.cpp](src/evm.hpp).
-- Current block number returned is the one provided by eosio::tapos_block_num()
-- All tests passed, except a small set documented in [failing.txt](tests/failing.txt) that seems inconsistent. For those, this implementation bahaves as the reference implementation (geth).
+- CHAIN_ID is hardcoded but can be modified by editting the interpreter [[evm.cpp](blob/706f0c19a579224b9f2a52b52f3af5abe3e2c377/src/evm.hpp#L2720)]
+- The implementation supports all releases of Ethereum based on the $forknumber()$ [[evm.cpp](contracts/evm/evm.cpp)] method implemented by the contract and the releaseforkblock table hardcoded into the interpreter [[evm.cpp](blob/706f0c19a579224b9f2a52b52f3af5abe3e2c377/src/evm.hpp#L2737)]
+- Current block number returned is the one provided by $eosio::tapos_block_num()$
+- All tests passed, except a small inconsistent set documented in [failing.txt](tests/failing.txt). For those, this implementation bahaves as the reference implementation ($geth$).
 
 ## Performance issues
 
