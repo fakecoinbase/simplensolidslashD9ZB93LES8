@@ -4404,6 +4404,7 @@ public:
 template<class K, class V>
 class Cache {
 private:
+    friend class CachedState;
     static constexpr int minfreeslots = 8; // free entries before rehashing 1/8 (12.5% should be free)
     static constexpr int minsize = 32; // min number of slots
     static constexpr int growthdiv = 4; // growth factor 4 means 1/4 (25% per rehashing)
@@ -4437,30 +4438,142 @@ private:
         _delete(old_table);
     }
 public:
-    ~Cache() {
-        for (uint64_t i = 0; i < size; i++) _delete(table[i]);
-        _delete(table);
-    }
-    const V &get(const K &key, const V &default_value) const {
-        if (size == 0) return default_value;
+    ~Cache() { clear(); _delete(table); }
+    const V *get(const K &key) const {
+        if (size == 0) return nullptr;
         uint64_t i = find_index(key);
         struct cache_entry *entry = table[i];
         if (entry != nullptr) {
-            if (entry->key == key) return entry->value;
+            if (entry->key == key) return &entry->value;
         }
-        return default_value;
+        return nullptr;
     }
-    void set(const K &key, const V &value, const V &default_value) {
+    void set(const K &key, const V &value) {
         if (key_count + (size / minfreeslots) >= size) grow(_max(minsize, size / growthdiv));
         uint64_t i = find_index(key);
         struct cache_entry *entry = table[i];
         if (entry == nullptr) {
-            if (value == default_value) return;
             entry = _new<struct cache_entry>(1); key_count++;
             table[i] = entry;
         }
         entry->key = key;
         entry->value = value;
+    }
+    void del(const K &key) {
+        if (size == 0) return;
+        uint64_t i = find_index(key);
+        struct cache_entry *entry = table[i];
+        if (entry != nullptr) {
+            if (entry->key == key) {
+                _delete(table[i]); key_count--;
+                table[i] = nullptr;
+            }
+        }
+    }
+    void clear() {
+        for (uint64_t i = 0; i < size; i++) {
+            _delete(table[i]); key_count--;
+            table[i] = nullptr;
+        }
+        assert(key_count == 0);
+    }
+};
+
+// provides a read cache view of the state
+class CachedState : public State {
+private:
+    State *underlying; // the abstracted state that implements the actual blockchain storage
+    mutable Cache<uint160_t, uint64_t> nonce_cache; // caches state nonce for faster access
+    mutable Cache<uint160_t, uint256_t> balance_cache; // caches state balance for faster access
+    mutable Cache<uint160_t, uint256_t> codehash_cache; // caches state codehash for faster access
+    mutable Cache<uint416_t, uint256_t> data_cache; // caches state data for faster access
+public:
+    CachedState(State *_underlying) : underlying(_underlying) {}
+    uint64_t get_nonce(const uint160_t &address) const {
+        const uint64_t *p_nonce = nonce_cache.get(address);
+        if (p_nonce != nullptr) return *p_nonce;
+        uint64_t nonce = underlying->get_nonce(address);
+        nonce_cache.set(address, nonce);
+        return nonce;
+    }
+    void set_nonce(const uint160_t &address, const uint64_t &nonce) {
+        nonce_cache.set(address, nonce);
+        underlying->set_nonce(address, nonce);
+    }
+    uint256_t get_balance(const uint160_t &address) const {
+        const uint256_t *p_balance = balance_cache.get(address);
+        if (p_balance != nullptr) return *p_balance;
+        uint256_t balance = underlying->get_balance(address);
+        balance_cache.set(address, balance);
+        return balance;
+    }
+    void set_balance(const uint160_t &address, const uint256_t &balance) {
+        balance_cache.set(address, balance);
+        underlying->set_balance(address, balance);
+    }
+    uint256_t get_codehash(const uint160_t &address) const {
+        const uint256_t *p_codehash = codehash_cache.get(address);
+        if (p_codehash != nullptr) return *p_codehash;
+        uint256_t codehash = underlying->get_codehash(address);
+        codehash_cache.set(address, codehash);
+        return codehash;
+    }
+    void set_codehash(const uint160_t &address, const uint256_t &codehash) {
+        codehash_cache.set(address, codehash);
+        underlying->set_codehash(address, codehash);
+    }
+    uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
+        return underlying->load_code(codehash, code_size);
+    }
+    void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) {
+        underlying->store_code(codehash, code, code_size);
+    }
+    uint256_t load(const uint160_t &address, const uint256_t &key) const {
+        uint416_t extkey = ((uint416_t)address << 256) | (uint416_t)key;
+        const uint256_t *p_value = data_cache.get(extkey);
+        if (p_value != nullptr) return *p_value;
+        uint256_t value = underlying->load(address, key);
+        data_cache.set(extkey, value);
+        return value;
+    }
+    void store(const uint160_t &address, const uint256_t &key, const uint256_t& value) {
+        uint416_t extkey = ((uint416_t)address << 256) | (uint416_t)key;
+        data_cache.set(extkey, value);
+        underlying->store(address, key, value);
+    }
+    void log0(const uint160_t &address, const uint8_t *data, uint64_t data_size) {
+        underlying->log0(address, data, data_size);
+    }
+    void log1(const uint160_t &address, const uint256_t &v1, const uint8_t *data, uint64_t data_size) {
+        underlying->log1(address, v1, data, data_size);
+    }
+    void log2(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint8_t *data, uint64_t data_size) {
+        underlying->log2(address, v1, v2, data, data_size);
+    }
+    void log3(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint8_t *data, uint64_t data_size) {
+        underlying->log3(address, v1, v2, v3, data, data_size);
+    }
+    void log4(const uint160_t &address, const uint256_t &v1, const uint256_t &v2, const uint256_t &v3, const uint256_t &v4, const uint8_t *data, uint64_t data_size) {
+        underlying->log4(address, v1, v2, v3, v4, data, data_size);
+    }
+    void clear(const uint160_t &address) {
+        underlying->clear(address);
+        for (uint64_t i = 0; i < data_cache.size; i++) {
+            auto entry = data_cache.table[i];
+            if (entry != nullptr) {
+                uint160_t _address = (uint160_t)(entry->key >> 256);
+                if (_address == address) {
+                    _delete(data_cache.table[i]); data_cache.key_count--;
+                    data_cache.table[i] = nullptr;
+                }
+            }
+        }
+    }
+    void remove(const uint160_t &address) {
+        underlying->remove(address);
+        nonce_cache.del(address);
+        balance_cache.del(address);
+        codehash_cache.del(address);
     }
 };
 
@@ -4734,10 +4847,10 @@ public:
 // storage is written to the blockchain state at the end of a successful transaction 
 class Storage : public State, public Transactional {
 protected:
-    State *underlying; // the abstracted state that implements the actual blockchain storage
+    CachedState state; // the cached state that implements the actual blockchain storage
     Store<uint160_t, uint64_t> nonces; // storage area for nonces
     Store<uint160_t, uint256_t> balances; // storage area for balances
-    Store<uint160_t, uint256_t> contracts; // storage area for code
+    Store<uint160_t, uint256_t> codehashes; // storage area for code
     Store<uint416_t, uint256_t> data; // storage area for data
     Store<uint160_t, bool> created; // creation flag
     Store<uint160_t, bool> destructed; // destruction flag
@@ -4745,26 +4858,26 @@ protected:
     uint64_t refund_gas = 0; // gas refund accumulator, refund is performed at the very end
     uint64_t *refund_gas_snapshot = nullptr; // refund gas snapshot stack
 public:
-    Storage(State *_underlying) : underlying(_underlying) {
+    Storage(State *_underlying) : state(_underlying) {
         refund_gas_snapshot = _new<uint64_t>(CALL_DEPTH+1);
     }
     ~Storage() { _delete(refund_gas_snapshot); }
     // nonce access methods
     uint64_t get_nonce(const uint160_t &address) const {
-        return nonces.get(address, underlying->get_nonce(address));
+        return nonces.get(address, state.get_nonce(address));
     }
     void set_nonce(const uint160_t &address, const uint64_t &nonce) {
-        nonces.set(address, nonce, underlying->get_nonce(address));
+        nonces.set(address, nonce, state.get_nonce(address));
     }
     void increment_nonce(const uint160_t &address) {
         set_nonce(address, get_nonce(address) + 1);
     }
     // balance access methods
     uint256_t get_balance(const uint160_t &address) const {
-        return balances.get(address, underlying->get_balance(address));
+        return balances.get(address, state.get_balance(address));
     }
     void set_balance(const uint160_t &address, const uint256_t &balance) {
-        balances.set(address, balance, underlying->get_balance(address));
+        balances.set(address, balance, state.get_balance(address));
     }
     void add_balance(const uint160_t &address, uint256_t amount) {
         set_balance(address, get_balance(address) + amount);
@@ -4774,16 +4887,16 @@ public:
     }
     // code access methods
     uint256_t get_codehash(const uint160_t &address) const {
-        return contracts.get(address, underlying->get_codehash(address));
+        return codehashes.get(address, state.get_codehash(address));
     }
     void set_codehash(const uint160_t &address, const uint256_t &codehash) {
-        contracts.set(address, codehash, underlying->get_codehash(address));
+        codehashes.set(address, codehash, state.get_codehash(address));
     }
     uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
-        return underlying->load_code(codehash, code_size);
+        return state.load_code(codehash, code_size);
     }
     void store_code(const uint256_t &codehash, const uint8_t *code, uint64_t code_size) {
-        underlying->store_code(codehash, code, code_size);
+        state.store_code(codehash, code, code_size);
     }
     uint8_t *get_code(const uint160_t &address, uint64_t &code_size) const {
         return load_code(get_codehash(address), code_size);
@@ -4818,7 +4931,7 @@ public:
     }
     // loads original value directly from the state
     uint256_t _load(const uint160_t &address, const uint256_t &key) const {
-        return created.get(address, false) ? 0 : underlying->load(address, key);
+        return created.get(address, false) ? 0 : state.load(address, key);
     }
     // address storage clearing
     void clear(const uint160_t &address) {
@@ -4862,7 +4975,7 @@ public:
     uint64_t snapshot() {
         uint64_t serial1 = nonces.snapshot();
         uint64_t serial2 = balances.snapshot();
-        uint64_t serial3 = contracts.snapshot();
+        uint64_t serial3 = codehashes.snapshot();
         uint64_t serial4 = data.snapshot();
         uint64_t serial5 = created.snapshot();
         uint64_t serial6 = destructed.snapshot();
@@ -4881,7 +4994,7 @@ public:
         uint64_t serial2 = serial & 0xffffffff;
         nonces.commit(serial1);
         balances.commit(serial1);
-        contracts.commit(serial1);
+        codehashes.commit(serial1);
         data.commit(serial1);
         created.commit(serial1);
         destructed.commit(serial1);
@@ -4892,7 +5005,7 @@ public:
         uint64_t serial2 = serial & 0xffffffff;
         nonces.rollback(serial1);
         balances.rollback(serial1);
-        contracts.rollback(serial1);
+        codehashes.rollback(serial1);
         data.rollback(serial1);
         created.rollback(serial1);
         destructed.rollback(serial1);
@@ -4911,14 +5024,14 @@ public:
         for (uint64_t i = 0; i < created.size; i++) {
             for (auto keys = created.table[i]; keys != nullptr; keys = keys->next) {
                 if (keys->values != nullptr) {
-                    if (keys->values->value) underlying->clear(keys->key);
+                    if (keys->values->value) state.clear(keys->key);
                 }
             }
         }
         for (uint64_t i = 0; i < nonces.size; i++) {
             for (auto keys = nonces.table[i]; keys != nullptr; keys = keys->next) {
                 if (keys->values != nullptr) {
-                    underlying->set_nonce(keys->key, keys->values->value);
+                    state.set_nonce(keys->key, keys->values->value);
                     touched.set(keys->key, true, false);
                 }
             }
@@ -4926,15 +5039,15 @@ public:
         for (uint64_t i = 0; i < balances.size; i++) {
             for (auto keys = balances.table[i]; keys != nullptr; keys = keys->next) {
                 if (keys->values != nullptr) {
-                    underlying->set_balance(keys->key, keys->values->value);
+                    state.set_balance(keys->key, keys->values->value);
                     touched.set(keys->key, true, false);
                 }
             }
         }
-        for (uint64_t i = 0; i < contracts.size; i++) {
-            for (auto keys = contracts.table[i]; keys != nullptr; keys = keys->next) {
+        for (uint64_t i = 0; i < codehashes.size; i++) {
+            for (auto keys = codehashes.table[i]; keys != nullptr; keys = keys->next) {
                 if (keys->values != nullptr) {
-                    underlying->set_codehash(keys->key, keys->values->value);
+                    state.set_codehash(keys->key, keys->values->value);
                     touched.set(keys->key, true, false);
                 }
             }
@@ -4944,32 +5057,32 @@ public:
                 uint160_t address = (uint160_t)(keys->key >> 256);
                 uint256_t key = (uint256_t)keys->key;
                 if (keys->values != nullptr) {
-                    underlying->store(address, key, keys->values->value);
+                    state.store(address, key, keys->values->value);
                 }
             }
         }
         for (uint64_t i = 0; i < destructed.size; i++) {
             for (auto keys = destructed.table[i]; keys != nullptr; keys = keys->next) {
                 if (keys->values != nullptr) {
-                    if (keys->values->value) underlying->remove(keys->key);
+                    if (keys->values->value) state.remove(keys->key);
                 }
             }
         }
         for (uint64_t i = 0; i < touched.size; i++) {
             for (auto keys = touched.table[i]; keys != nullptr; keys = keys->next) {
                 if (keys->values != nullptr) {
-                    if (is_empty(keys->key)) underlying->remove(keys->key);
+                    if (is_empty(keys->key)) state.remove(keys->key);
                 }
             }
         }
         for (uint64_t i = 0; i < logs.count; i++) {
             auto entry = &logs.entries[i];
             switch (entry->topic_count) {
-            case 0: underlying->log0(entry->address, entry->data, entry->data_size); break;
-            case 1: underlying->log1(entry->address, entry->topics[0], entry->data, entry->data_size); break;
-            case 2: underlying->log2(entry->address, entry->topics[0], entry->topics[1], entry->data, entry->data_size); break;
-            case 3: underlying->log3(entry->address, entry->topics[0], entry->topics[1], entry->topics[2], entry->data, entry->data_size); break;
-            case 4: underlying->log4(entry->address, entry->topics[0], entry->topics[1], entry->topics[2], entry->topics[3], entry->data, entry->data_size); break;
+            case 0: state.log0(entry->address, entry->data, entry->data_size); break;
+            case 1: state.log1(entry->address, entry->topics[0], entry->data, entry->data_size); break;
+            case 2: state.log2(entry->address, entry->topics[0], entry->topics[1], entry->data, entry->data_size); break;
+            case 3: state.log3(entry->address, entry->topics[0], entry->topics[1], entry->topics[2], entry->data, entry->data_size); break;
+            case 4: state.log4(entry->address, entry->topics[0], entry->topics[1], entry->topics[2], entry->topics[3], entry->data, entry->data_size); break;
             }
         }
     }
