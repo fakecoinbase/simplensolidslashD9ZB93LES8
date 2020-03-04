@@ -2,6 +2,9 @@
 #include <eosio/eosio.hpp>
 #include <eosio/system.hpp>
 #include <eosio/transaction.hpp>
+#include <eosio/crypto.hpp>
+
+#define NATIVE_CRYPTO
 
 #include "../../src/evm.hpp"
 
@@ -560,7 +563,7 @@ private:
             to_string(address), to_string(topic1), to_string(topic2), to_string(topic3), to_string(topic4), to_string(data, data_size));
     }
 
-private:
+public:
 
     // generates a low collision 64-bit id for 160-bit addresses
     static uint64_t id64(const checksum160 &address) {
@@ -693,5 +696,36 @@ private:
         }
         return string(buffer, buffer + 2*size);
     }
-
 };
+
+#ifdef NATIVE_CRYPTO
+static uint160_t _ecrecover(const uint256_t &h, const uint256_t &v, const uint256_t &r, uint256_t &s)
+{
+    eosio::ecc_signature eccsig;
+    auto input = eccsig.data();
+    input[0] = v == 27 ? 27 : 28;
+    uint256_t::to(r, (uint8_t*)&input[1]);
+    uint256_t::to(s, (uint8_t*)&input[33]);
+    eosio::signature sig{std::in_place_index<0>, eccsig};
+    eosio::ecc_public_key pk = std::get<0>(eosio::recover_key(evm::convert(h), sig));
+    auto output = pk.data();
+    bigint x = bigint::from((uint8_t*)&output[1], 32);
+    static const bigint P = big(p_);
+    bigint y = bigint::powmod(((x * x) % P * x) % P + 7, (P + 1) / 4, P);
+    if ((output[0] == 3) == ((y % 2) == 0)) y = P - y;
+    local<uint8_t> buffer_l(64); uint8_t *buffer = buffer_l.data;
+    uint64_t offset = 0;
+    bigint::to(x, &buffer[offset], 32); offset += 32;
+    bigint::to(y, &buffer[offset], 32); offset += 32;
+    uint160_t a = (uint160_t)sha3(buffer, 64);
+    eosio::printhex(buffer, 64);
+    return a;
+}
+static inline uint256_t sha256(const uint8_t *buffer, uint64_t size)
+{
+    return evm::convert(eosio::sha256((const char*)buffer, size));
+}
+static inline uint160_t ripemd160(const uint8_t *buffer, uint64_t size) {
+    return evm::convert(eosio::ripemd160((const char*)buffer, size));
+}
+#endif // NATIVE_CRYPTO

@@ -1815,12 +1815,16 @@ static void sha256(const uint8_t *message, uint64_t size, bool compressed, uint8
     w2b32be(s6, &output[24]);
     w2b32be(s7, &output[28]);
 }
+#ifdef NATIVE_CRYPTO
+static uint256_t sha256(const uint8_t *buffer, uint64_t size);
+#else
 static uint256_t sha256(const uint8_t *buffer, uint64_t size)
 {
     uint8_t output[32];
     sha256(buffer, size, false, output);
     return uint256_t::from(output);
 }
+#endif // NATIVE_CRYPTO
 
 // ripemd160 implementation and auxiliary functions
 static inline uint32_t b2w32le(const uint8_t *b)
@@ -1947,12 +1951,16 @@ static void ripemd160(const uint8_t *message, uint64_t size, bool compressed, ui
     w2b32le(s3, &output[12]);
     w2b32le(s4, &output[16]);
 }
+#ifdef NATIVE_CRYPTO
+static uint160_t ripemd160(const uint8_t *buffer, uint64_t size);
+#else
 static uint160_t ripemd160(const uint8_t *buffer, uint64_t size)
 {
     uint8_t output[20];
     ripemd160(buffer, size, false, output);
     return uint160_t::from(output);
 }
+#endif // NATIVE_CRYPTO
 
 // blake2f internal cipher implementation and auxiliary functions
 static inline uint64_t ror(uint64_t x, int n) { return (x << (64 - n)) ^ (x >> n); }
