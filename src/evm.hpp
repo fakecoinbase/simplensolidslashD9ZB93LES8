@@ -4400,6 +4400,70 @@ public:
     virtual void remove(const uint160_t &address) = 0;
 };
 
+// simple cache implementation, maps keys into values
+template<class K, class V>
+class Cache {
+private:
+    static constexpr int minfreeslots = 8; // free entries before rehashing 1/8 (12.5% should be free)
+    static constexpr int minsize = 32; // min number of slots
+    static constexpr int growthdiv = 4; // growth factor 4 means 1/4 (25% per rehashing)
+    struct cache_entry {
+        K key;
+        V value;
+    };
+    uint64_t size = 0; // hash table size
+    struct cache_entry **table = nullptr; // hash table
+    uint64_t key_count = 0; // number os keys in the hash table
+    uint64_t find_index(const K &key) const { return key.murmur3(0) % size; }
+    void grow(uint64_t increment) {
+        uint64_t new_size = size + increment;
+        struct cache_entry **new_table = _new<struct cache_entry*>(new_size);
+        for (uint64_t i = 0; i < new_size; i++) new_table[i] = nullptr;
+        struct cache_entry **old_table = table;
+        uint64_t old_size = size;
+        table = new_table;
+        size = new_size;
+        // rehashing
+        for (uint64_t i = 0; i < old_size; i++) {
+            struct cache_entry *entry = old_table[i];
+            if (entry != nullptr) {
+                uint64_t j = find_index(entry->key);
+                if (table[j] != nullptr) {
+                    _delete(table[j]); key_count--;
+                }
+                table[j] = entry;
+            }
+        }
+        _delete(old_table);
+    }
+public:
+    ~Cache() {
+        for (uint64_t i = 0; i < size; i++) _delete(table[i]);
+        _delete(table);
+    }
+    const V &get(const K &key, const V &default_value) const {
+        if (size == 0) return default_value;
+        uint64_t i = find_index(key);
+        struct cache_entry *entry = table[i];
+        if (entry != nullptr) {
+            if (entry->key == key) return entry->value;
+        }
+        return default_value;
+    }
+    void set(const K &key, const V &value, const V &default_value) {
+        if (key_count + (size / minfreeslots) >= size) grow(_max(minsize, size / growthdiv));
+        uint64_t i = find_index(key);
+        struct cache_entry *entry = table[i];
+        if (entry == nullptr) {
+            if (value == default_value) return;
+            entry = _new<struct cache_entry>(1); key_count++;
+            table[i] = entry;
+        }
+        entry->key = key;
+        entry->value = value;
+    }
+};
+
 // simple interface that defines the three operations associated with
 // transactional state
 class Transactional {
@@ -4435,7 +4499,7 @@ private:
     struct key_list **table = nullptr; // hash table, each entry is a list of keys each pointing to a list of values
     uint64_t key_count = 0; // number os keys in the hash table
     uint64_t serial = 1; // serial number used to mark snapshots
-    uint64_t find_index(const K &key) const { return (key % size).cast64(); }
+    uint64_t find_index(const K &key) const { return key.murmur3(0) % size; }
     void grow(uint64_t increment) {
         uint64_t new_size = size + increment;
         struct key_list **new_table = _new<struct key_list*>(new_size);
@@ -4455,6 +4519,7 @@ private:
                 keys = next;
             }
         }
+        _delete(old_table);
     }
 public:
     ~Store() { rollback(0); _delete(table); }
@@ -4470,7 +4535,7 @@ public:
         return default_value;
     }
     void set(const K &key, const V &value, const V &default_value) {
-        if (key_count >= size / avgmaxperslot) grow(_max(minsize, size / growthdiv));
+        if (key_count / avgmaxperslot >= size) grow(_max(minsize, size / growthdiv));
         uint64_t i = find_index(key);
         struct key_list *prev = nullptr;
         struct key_list *keys = table[i];
