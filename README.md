@@ -11,7 +11,7 @@ The two relevant files regarding the EOSIO EVM contract are:
 - [evm.hpp](src/evm.hpp) This is a portable self-contained EVM interpreter
 - [evm.cpp](contracts/evm/evm.cpp) This is the contract carrying EOSIO specifics
 
-they are self documented with comments and written with readability in mind.
+these are self documented with comments and written with readability in mind.
 
 Additional files are required for testing:
 
@@ -20,16 +20,16 @@ Additional files are required for testing:
 - [deploy.py](tests/sol/deploy.py) This the script helps packaging EVM bytecode into unsigned transactions to be used in the raw action
 - [WSYS.sol](tests/sol/WSYS.sol) This is the sample ERC-20 contract that implements Wrapped SYS (WSYS)
 
-The test setup and procedure is documented in a separate file.
+The test setup and procedure is documented in a [separate file](tests/README.md).
 
 ## Observations
 
 - The code is self contained and does not rely on additional libraries
 - The final contract .wasm is arount 200kb (compiled with -O=z)
-- CHAIN_ID is hardcoded but can be modified by editting the interpreter [[evm.cpp](blob/706f0c19a579224b9f2a52b52f3af5abe3e2c377/src/evm.hpp#L2720)]
-- The implementation supports all releases of Ethereum based on the $forknumber()$ [[evm.cpp](contracts/evm/evm.cpp)] method implemented by the contract and the releaseforkblock table hardcoded into the interpreter [[evm.cpp](blob/706f0c19a579224b9f2a52b52f3af5abe3e2c377/src/evm.hpp#L2737)]
-- Current block number returned is the one provided by $eosio::tapos_block_num()$
-- All tests passed, except a small inconsistent set documented in [failing.txt](tests/failing.txt). For those, this implementation bahaves as the reference implementation ($geth$).
+- CHAIN_ID is hardcoded but can be modified by editting the interpreter [[evm.cpp](https://github.com/simplensolid/eosio-challenge-D9ZB93LES8/blob/5070afc9f55a86a544ad0f295410d130d0742bde/src/evm.hpp#L2720)]
+- The implementation supports all releases of Ethereum based on the $forknumber()$ [[evm.cpp](https://github.com/simplensolid/eosio-challenge-D9ZB93LES8/blob/5070afc9f55a86a544ad0f295410d130d0742bde/contracts/evm/evm.cpp#L301)] method implemented by the contract and the releaseforkblock table hardcoded into the interpreter [[evm.cpp](https://github.com/simplensolid/eosio-challenge-D9ZB93LES8/blob/5070afc9f55a86a544ad0f295410d130d0742bde/src/evm.hpp#L2737)]
+- Current block number returned is the one provided by $eosio::tapos_block_num()$, as no other alternative was found in the EOSIO platform documentation
+- All tests passed, except a small inconsistent set documented in [failing.txt](tests/failing.txt). For those, this implementation bahaves as the reference implementation ($geth$)
 
 ## Performance issues
 
