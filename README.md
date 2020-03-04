@@ -4,7 +4,7 @@ This is a "to-the-point" documentation. Please get in touch should you have any 
 
 The submission implements all the functionality featured in the technical requirements.
 
-# Basic Structure
+# Structure
 
 The two relevant files regarding the EOSIO EVM contract are:
 
@@ -22,13 +22,13 @@ Additional files are required for testing:
 
 The test setup and procedure is documented in a [separate file](tests/README.md).
 
-## Observations
+## Notes
 
 - The code is self contained and does not rely on additional libraries
 - The final contract .wasm is arount 200kb (compiled with -O=z)
 - CHAIN_ID is hardcoded but can be modified by editting the interpreter [[evm.cpp](https://github.com/simplensolid/eosio-challenge-D9ZB93LES8/blob/5070afc9f55a86a544ad0f295410d130d0742bde/src/evm.hpp#L2720)]
-- The implementation supports all releases of Ethereum based on the $forknumber()$ [[evm.cpp](https://github.com/simplensolid/eosio-challenge-D9ZB93LES8/blob/5070afc9f55a86a544ad0f295410d130d0742bde/contracts/evm/evm.cpp#L301)] method implemented by the contract and the releaseforkblock table hardcoded into the interpreter [[evm.cpp](https://github.com/simplensolid/eosio-challenge-D9ZB93LES8/blob/5070afc9f55a86a544ad0f295410d130d0742bde/src/evm.hpp#L2737)]
-- Current block number returned is the one provided by $eosio::tapos_block_num()$, as no other alternative was found in the EOSIO platform documentation
+- The implementation supports all releases of Ethereum based on the `forknumber()` [[evm.cpp](https://github.com/simplensolid/eosio-challenge-D9ZB93LES8/blob/5070afc9f55a86a544ad0f295410d130d0742bde/contracts/evm/evm.cpp#L301)] method implemented by the contract and the `releaseforkblock` table hardcoded into the interpreter [[evm.cpp](https://github.com/simplensolid/eosio-challenge-D9ZB93LES8/blob/5070afc9f55a86a544ad0f295410d130d0742bde/src/evm.hpp#L2737)]
+- Current block number returned is the one provided by `eosio::tapos_block_num()`, as no other alternative was found in the EOSIO platform documentation
 - All tests passed, except a small inconsistent set documented in [failing.txt](tests/failing.txt). For those, this implementation bahaves as the reference implementation ($geth$)
 
 ## Performance issues
