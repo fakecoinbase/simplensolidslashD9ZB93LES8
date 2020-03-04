@@ -1695,7 +1695,7 @@ static void sha3(const uint8_t *message, uint64_t size, bool compressed, uint64_
 }
 static uint256_t sha3(const uint8_t *buffer, uint64_t size)
 {
-    uint8_t output[64];
+    local<uint8_t> output_l(64); uint8_t *output = output_l.data;
     sha3(buffer, size, false, 1088, 0x01, output);
     return uint256_t::from(output);
 }
@@ -1820,7 +1820,7 @@ static uint256_t sha256(const uint8_t *buffer, uint64_t size);
 #else
 static uint256_t sha256(const uint8_t *buffer, uint64_t size)
 {
-    uint8_t output[32];
+    local<uint8_t> output_l(32); uint8_t *output = output_l.data;
     sha256(buffer, size, false, output);
     return uint256_t::from(output);
 }
@@ -1956,7 +1956,7 @@ static uint160_t ripemd160(const uint8_t *buffer, uint64_t size);
 #else
 static uint160_t ripemd160(const uint8_t *buffer, uint64_t size)
 {
-    uint8_t output[20];
+    local<uint8_t> output_l(20); uint8_t *output = output_l.data;
     ripemd160(buffer, size, false, output);
     return uint160_t::from(output);
 }
