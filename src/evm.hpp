@@ -332,9 +332,8 @@ public:
         bigint x1 = 1;
         bigint x2 = v1;
         for (uint64_t n = 32*v0.W; n > 0; n--) {
-            bigint t = v0.bit(n - 1) ? x2 : x1;
-            x1 *= t;
-            x2 *= t;
+            x1 *= x1;
+            if (v0.bit(n - 1)) x1 *= x2;
         }
         return x1;
     }
@@ -690,9 +689,8 @@ struct U {
         U<N> x1 = 1;
         U<N> x2 = v1;
         for (uint64_t i = v2.bitlen(); i > 0; i--) {
-            U<N> t = v2.bit(i - 1) ? x2 : x1;
-            U<N>::_mul(x1, t);
-            U<N>::_mul(x2, t);
+            U<N>::_mul(x1, x1);
+            if (v2.bit(i - 1)) U<N>::_mul(x1, x2);
         }
         return x1;
     }
@@ -1051,9 +1049,8 @@ struct U<64> {
         uint64_t x1 = 1;
         uint64_t x2 = v1.n;
         for (uint64_t i = 32; i > 0; i--) {
-            uint64_t t = v2.bit(i - 1) ? x2 : x1;
-            x1 *= t;
-            x2 *= t;
+            x1 *= x1;
+            if (v2.bit(i - 1)) x1 *= x2;
         }
         return x1;
     }
@@ -1396,9 +1393,8 @@ struct U<32> {
         uint32_t x1 = 1;
         uint32_t x2 = v1.n;
         for (uint64_t i = 32; i > 0; i--) {
-            uint32_t t = v2.bit(i - 1) ? x2 : x1;
-            x1 *= t;
-            x2 *= t;
+            x1 *= x1;
+            if (v2.bit(i - 1)) x1 *= x2;
         }
         return x1;
     }
