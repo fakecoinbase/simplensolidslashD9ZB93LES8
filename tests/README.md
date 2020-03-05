@@ -1,25 +1,29 @@
-## Configuration
+## Test Configuration
 
-Bellow are the steps required to setup and reproduce the environment for this submission.
+Here we provide the steps required to setup and reproduce the environment for this submission.
 
 The whole setup can be skiped by using the provided docker configuration
 
     $ docker/start.sh
 
-However we do replicate the steps in this document in case docker is not suitable.
+However we do replicate the steps in this document in case docker use is not suitable.
 
-Note that for all examples we assume Ubuntu 18.04 is the underlying platform.
-
-Use the following command to get a Ubuntu 18.04 docker running in the project folder:
+Note that for all examples we assume Ubuntu 18.04 is the underlying platform. Use the following command to get a Ubuntu 18.04 docker running in the project folder:
 
     $ docker run -it -v $PWD/:/home/eosio/ -w /home/eosio/ ubuntu:18.04
 
-### Setting up the EOSIO environment
+## Cloning the repository
+
+Perform a deep clone of the repository and its submodules:
+
+    $ git clone --recursive git@github.com:simplensolid/eosio-challenge-D9ZB93LES8.git
+
+## Setting up the EOSIO environment
 
 There are the steps to get the EOSIO blockchain and environment running.
 
-We have modified two parameters from the default configuration. Both max-transaction-time and max_transaction_cpu_usage
-were increased by a factor of 10. Since we are running a interpreter 10x seems a reasonable measure for the performance penalty.
+We have modified two parameters from the default configuration. Both `max-transaction-time` and `max_transaction_cpu_usage`
+were increased by a factor of 10x. Since we are running a interpreter 10x seems a reasonable measure for the performance penalty.
 
     $ apt-get update
     $ apt-get install -y libcurl3-gnutls libtinfo5 libusb-1.0-0 wget
@@ -58,6 +62,8 @@ There are the steps to configure the SYS token in the local EOS blockchain:
     $ cleos set contract eosio.token . --abi eosio.token.abi -p eosio.token@active
     $ cleos push action eosio.token create '["eosio", "1000000000.0000 SYS"]' -p eosio.token@active
     $ cleos push action eosio.token issue '["eosio", "10000.0000 SYS", "memo"]' -p eosio@active
+
+The SYS token has a cap of 1 billion with 10k issued upfront.
 
 ### Setting up the EVM contract
 
@@ -104,13 +110,11 @@ It produces a WSYS.bin file that can then wrapped in a transaction and sent to t
 
 ### Running the test suite
 
-This software was tested using the test suite provided. A great effort was put to get every single test through.
-
-The implementation tested was a standalone version generated and compiled for each test (the files are stored in the tests/cache folder).
+This software was tested using the test suite provided. A great effort was put to get every single test through. The implementation tested was a standalone version generated and compiled for each test (the files are stored in the tests/cache folder).
 
 Therefore it tests the interpreter, and not the actual contract.
 
-Following is the setup steps to execute the test suite.
+This is is the setup steps to execute the test suite:
 
     $ apt-get update
     $ apt-get install -y g++ python3 python3-pip
