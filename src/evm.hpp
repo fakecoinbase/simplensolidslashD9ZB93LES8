@@ -411,6 +411,15 @@ static bigint big(const char *s)
     return t;
 }
 
+#ifdef NATIVE_CRYPTO
+static bigint bigmodexp(const bigint& base, const bigint& exp, const bigint& mod);
+#else
+static bigint bigmodexp(const bigint& base, const bigint& exp, const bigint& mod)
+{
+    return bigint::powmod(base, exp, mod);
+}
+#endif // NATIVE_CRYPTO
+
 // ** U<N> **
 
 // provides a fixed length, multiple of 32-bit, n-bits unsigned integer
@@ -1685,12 +1694,16 @@ static void sha3(const uint8_t *message, uint64_t size, bool compressed, uint64_
     w2b64le(s[1][1], &output[48]);
     w2b64le(s[2][1], &output[56]);
 }
+#ifdef NATIVE_CRYPTO
+static uint256_t sha3(const uint8_t *buffer, uint64_t size);
+#else
 static uint256_t sha3(const uint8_t *buffer, uint64_t size)
 {
     local<uint8_t> output_l(64); uint8_t *output = output_l.data;
     sha3(buffer, size, false, 1088, 0x01, output);
     return uint256_t::from(output);
 }
+#endif // NATIVE_CRYPTO
 
 // sha256 implementation and auxiliary functions
 static inline uint32_t ch(uint32_t x, uint32_t y, uint32_t z) { return (x & (y ^ z)) ^ z; }
@@ -1970,10 +1983,17 @@ static inline void mix(
     b = ror(b ^ c, 63);
     _a = a; _b = b; _c = c; _d = d;
 }
+#ifdef NATIVE_CRYPTO
 static void blake2f(const uint32_t ROUNDS,
     uint64_t &h0, uint64_t &h1, uint64_t &h2, uint64_t &h3,
     uint64_t &h4, uint64_t &h5, uint64_t &h6, uint64_t &h7,
-    uint64_t w[16], uint64_t t0, uint64_t t1, bool last_chunk) {
+    uint64_t w[16], uint64_t t0, uint64_t t1, bool last_chunk);
+#else
+static void blake2f(const uint32_t ROUNDS,
+    uint64_t &h0, uint64_t &h1, uint64_t &h2, uint64_t &h3,
+    uint64_t &h4, uint64_t &h5, uint64_t &h6, uint64_t &h7,
+    uint64_t w[16], uint64_t t0, uint64_t t1, bool last_chunk)
+{
     static const uint8_t SIGMA[10][16] = {
         {  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15 },
         { 14, 10,  4,  8,  9, 15, 13,  6,  1, 12,  0,  2, 11,  7,  5,  3 },
@@ -2023,6 +2043,7 @@ static void blake2f(const uint32_t ROUNDS,
     h6 ^= v6 ^ v14;
     h7 ^= v7 ^ v15;
 }
+#endif // NATIVE_CRYPTO
 
 // ** elliptic curves **
 
@@ -2272,7 +2293,7 @@ struct CurvePoint_t {
     static bigint P() { static bigint P = big(_P); return P; }
 };
 
-// the dual twisted point to the curve point
+// the dual twist point to the curve point
 // parameterized over the pair of coordinates and order Q
 // required by this implemenation only to perform bn256 pairing
 // not made completely general as some constants for bn256 are inlined
@@ -2374,9 +2395,10 @@ static const char q_[] = "115792089237316195423570985008687907852837564279074904
 // seckp256k1 curve definition
 using G0 = CurvePoint_t<p_, 7>;
 
-// secp256k1 publickey (in fact 160-bit address) recovery from signature
-// it follows the elliptic curve algorithm
-static uint160_t _throws(ecrecover)(const uint256_t &_h, const uint256_t &_v, const uint256_t &_r, const uint256_t &_s)
+#ifdef NATIVE_CRYPTO
+static G0 ecrecover(const uint256_t &_h, const uint256_t &_v, const uint256_t &_r, const uint256_t &_s);
+#else
+static G0 ecrecover(const uint256_t &_h, const uint256_t &_v, const uint256_t &_r, const uint256_t &_s)
 {
     static const bigint P = big(p_);
     static const bigint Q = big(q_);
@@ -2389,23 +2411,33 @@ static uint160_t _throws(ecrecover)(const uint256_t &_h, const uint256_t &_v, co
     bigint v = uint256_t::to_big(_v);
     bigint r = uint256_t::to_big(_r);
     bigint s = uint256_t::to_big(_s);
-    if (v < 27 || v > 28) _throw0(INVALID_SIGNATURE);
-    if (r == 0 || r >= P) _throw0(INVALID_SIGNATURE);
-    if (s == 0 || r >= P) _throw0(INVALID_SIGNATURE);
     bigint y = bigint::powmod(((r * r) % P * r) % P + 7, (P + 1) / 4, P);
     if ((v == 28) == ((y % 2) == 0)) y = P - y;
     G0 q(r, y);
-    if (!q.is_valid()) _throw0(INVALID_SIGNATURE);
+    if (!q.is_valid()) return G0(0, 0);
     bigint u = Q - (h % Q);
     bigint z = bigint::powmod(r, Q - 2, Q);
     G0 t = ((q * s) + (G * u)) * z;
     t = t.affine();
-    uint8_t buffer[64];
+    return t;
+}
+#endif // NATIVE_CRYPTO
+
+// secp256k1 publickey (in fact 160-bit address) recovery from signature
+// it follows the elliptic curve algorithm
+static uint160_t _throws(ecrecover)(const uint256_t &h, const uint256_t &v, const uint256_t &r, const uint256_t &s)
+{
+    static const uint256_t P = udec256(p_);
+    if (v < 27 || v > 28) _throw0(INVALID_SIGNATURE);
+    if (r == 0 || r >= P) _throw0(INVALID_SIGNATURE);
+    if (s == 0 || r >= P) _throw0(INVALID_SIGNATURE);
+    G0 t = ecrecover(h, v, r, s);
+    if (t.is_inf()) _throw0(INVALID_SIGNATURE);
+    local<uint8_t> buffer_l(64); uint8_t *buffer = buffer_l.data;
     uint64_t offset = 0;
     bigint::to(t.x, &buffer[offset], 32); offset += 32;
     bigint::to(t.y, &buffer[offset], 32); offset += 32;
-    uint160_t a = (uint160_t)sha3(buffer, 64);
-    return a;
+    return (uint160_t)sha3(buffer, 64);
 }
 
 // ** bn256 **
@@ -2531,7 +2563,20 @@ static Gen12 bn256check(const Gen12 &v)
     Gen12 t8 = ((t7 * t3.frob().conj() * t6).sqr() * t7 * t4.frob2()).sqr();
     return (t8 * t1.conj()).sqr() * t8 * t1.frob() * t2 * t2.frob();
 }
-static bool bn256pairing(std::vector<G1> &a, std::vector<G2> &b, uint64_t count)
+#ifdef NATIVE_CRYPTO
+static G1 bn256add(const G1& p1, const G1& p2);
+static G1 bn256scalarmul(const G1& p1, const bigint& e);
+static bool bn256pairing(const std::vector<G1> &a, const std::vector<G2> &b, uint64_t count);
+#else
+static G1 bn256add(const G1& p1, const G1& p2)
+{
+    return p1 + p2;
+}
+static G1 bn256scalarmul(const G1& p1, const bigint& e)
+{
+    return p1 * e;
+}
+static bool bn256pairing(const std::vector<G1> &a, const std::vector<G2> &b, uint64_t count)
 {
     Gen12 prod; prod = 1;
     for (uint64_t i = 0; i < count; i++) {
@@ -2541,6 +2586,7 @@ static bool bn256pairing(std::vector<G1> &a, std::vector<G2> &b, uint64_t count)
     Gen12 value = bn256check(prod);
     return value.is_one();
 }
+#endif // NATIVE_CRYPTO
 
 // ** rlp encoder/decoder **
 
@@ -5301,7 +5347,7 @@ static void _throws(vm_bigmodexp)(Release release,
     if (exp > 0) exp <<= 8 * exp_mul.cast64();
     if (base > 0) base <<= 8 * base_mul.cast64();
     if (mod > 0) mod <<= 8 * mod_mul.cast64();
-    bigint res = mod == 0 ? 0 : bigint::powmod(base, exp, mod);
+    bigint res = mod == 0 ? 0 : bigmodexp(base, exp, mod);
     return_size = mod_len.cast64();
     _ensure_capacity(return_data, return_size, return_capacity);
     bigint::to(res, return_data, return_size);
@@ -5334,7 +5380,7 @@ static void _throws(vm_bn256add)(Release release,
     if (!(x2 == 0 && y2 == 0)) {
         if (!p2.is_valid()) _throw(INVALID_ENCODING);
     }
-    G1 p3 = p1 + p2;
+    G1 p3 = bn256add(p1, p2);
     bigint x3 = 0;
     bigint y3 = 0;
     if (!p3.is_inf()) {
@@ -5369,7 +5415,7 @@ static void _throws(vm_bn256scalarmul)(Release release,
     if (!(x1 == 0 && y1 == 0)) {
         if (!p1.is_valid()) _throw(INVALID_ENCODING);
     }
-    G1 p2 = p1 * e;
+    G1 p2 = bn256scalarmul(p1, e);
     bigint x2 = 0;
     bigint y2 = 0;
     if (!p2.is_inf()) {
