@@ -55,28 +55,30 @@ def writeFile(fname, fcontents):
     with io.open(fname, "w", encoding="utf8") as f:
         f.write(fcontents)
 
-def compileFile(fnamein, fnameout):
+def compileFile(fnamein, fnameout, fnamelog):
     if os.path.isfile(fnameout): return 0
-    return subprocess.call([
-        "eosio-cpp",
-        "-DNDEBUG",
-        "-O=z",
-        "-o",
-        fnameout,
-        fnamein,
-    ])
+    with io.open(fnamelog, "w", encoding="utf8") as f:
+        return subprocess.call([
+            "eosio-cpp",
+            "-DNDEBUG",
+            "-O=z",
+            "-o",
+            fnameout,
+            fnamein,
+        ], stdout=f, stderr=subprocess.STDOUT)
 
-def execFile(fnamein):
-    subprocess.call([
-        "cleos", "set", "contract", "evm", fnamein, "-p", "evm@active",
-    ])
-    start = time.time()
-    result = subprocess.call([
-        "cleos", "push", "action", "evm", "test", "[]", "-p", "eosio@active",
-    ])
-    end = time.time()
+def execFile(fnamein, fnamelog):
+    with io.open(fnamelog, "w", encoding="utf8") as f:
+        subprocess.call([
+            "./start-eosio-clean.sh", fnamein,
+        ], stdout=f, stderr=subprocess.STDOUT)
+        start = time.time()
+        result = subprocess.call([
+            "cleos", "push", "action", "evm", "test", "[]", "-p", "eosio@active",
+        ], stdout=f, stderr=subprocess.STDOUT)
+        end = time.time()
     ellapsed = int((end - start) * 1000)
-    if ellapsed > 15: print("\033[93m[" + str(ellapsed) + "ms]\x1b[0m")
+    if ellapsed > 150: print("\033[93m[" + str(ellapsed) + "ms]\x1b[0m")
     return result
 
 def hexToInt(s):
@@ -469,9 +471,9 @@ void test() {
 
     filename = "cache/vm/" + path.split('/')[-2] + "/eosio." + name + "/evm/"
     writeFile(filename + "evm.cpp", src)
-    result = compileFile(filename + "evm.cpp", filename + "evm.wasm")
+    result = compileFile(filename + "evm.cpp", filename + "evm.wasm", filename + "evm.log")
     if result != 0: _report("Test fail to compile"); return
-    result = execFile(filename)
+    result = execFile(filename, filename + "evm.log")
     if result != 0: _report("Test failure")#; os.remove(filename)
 
 def ttTest(name, item, path):
@@ -573,9 +575,9 @@ void test() {
 
         filename = "cache/tt/" + path.split('/')[-2] + "/eosio." + name + "_" + release + "/evm/"
         writeFile(filename + "evm.cpp", src)
-        result = compileFile(filename + "evm.cpp", filename + "evm.wasm")
+        result = compileFile(filename + "evm.cpp", filename + "evm.wasm", filename + "evm.log")
         if result != 0: _report("Test fail to compile"); continue
-        result = execFile(filename)
+        result = execFile(filename, filename + "evm.log")
         if result != 0: _report("Test failure")#; os.remove(filename)
 
 def stTest(name, item, path):
@@ -771,9 +773,9 @@ void test() {
 
             filename = "cache/st/" + path.split('/')[-2] + "/eosio." + name + "_" + release + "_" + str(num) + "/evm/"
             writeFile(filename + "evm.cpp", src)
-            result = compileFile(filename + "evm.cpp", filename + "evm.wasm")
+            result = compileFile(filename + "evm.cpp", filename + "evm.wasm", filename + "evm.log")
             if result != 0: _report("Test fail to compile"); return
-            result = execFile(filename)
+            result = execFile(filename, filename + "evm.log")
             if result != 0: _report("Test failure")#; os.remove(filename)
 
 def vmTests(filt):
