@@ -175,7 +175,7 @@ def codeDoneLocation(location, number):
             uint256_t number = uhex256(\"""" + intToU256(number) + """\");
             uint256_t _number = state.load(account, location);
             if (number != _number) {
-                //std::cerr << "post: invalid storage " << account << " " << location << " " << _number << " " << number << std::endl;
+                eosio::print_f("post: invalid storage % % % %", to_string(account), to_string(location), to_string(_number), to_string(number));
                 result = 1;
             }
         }
@@ -192,7 +192,7 @@ def codeInitAccount(account, nonce, balance, code, storage):
         uint256_t codehash = sha3(code, code_size);
 
         uint64_t acc_id = get_account(account);
-        if (acc_id == 0) insert_account(address, 0, 0, 0);
+        if (acc_id == 0) insert_account(account, 0, 0, 0);
         state.store_code(codehash, code, code_size);
         state.set_nonce(account, nonce);
         state.set_balance(account, balance);
@@ -221,7 +221,7 @@ def codeDoneAccount(account, nonce, balance, code, storage):
         src += """
         uint256_t nonce = uhex256(\"""" + intToU256(nonce) + """\");
         if (nonce != state.get_nonce(account)) {
-            //std::cerr << "post: invalid nonce" << std::endl;
+            eosio::print_f("post: invalid nonce");
             result = 1;
         }
 """
@@ -231,7 +231,7 @@ def codeDoneAccount(account, nonce, balance, code, storage):
         uint256_t balance = uhex256(\"""" + intToU256(balance) + """\");
         uint256_t _balance = state.get_balance(account);
         if (balance != _balance) {
-            //std::cerr << "post: invalid balance " << account << " " << _balance << " " << balance << std::endl;
+            eosio::print_f("post: invalid balance % %", to_string(_balance), to_string(balance));
             result = 1;
         }
 """
@@ -245,12 +245,12 @@ def codeDoneAccount(account, nonce, balance, code, storage):
         uint64_t _code_size;
         const uint8_t *_code = state.load_code(codehash, _code_size);
         if (code_size != _code_size) {
-            //std::cerr << "post: invalid account code_size" << std::endl;
+            eosio::print_f("post: invalid account code_size");
             result = 1;
         }
         for (uint64_t i = 0; i < _code_size; i++) {
             if (code[i] != _code[i]) {
-                //std::cerr << "post: invalid account code" << std::endl;
+                eosio::print_f("post: invalid account code");
                 result = 1;
                 break;
             }
@@ -272,7 +272,7 @@ def codeDoneReturn(out):
     uint8_t *out_data = (uint8_t*)\"""" + out + """\";
     uint64_t out_size = """ + str(len(out) // 4) + """;
     if (out_size != return_size) {
-        //std::cerr << "post: invalid out_size" << std::endl;
+        eosio::print_f("post: invalid out_size");
         //for (uint64_t i = 0; i < out_size; i++) std::cerr << " " << (int)out_data[i];
         //std::cerr << std::endl;
         //for (uint64_t i = 0; i < return_size; i++) std::cerr << " " << (int)return_data[i];
@@ -281,7 +281,7 @@ def codeDoneReturn(out):
     }
     for (uint64_t i = 0; i < out_size; i++) {
         if (out_data[i] != return_data[i]) {
-            //std::cerr << "post: invalid out_data" << std::endl;
+            eosio::print_f("post: invalid out_data");
             //for (uint64_t i = 0; i < out_size; i++) std::cerr << " " << (int)out_data[i];
             //std::cerr << std::endl;
             //for (uint64_t i = 0; i < out_size; i++) std::cerr << " " << (int)return_data[i];
@@ -297,7 +297,7 @@ def codeDoneRoot(roothash):
     uint256_t root = state.root("./trie/trie");
     uint256_t roothash = uhex256(\"""" + intToU256(roothash) + """\");
     if (root != roothash) {
-        //std::cerr << "post: invalid root " << root << " " << roothash << std::endl;
+        eosio::print_f("post: invalid root % %", to_string(root), to_string(roothash));
         result = 1;
     }
 """
@@ -305,18 +305,18 @@ def codeDoneRoot(roothash):
 def codeDoneLogs(loghash):
     return """
     uint256_t loghash = uhex256(\"""" + intToU256(loghash) + """\");
-    //uint256_t _loghash = state.loghash();
-    //if (loghash != _loghash) {
-        //std::cerr << "post: invalid loghash " << loghash << " " << _loghash << std::endl;
-        //result = 1;
-    //}
+    uint256_t _loghash = state.loghash();
+    if (loghash != _loghash) {
+        eosio::print_f("post: invalid loghash % %", to_string(loghash), to_string(_loghash));
+        result = 1;
+    }
 """
 
 def codeDoneGas(fgas):
     return """
     uint256_t fgas = uhex256(\"""" + intToU256(fgas) + """\");
     if (gas != fgas) {
-        //std::cerr << "post: invalid gas " << fgas << " " << gas << std::endl;
+        eosio::print_f("post: invalid gas % %", to_string(fgas), gas);
         result = 1;
     }
 """
@@ -325,13 +325,13 @@ def codeDoneRlp(_hash, sender):
     return """
     uint256_t _h = uhex256(\"""" + intToU256(_hash) + """\");
     if (h != _h) {
-        //std::cerr << "post: invalid hash " << h << " " << _h << std::endl;
+        eosio::print_f("post: invalid hash % %", to_string(h), to_string(_h));
         result = 1;
     }
 
     uint160_t _from = (uint160_t)uhex256(\"""" + intToU256(sender) + """\");
     if (from != _from) {
-        //std::cerr << "post: invalid sender" << std::endl;
+        eosio::print_f("post: invalid sender");
         result = 1;
     }
 """
@@ -427,7 +427,7 @@ void test() {
 
         src += """
     if (success) {
-        //std::cerr << "post: invalid success on failure" << std::endl;
+        eosio::print_f("post: invalid success on failure");
         result = 1;
     }
 """
@@ -436,7 +436,7 @@ void test() {
 
         src += """
     if (!success) {
-        //std::cerr << "post: invalid failure on success" << std::endl;
+        eosio::print_f("post: invalid failure on success");
         result = 1;
     }
 """
@@ -452,8 +452,8 @@ void test() {
             storage = values["storage"]
             src += codeDoneAccount(account, nonce, balance, code, storage)
 
-        loghash = hexToInt(item["logs"])
-        src += codeDoneLogs(loghash);
+#        loghash = hexToInt(item["logs"])
+#        src += codeDoneLogs(loghash);
 
         fgas = hexToInt(item["gas"])
         src += codeDoneGas(fgas)
@@ -544,7 +544,7 @@ void test() {
 
             src += """
     if (success) {
-        //std::cerr << "post: invalid success on failure" << std::endl;
+        eosio::print_f("post: invalid success on failure");
         result = 1;
     }
 """
@@ -553,7 +553,7 @@ void test() {
 
             src += """
     if (!success) {
-        //std::cerr << "post: invalid failure on success" << std::endl;
+        eosio::print_f("post: invalid failure on success");
         result = 1;
     }
 """
@@ -744,8 +744,8 @@ void test() {
     int result = 0;
 """
 
-            loghash = hexToInt(test["logs"])
-            src += codeDoneLogs(loghash);
+#            loghash = hexToInt(test["logs"])
+#            src += codeDoneLogs(loghash);
 
             result = find_expect(item['expect'], gas_index, value_index, data_index, release_name)
             for key, values in result.items():
