@@ -24,7 +24,7 @@ private:
         uint64_t acc_id;
         checksum160 address;
         uint64_t nonce;
-        uint64_t balance;
+        checksum256 balance;
         uint64_t user_id;
 
         uint64_t primary_key() const { return acc_id; }
@@ -99,37 +99,41 @@ private:
     }
 
     // get account balance, assumes account exists
-    uint64_t get_balance(uint64_t acc_id) const {
+    uint256_t get_balance(uint64_t acc_id) const {
         auto itr = _account.find(acc_id);
-        return itr->balance;
+        return convert(itr->balance);
     };
 
     // add to account balance, assumes account exists
-    void add_balance(uint64_t acc_id, uint64_t amount) {
+    void add_balance(uint64_t acc_id, const uint256_t& amount) {
         auto itr = _account.find(acc_id);
         _account.modify(itr, _self, [&](auto& row) {
-            check(row.balance + amount > row.balance, "account balance overflows");
-            row.balance += amount;
+            uint256_t balance = convert(row.balance);
+            check(balance + amount > balance, "account balance overflows");
+            balance += amount;
+            row.balance = convert(balance);
         });
     }
 
     // sub from account balance, assumes account exists
-    void sub_balance(uint64_t acc_id, uint64_t amount) {
+    void sub_balance(uint64_t acc_id, const uint256_t& amount) {
         auto itr = _account.find(acc_id);
         _account.modify(itr, _self, [&](auto& row) {
-            check(amount <= row.balance, "insufficient balance");
-            row.balance -= amount;
+            uint256_t balance = convert(row.balance);
+            check(amount <= balance, "insufficient balance");
+            balance -= amount;
+            row.balance = convert(balance);
         });
     }
 
     // insert a new account, assumes account does not exist (unique address/user_id)
-    uint64_t insert_account(const uint160_t &address, uint64_t nonce, uint64_t balance, uint64_t user_id) {
+    uint64_t insert_account(const uint160_t &address, uint64_t nonce, const uint256_t& balance, uint64_t user_id) {
         uint64_t acc_id = _max(1, _account.available_primary_key());
         _account.emplace(_self, [&](auto& row) {
             row.acc_id = acc_id;
             row.address = convert(address);
             row.nonce = nonce;
-            row.balance = balance;
+            row.balance = convert(balance);
             row.user_id = user_id;
         });
         return acc_id;
@@ -259,7 +263,7 @@ public:
         check(acc_id > 0, "account does not exist");
         check(quantity.symbol == eosio::symbol("SYS", 4), "should withdraw SYS");
         uint64_t amount = quantity.amount;
-        uint64_t balance = get_balance(acc_id);
+        uint256_t balance = get_balance(acc_id);
         check(balance >= amount, "insufficient funds");
         sub_balance(acc_id, amount);
         struct transfer { eosio::name from; eosio::name to; eosio::asset quantity; std::string memo; };
@@ -370,23 +374,23 @@ private:
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto itr = _account.find(acc_id);
-            return itr->balance;
+            return convert(itr->balance);
         }
         return 0;
     };
 
     // vm callback to update the balance
-    void set_balance(const uint160_t &address, const uint256_t &_balance) {
+    void set_balance(const uint160_t &address, const uint256_t &balance) {
         //eosio::print_f("debug: set_balance address<0x%> value<0x%>", to_string(address), to_string(_balance));
-        check(_balance < ((uint256_t)1 << 64), "illegal state, invalid balance");
-        uint64_t balance = _balance.cast64();
+        //check(_balance < ((uint256_t)1 << 64), "illegal state, invalid balance");
+        //uint64_t balance = _balance.cast64();
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto itr = _account.find(acc_id);
-            _account.modify(itr, _self, [&](auto& row) { row.balance = balance; });
+            _account.modify(itr, _self, [&](auto& row) { row.balance = convert(balance); });
             return;
         }
-        if (balance > 0) insert_account(address, balance, 0, 0);
+        if (balance > 0) insert_account(address, 0, balance, 0);
     };
 
     // vm callback to read the account codehash
