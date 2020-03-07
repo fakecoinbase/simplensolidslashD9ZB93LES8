@@ -1,5 +1,5 @@
 # pip3 install ecdsa pyyaml --user
-import ecdsa, json, os, subprocess, sys, time, yaml
+import ecdsa, io, json, os, subprocess, sys, time, yaml
 
 def derive_pk(e):
     signing_key = ecdsa.SigningKey.from_secret_exponent(e, curve=ecdsa.SECP256k1)
@@ -31,7 +31,7 @@ def listTests(baseDir=".", filePrefixes=[""]):
 def readFile(fname):
     if not os.path.isfile(fname):
         _die("Not a file:", fname)
-    with open(fname, "r") as f:
+    with io.open(fname, "r", encoding="utf8") as f:
         fcontents = f.read()
         try:
             if fname.endswith(".json"):
@@ -51,7 +51,7 @@ def readFile(fname):
 def writeFile(fname, fcontents):
     if not os.path.exists(os.path.dirname(fname)):
         os.makedirs(os.path.dirname(fname))
-    with open(fname, "w") as f:
+    with io.open(fname, "w", encoding="utf8") as f:
         f.write(fcontents)
 
 def compileFile(fnamein, fnameout):

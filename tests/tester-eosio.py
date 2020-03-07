@@ -1,5 +1,5 @@
 # pip3 install ecdsa pyyaml --user
-import ecdsa, json, os, subprocess, sys, time, yaml
+import ecdsa, io, json, os, subprocess, sys, time, yaml
 
 def derive_pk(e):
     signing_key = ecdsa.SigningKey.from_secret_exponent(e, curve=ecdsa.SECP256k1)
@@ -31,7 +31,7 @@ def listTests(baseDir=".", filePrefixes=[""]):
 def readFile(fname):
     if not os.path.isfile(fname):
         _die("Not a file:", fname)
-    with open(fname, "r") as f:
+    with io.open(fname, "r", encoding="utf8") as f:
         fcontents = f.read()
         try:
             if fname.endswith(".json"):
@@ -52,7 +52,7 @@ def readFile(fname):
 def writeFile(fname, fcontents):
     if not os.path.exists(os.path.dirname(fname)):
         os.makedirs(os.path.dirname(fname))
-    with open(fname, "w") as f:
+    with io.open(fname, "w", encoding="utf8") as f:
         f.write(fcontents)
 
 def compileFile(fnamein, fnameout):
@@ -157,6 +157,8 @@ def codeInitLocation(location, number):
             uint256_t location = uhex256(\"""" + intToU256(location) + """\");
             uint256_t number = uhex256(\"""" + intToU256(number) + """\");
             state.store(account, location, number);
+
+            check(state.load(account, location) == number, "location not set");
         }
 """
 
@@ -189,10 +191,16 @@ def codeInitAccount(account, nonce, balance, code, storage):
         uint64_t code_size = """ + str(len(code) // 4) + """;
         uint256_t codehash = sha3(code, code_size);
 
+        uint64_t acc_id = get_account(account);
+        if (acc_id == 0) insert_account(address, 0, 0, 0);
         state.store_code(codehash, code, code_size);
         state.set_nonce(account, nonce);
         state.set_balance(account, balance);
-        if (nonce > 0 || balance > 0 || code_size > 0) state.set_codehash(account, codehash);
+        state.set_codehash(account, nonce > 0 || balance > 0 || code_size > 0 ? codehash : 0);
+
+        check(state.get_nonce(account) == nonce, "nonce not set");
+        check(state.get_balance(account) == balance, "balance not set");
+        check(state.get_codehash(account) == (nonce > 0 || balance > 0 || code_size > 0 ? codehash : 0), "codehash not set");
 """
     for subkey, subvalue in storage.items():
         location = hexToInt(subkey)
@@ -362,7 +370,8 @@ void test() {
     src += codeInitEnv(number, timestamp, gaslimit, coinbase, difficulty)
 
     src += """
-    _Block block(number, timestamp, gaslimit, coinbase, difficulty);
+    //_Block block(number, timestamp, gaslimit, coinbase, difficulty);
+    Block &block = *this;
     State &state = *this;
     Storage storage(&state);
 
@@ -560,7 +569,7 @@ void test() {
 
         src = readFile("../contracts/evm/evm.cpp").replace("using contract::contract;", "using contract::contract;\n\n\n" + src)
         hdr = readFile("../src/evm.hpp")
-        src = cpp.replace("#include \"../../src/evm.hpp\"", hdr)
+        src = src.replace("#include \"../../src/evm.hpp\"", hdr)
 
         filename = "cache/tt/" + path.split('/')[-2] + "/eosio." + name + "_" + release + "/evm/"
         writeFile(filename + "evm.cpp", src)
