@@ -359,6 +359,29 @@ def vmTest(name, item, path):
     src = ""
 
     src += """
+class _Block : public Block {
+private:
+    uint64_t _number = 10000000;
+    uint64_t _timestamp = 0;
+    uint64_t _gaslimit = 10000000;
+    uint160_t _coinbase = 0;
+    uint256_t _difficulty = 17179869184;
+public:
+    _Block(uint64_t number, uint64_t timestamp, uint64_t gaslimit, const uint160_t& coinbase, const uint256_t& difficulty)
+        : _number(number), _timestamp(timestamp), _gaslimit(gaslimit), _coinbase(coinbase), _difficulty(difficulty) {}
+    uint64_t forknumber() { return _number; }
+    uint64_t number() { return _number; }
+    uint64_t timestamp() { return _timestamp; }
+    uint64_t gaslimit() { return _gaslimit; }
+    uint160_t coinbase() { return _coinbase; }
+    uint256_t difficulty() { return _difficulty; }
+    uint256_t hash(const uint256_t &number) {
+        uint8_t buffer[32];
+        uint256_t::to(number, buffer);
+        return sha3(buffer, 32);
+    }
+};
+
 [[eosio::action]]
 void test() {
 """
@@ -372,8 +395,7 @@ void test() {
     src += codeInitEnv(number, timestamp, gaslimit, coinbase, difficulty)
 
     src += """
-    //_Block block(number, timestamp, gaslimit, coinbase, difficulty);
-    Block &block = *this;
+    _Block block(number, timestamp, gaslimit, coinbase, difficulty);
     State &state = *this;
     Storage storage(&state);
 
@@ -609,6 +631,29 @@ def stTest(name, item, path):
             src = ""
 
             src += """
+class _Block : public Block {
+private:
+    uint64_t _number = 10000000;
+    uint64_t _timestamp = 0;
+    uint64_t _gaslimit = 10000000;
+    uint160_t _coinbase = 0;
+    uint256_t _difficulty = 17179869184;
+public:
+    _Block(uint64_t number, uint64_t timestamp, uint64_t gaslimit, const uint160_t& coinbase, const uint256_t& difficulty)
+        : _number(number), _timestamp(timestamp), _gaslimit(gaslimit), _coinbase(coinbase), _difficulty(difficulty) {}
+    uint64_t forknumber() { return _number; }
+    uint64_t number() { return _number; }
+    uint64_t timestamp() { return _timestamp; }
+    uint64_t gaslimit() { return _gaslimit; }
+    uint160_t coinbase() { return _coinbase; }
+    uint256_t difficulty() { return _difficulty; }
+    uint256_t hash(const uint256_t &number) {
+        uint8_t buffer[32];
+        uint256_t::to(number, buffer);
+        return sha3(buffer, 32);
+    }
+};
+
 [[eosio::action]]
 void test() {
 """
@@ -622,8 +667,7 @@ void test() {
             src += codeInitEnv(number, timestamp, gaslimit, coinbase, difficulty)
 
             src += """
-    //_Block block(number, timestamp, gaslimit, coinbase, difficulty);
-    Block &block = *this;
+    _Block block(number, timestamp, gaslimit, coinbase, difficulty);
     State &state = *this;
     Release release = """ + release + """;
     Storage storage(&state);
