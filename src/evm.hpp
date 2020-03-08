@@ -2570,15 +2570,11 @@ static bool bn256pairing(const std::vector<G1> &a, const std::vector<G2> &b, uin
 #else
 static G1 bn256add(const G1& p1, const G1& p2)
 {
-    G1 p3 = p1 + p2;
-    if (p3.is_inf()) return G1(0, 0, 0, 0);
-    return p3.affine();
+    return (p1 + p2).affine();
 }
 static G1 bn256scalarmul(const G1& p1, const bigint& e)
 {
-    G1 p2 = p1 * e;
-    if (p2.is_inf()) return G1(0, 0, 0, 0);
-    return p2.affine();
+    return (p1 * e).affine();
 }
 static bool bn256pairing(const std::vector<G1> &a, const std::vector<G2> &b, uint64_t count)
 {
@@ -5387,6 +5383,7 @@ static void _throws(vm_bn256add)(Release release,
     G1 p3 = bn256add(p1, p2);
     bigint x3 = p3.x;
     bigint y3 = p3.y;
+    if (p3.is_inf()) { x3 = 0; y3 = 0; }
     return_size = 2 * 32;
     _ensure_capacity(return_data, return_size, return_capacity);
     uint64_t return_offset = 0;
@@ -5417,6 +5414,7 @@ static void _throws(vm_bn256scalarmul)(Release release,
     G1 p2 = bn256scalarmul(p1, e);
     bigint x2 = p2.x;
     bigint y2 = p2.y;
+    if (p2.is_inf()) { x2 = 0; y2 = 0; }
     return_size = 2 * 32;
     _ensure_capacity(return_data, return_size, return_capacity);
     uint64_t return_offset = 0;
