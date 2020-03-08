@@ -217,7 +217,7 @@ public:
         const uint8_t *name = (const uint8_t*)_name.c_str();
         const uint8_t *data = (const uint8_t*)_data.c_str();
         uint160_t address;
-        struct rlp rlp = { false, 0, nullptr };
+        struct rlp rlp = {false, 0, {nullptr}};
         _try({
             rlp.is_list = true;
             rlp.size = 2;

@@ -2884,7 +2884,7 @@ static uint64_t _throws(encode_txn)(const struct txn &txn)
 // decodes a transaction as rlp from a buffer
 static void _throws(decode_txn)(const uint8_t *buffer, uint64_t size, struct txn &txn)
 {
-    struct rlp rlp = {false, 0, nullptr};
+    struct rlp rlp = {false, 0, {nullptr}};
     _handles(parse_rlp)(buffer, size, rlp);
     txn.data = nullptr;
     _try({

@@ -68,7 +68,7 @@ private:
     uint64_t contract_size = 0;
     uint256_t contract_index[L];
     struct contract contract_list[L];
-    struct rlp logs = { true, 0, nullptr };
+    struct rlp logs = {true, 0, {nullptr}};
     const struct account *find(const uint160_t &account) const {
         for (uint64_t i = 0; i < account_size; i++) {
             if (account == account_index[i]) return &account_list[i];
