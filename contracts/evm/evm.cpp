@@ -745,6 +745,9 @@ static void blake2f(const uint32_t ROUNDS,
     uint64_t &h4, uint64_t &h5, uint64_t &h6, uint64_t &h7,
     uint64_t w[16], uint64_t t0, uint64_t t1, bool last_chunk)
 {
+    std::array<uint8_t, 16> t;
+    w2b64le(t0, &t[0]);
+    w2b64le(t1, &t[8]);
     std::array<uint8_t, 64> a;
     w2b64le(h0, &a[0]);
     w2b64le(h1, &a[8]);
@@ -755,7 +758,7 @@ static void blake2f(const uint32_t ROUNDS,
     w2b64le(h6, &a[48]);
     w2b64le(h7, &a[56]);
     checksum512 state(a);
-    eosio::evm_blake2f((const char*)w, 16*8, state, (uint128_t)t1 << 64 | t0, last_chunk, ROUNDS);
+    eosio::evm_blake2f((const char*)w, 16*8, state, (const char*)&t[0], 16, last_chunk, ROUNDS);
     auto c = state.extract_as_byte_array();
     h0 = b2w64le(&c[0]);
     h1 = b2w64le(&c[8]);
