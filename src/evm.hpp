@@ -2571,13 +2571,13 @@ static bool bn256pairing(const std::vector<G1> &a, const std::vector<G2> &b, uin
 static G1 bn256add(const G1& p1, const G1& p2)
 {
     G1 p3 = p1 + p2;
-    if (p3.is_inf()) return G1(0, 0);
+    if (p3.is_inf()) return G1(0, 0, 0, 0);
     return p3.affine();
 }
 static G1 bn256scalarmul(const G1& p1, const bigint& e)
 {
     G1 p2 = p1 * e;
-    if (p2.is_inf()) return G1(0, 0);
+    if (p2.is_inf()) return G1(0, 0, 0, 0);
     return p2.affine();
 }
 static bool bn256pairing(const std::vector<G1> &a, const std::vector<G2> &b, uint64_t count)
