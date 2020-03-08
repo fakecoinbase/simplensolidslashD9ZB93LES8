@@ -78,7 +78,10 @@ def execFile(fnamein, fnamelog):
         ], stdout=f, stderr=subprocess.STDOUT)
         end = time.time()
     ellapsed = int((end - start) * 1000)
-    if ellapsed > 150: print("\033[93m[" + str(ellapsed) + "ms]\x1b[0m")
+    with io.open(fnamelog, "r", encoding="utf8") as f:
+        content = f.read()
+        expired = "Error 3080006: Transaction took too long" in content
+    if ellapsed > 150 or expired: print("\033[93m[" + str(ellapsed) + "ms" + (" expired" if expired else "") + "]\x1b[0m")
     return result
 
 def hexToInt(s):
