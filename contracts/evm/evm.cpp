@@ -648,31 +648,27 @@ public:
 
     // conversion from checksum160
     static uint160_t convert(const checksum160 &v) {
-        uint160_t t;
         auto c = v.extract_as_byte_array();
-        for (uint64_t i = 0; i < 20; i++) t.setbyte(19 - i, c[i]);
-        return t;
+        return uint160_t::from(&c[0]);
     };
 
     // conversion to checksum160
     static checksum160 convert(const uint160_t &v) {
         std::array<uint8_t, 20> c;
-        for (uint64_t i = 0; i < 20; i++) c[i] = v.byte(19 - i);
+        uint160_t::to(v, &c[0]);
         return checksum160(c);
     };
 
     // conversion from checksum256
     static uint256_t convert(const checksum256 &v) {
-        uint256_t t;
         auto c = v.extract_as_byte_array();
-        for (uint64_t i = 0; i < 32; i++) t.setbyte(31 - i, c[i]);
-        return t;
+        return uint256_t::from(&c[0]);
     };
 
     // conversion to checksum256
     static checksum256 convert(const uint256_t &v) {
         std::array<uint8_t, 32> c;
-        for (uint64_t i = 0; i < 32; i++) c[i] = v.byte(31 - i);
+        uint256_t::to(v, &c[0]);
         return checksum256(c);
     };
 
@@ -695,9 +691,12 @@ public:
     // conversion to checksum512
     static checksum512 convert(const G1& v) {
         std::array<uint8_t, 64> c;
+        bigint x = v.x;
+        bigint y = v.y;
+        if (v.is_inf()) { x = 0; y = 0; }
         uint64_t offset = 0;
-        bigint::to(v.x, &c[offset], 32); offset += 32;
-        bigint::to(v.y, &c[offset], 32); offset += 32;
+        bigint::to(x, &c[offset], 32); offset += 32;
+        bigint::to(y, &c[offset], 32); offset += 32;
         return checksum512(c);
     }
 
