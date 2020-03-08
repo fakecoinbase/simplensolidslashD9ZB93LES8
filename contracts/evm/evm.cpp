@@ -4,8 +4,6 @@
 #include <eosio/transaction.hpp>
 #include <eosio/crypto.hpp>
 
-#define NATIVE_CRYPTO
-
 #include "../../src/evm.hpp"
 
 using namespace eosio;
