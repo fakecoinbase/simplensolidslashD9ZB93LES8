@@ -61,6 +61,7 @@ def compileFile(fnamein, fnameout, fnamelog):
         return subprocess.call([
             "eosio-cpp",
             "-DNDEBUG",
+            "-DNATIVE_CRYPTO",
             "-O=z",
             "-o",
             fnameout,
@@ -69,19 +70,20 @@ def compileFile(fnamein, fnameout, fnamelog):
 
 def execFile(fnamein, fnamelog):
     with io.open(fnamelog, "w", encoding="utf8") as f:
-        subprocess.call([
+        result = subprocess.call([
             "./start-eosio-clean.sh", fnamein,
         ], stdout=f, stderr=subprocess.STDOUT)
         start = time.time()
-        result = subprocess.call([
-            "cleos", "push", "action", "evm", "test", "[]", "-p", "eosio@active",
-        ], stdout=f, stderr=subprocess.STDOUT)
+        if result == 0:
+            result = subprocess.call([
+                "cleos", "push", "action", "evm", "test", "[]", "-p", "eosio@active",
+            ], stdout=f, stderr=subprocess.STDOUT)
         end = time.time()
     ellapsed = int((end - start) * 1000)
     with io.open(fnamelog, "r", encoding="utf8") as f:
         content = f.read()
-        expired = "Error 3080006: Transaction took too long" in content
-    if ellapsed > 150 or expired: print("\033[93m[" + str(ellapsed) + "ms" + (" expired" if expired else "") + "]\x1b[0m")
+        if result != 0: print(content)
+    if ellapsed > 150: print("\033[93m[" + str(ellapsed) + "ms]\x1b[0m")
     return result
 
 def hexToInt(s):
