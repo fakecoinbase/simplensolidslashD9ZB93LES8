@@ -501,7 +501,7 @@ void test() {
     result = compileFile(filename + "evm.cpp", filename + "evm.wasm", filename + "evm.log")
     if result != 0: _report("Test fail to compile"); return
     result = execFile(filename, filename + "evm.log")
-    if result != 0: _report("Test failure")#; os.remove(filename)
+    if result != 0: _report("Test failure")#; subprocess.call(["rm", "-rf", filename])
 
 def ttTest(name, item, path):
 #    print(json.dumps(item, indent=2))
@@ -605,7 +605,7 @@ void test() {
         result = compileFile(filename + "evm.cpp", filename + "evm.wasm", filename + "evm.log")
         if result != 0: _report("Test fail to compile"); continue
         result = execFile(filename, filename + "evm.log")
-        if result != 0: _report("Test failure")#; os.remove(filename)
+        if result != 0: _report("Test failure")#; subprocess.call(["rm", "-rf", filename])
 
 def stTest(name, item, path):
 #    print(json.dumps(item, indent=2))
@@ -825,7 +825,7 @@ void test() {
             result = compileFile(filename + "evm.cpp", filename + "evm.wasm", filename + "evm.log")
             if result != 0: _report("Test fail to compile"); return
             result = execFile(filename, filename + "evm.log")
-            if result != 0: _report("Test failure")#; os.remove(filename)
+            if result != 0: _report("Test failure")#; subprocess.call(["rm", "-rf", filename])
 
 def vmTests(filt):
     paths = listTests("../support/tests/VMTests", filePrefixes=[filt])

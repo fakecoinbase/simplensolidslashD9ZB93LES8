@@ -33,6 +33,9 @@ do
 done
 if ! cleos set contract evm $1 -p evm@active; then
 	sleep 3
-    cleos set contract evm $1 -p evm@active
+	if ! cleos set contract evm $1 -p evm@active; then
+		sleep 5
+		cleos set contract evm $1 -p evm@active
+	fi
 fi
 
