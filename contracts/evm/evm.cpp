@@ -345,12 +345,13 @@ private:
 private:
     // vm callback to read the noce
     uint64_t get_nonce(const uint160_t &address) const {
-        //eosio::print_f("debug: get_nonce address<0x%>", to_string(address));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto itr = _account.find(acc_id);
+            //eosio::print_f("debug: get_nonce address<0x%> value<0x%>", to_string(address), to_string((uint256_t)itr->nonce));
             return itr->nonce;
         }
+        //eosio::print_f("debug: get_nonce address<0x%> value<0x%>", to_string(address), to_string((uint256_t)0));
         return 0;
     }
 
@@ -368,20 +369,19 @@ private:
 
     // vm callback to read the balance
     uint256_t get_balance(const uint160_t &address) const {
-        //eosio::print_f("debug: get_balance address<0x%>", to_string(address));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto itr = _account.find(acc_id);
+            //eosio::print_f("debug: get_balance address<0x%> value<0x%>", to_string(address), to_string(convert(itr->balance)));
             return convert(itr->balance);
         }
+        //eosio::print_f("debug: get_balance address<0x%> value<0x%>", to_string(address), to_string((uint256_t)0));
         return 0;
     };
 
     // vm callback to update the balance
     void set_balance(const uint160_t &address, const uint256_t &balance) {
-        //eosio::print_f("debug: set_balance address<0x%> value<0x%>", to_string(address), to_string(_balance));
-        //check(_balance < ((uint256_t)1 << 64), "illegal state, invalid balance");
-        //uint64_t balance = _balance.cast64();
+        //eosio::print_f("debug: set_balance address<0x%> value<0x%>", to_string(address), to_string(balance));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto itr = _account.find(acc_id);
@@ -393,13 +393,16 @@ private:
 
     // vm callback to read the account codehash
     uint256_t get_codehash(const uint160_t &address) const {
-        //eosio::print_f("debug: get_codehash address<0x%>", to_string(address));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto idx = _code.get_index<"code2"_n>();
             auto itr = idx.find(acc_id);
-            if (itr != idx.end()) return id256(itr->code);
+            if (itr != idx.end()) {
+                //eosio::print_f("debug: get_codehash address<0x%> value<0x%>", to_string(address), to_string(id256(itr->code)));
+                return id256(itr->code);
+            }
         }
+        //eosio::print_f("debug: get_codehash address<0x%> value<0x%>", to_string(address), to_string((uint256_t)0));
         return 0;
     };
 
@@ -421,7 +424,7 @@ private:
             auto idx = _code.get_index<"code3"_n>();
             for (auto itr = idx.find(hash_id); itr != idx.end(); itr++) {
                 if (id256(itr->code) == codehash) {
-                    if (itr->acc_id == 0) {
+                    if (itr->acc_id == 0) { // only first one
                         idx.modify(itr, _self, [&](auto& row) { row.acc_id = acc_id; });
                     } else {
                         _code.emplace(_self, [&](auto& row) {
@@ -434,12 +437,12 @@ private:
                     return;
                 }
             }
+            check(false, "inconsistent state"); // code should always be stored before setting codehash
         }
     };
 
     // vm call back to load code
     uint8_t *load_code(const uint256_t &codehash, uint64_t &code_size) const {
-        //eosio::print_f("debug: load_code codehash<0x%>", to_string(codehash));
         uint64_t hash_id = id64(codehash);
         auto idx = _code.get_index<"code3"_n>();
         for (auto itr = idx.find(hash_id); itr != idx.end(); itr++) {
@@ -447,10 +450,12 @@ private:
                 code_size = itr->code.size();
                 uint8_t *code = _new<uint8_t>(code_size);
                 for (uint64_t i = 0; i < code_size; i++) code[i] = itr->code[i];
+                //eosio::print_f("debug: load_code codehash<0x%> value<0x%>", to_string(codehash), to_string(code, code_size));
                 return code;
             }
         }
         code_size = 0;
+        //eosio::print_f("debug: load_code codehash<0x%> value<0x%>", to_string(codehash), to_string(nullptr, code_size));
         return nullptr;
     };
 
@@ -472,15 +477,18 @@ private:
 
     // vm callback to read from the storage
     uint256_t load(const uint160_t &address, const uint256_t &key) const {
-        //eosio::print_f("debug: load address<0x%> key<0x%>", to_string(address), to_string(key));
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             uint64_t key_id = id64(acc_id, key);
             auto idx = _state.get_index<"state3"_n>();
             for (auto itr = idx.find(key_id); itr != idx.end(); itr++) {
-                if (itr->acc_id == acc_id && equals(itr->key, key)) return convert(itr->value);
+                if (itr->acc_id == acc_id && equals(itr->key, key)) {
+                    //eosio::print_f("debug: load address<0x%> key<0x%> value<0x%>", to_string(address), to_string(key), to_string(convert(itr->value)));
+                    return convert(itr->value);
+                }
             }
         }
+        //eosio::print_f("debug: load address<0x%> key<0x%> value<0x%>", to_string(address), to_string(key), to_string((uint256_t)0));
         return 0;
     };
 
@@ -633,15 +641,15 @@ public:
     // compare checksum160 for equality
     static bool equals(const checksum160 &v1, const uint160_t &v2) {
         auto _v1 = v1.extract_as_byte_array();
-        for (uint64_t i = 0; i < 20; i++) if (_v1[i] == v2.byte(19 - i)) return true;
-        return false;
+        for (uint64_t i = 0; i < 20; i++) if (_v1[i] != v2.byte(19 - i)) return false;
+        return true;
     }
 
     // compare checksum256 for equality
     static bool equals(const checksum256 &v1, const uint256_t &v2) {
         auto _v1 = v1.extract_as_byte_array();
-        for (uint64_t i = 0; i < 32; i++) if (_v1[i] == v2.byte(31 - i)) return true;
-        return false;
+        for (uint64_t i = 0; i < 32; i++) if (_v1[i] != v2.byte(31 - i)) return false;
+        return true;
     }
 
     // conversion from checksum160
