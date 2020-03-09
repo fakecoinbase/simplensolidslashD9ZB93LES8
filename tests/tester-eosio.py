@@ -60,9 +60,11 @@ def compileFile(fnamein, fnameout, fnamelog):
     with io.open(fnamelog, "w", encoding="utf8") as f:
         return subprocess.call([
             "eosio-cpp",
+            "-stack-size",
+            "24576",
             "-DNDEBUG",
             "-DNATIVE_CRYPTO",
-            "-O=z",
+            "-O=2",
             "-o",
             fnameout,
             fnamein,
@@ -83,7 +85,7 @@ def execFile(fnamein, fnamelog):
     with io.open(fnamelog, "r", encoding="utf8") as f:
         content = f.read()
         if result != 0: print(content)
-    if ellapsed > 150: print("\033[93m[" + str(ellapsed) + "ms]\x1b[0m")
+    if ellapsed > 30: print("\033[93m[" + str(ellapsed) + "ms]\x1b[0m")
     return result
 
 def hexToInt(s):
@@ -112,7 +114,21 @@ def intToU256(v):
     return "%064x" % v
 
 def codeInitExec2(nonce, gasprice, gas, has_to, address, value, data, publickey):
-    return """
+    data_size = len(data) // 4
+    src = """
+    uint64_t data_size = """ + str(data_size) + """;
+    local<uint8_t> data_l(data_size); uint8_t *data = data_l.data;
+"""
+    for i in range(0, (data_size + 6143) // 6144):
+        start = i*6144
+        end = (i+1)*6144
+        data_chunk = data[4*start:4*end]
+        chunk_size = len(data_chunk) // 4
+        src += """
+    uint8_t *data""" + str(i) + """ = (uint8_t*)\"""" + data_chunk + """\";
+    for (uint64_t i = 0; i < """ + str(chunk_size) + """; i++) data[i+""" + str(start) + """] = data""" + str(i) + """[i];
+"""
+    src += """
     struct txn txn;
 
     txn.nonce = uhex256(\"""" + intToU256(nonce) + """\").cast64();
@@ -121,8 +137,8 @@ def codeInitExec2(nonce, gasprice, gas, has_to, address, value, data, publickey)
     txn.has_to = """ + ("true" if has_to else "false") + """;
     txn.to = (uint160_t)uhex256(\"""" + intToU256(address) + """\");
     txn.value = uhex256(\"""" + intToU256(value) + """\");
-    txn.data = (uint8_t*)\"""" + data + """\";
-    txn.data_size = """ + str(len(data) // 4) + """;
+    txn.data = data;
+    txn.data_size = data_size;
     txn.is_signed = false;
     txn.v = 0;
     txn.r = 0;
@@ -133,6 +149,7 @@ def codeInitExec2(nonce, gasprice, gas, has_to, address, value, data, publickey)
 
     uint160_t from = (uint160_t)sha3(publickey, publickey_size);
 """
+    return src
 
 def codeInitExec(origin, gasprice, address, caller, value, gas, code, data):
     return """
@@ -189,24 +206,26 @@ def codeDoneLocation(location, number):
 """
 
 def codeInitAccount(account, nonce, balance, code, storage):
-    if len(code) // 4 > 24576: _die("code size exceeds maximum")
+    code_size = len(code) // 4
     src = """
     {
         uint160_t account = (uint160_t)uhex256(\"""" + intToU256(account) + """\");
         uint64_t nonce = uhex256(\"""" + intToU256(nonce) + """\").cast64();
         uint256_t balance = uhex256(\"""" + intToU256(balance) + """\");
-        uint8_t *code1 = (uint8_t*)\"""" + code[0*4*6144:1*4*6144] + """\";
-        uint8_t *code2 = (uint8_t*)\"""" + code[1*4*6144:2*4*6144] + """\";
-        uint8_t *code3 = (uint8_t*)\"""" + code[2*4*6144:3*4*6144] + """\";
-        uint8_t *code4 = (uint8_t*)\"""" + code[3*4*6144:4*4*6144] + """\";
-        uint64_t code_size = """ + str(len(code) // 4) + """;
+        uint64_t code_size = """ + str(code_size) + """;
         local<uint8_t> code_l(code_size); uint8_t *code = code_l.data;
-        for (uint64_t i = 0; i < code_size; i++) {
-            if (i >= 3*6144) { code[i] = code4[i - 3*6144]; continue; }
-            if (i >= 2*6144) { code[i] = code3[i - 2*6144]; continue; }
-            if (i >= 1*6144) { code[i] = code2[i - 1*6144]; continue; }
-            code[i] = code1[i];
-        }
+"""
+    for i in range(0, (code_size + 6143) // 6144):
+        start = i*6144
+        end = (i+1)*6144
+        code_chunk = code[4*start:4*end]
+        chunk_size = len(code_chunk) // 4
+        src += """
+        uint8_t *code""" + str(i) + """ = (uint8_t*)\"""" + code_chunk + """\";
+        for (uint64_t i = 0; i < """ + str(chunk_size) + """; i++) code[i+""" + str(start) + """] = code""" + str(i) + """[i];
+"""
+
+    src += """
         uint256_t codehash = sha3(code, code_size);
 
         uint64_t acc_id = get_account(account);
