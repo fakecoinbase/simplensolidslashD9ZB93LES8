@@ -10,6 +10,267 @@ using namespace eosio;
 
 using std::string;
 
+// ** utilities **
+
+// conversion from checksum160
+static uint160_t convert(const checksum160 &v) {
+    auto c = v.extract_as_byte_array();
+    return uint160_t::from(&c[0]);
+};
+
+// conversion to checksum160
+static checksum160 convert(const uint160_t &v) {
+    std::array<uint8_t, 20> c;
+    uint160_t::to(v, &c[0]);
+    return checksum160(c);
+};
+
+// conversion from checksum256
+static uint256_t convert(const checksum256 &v) {
+    auto c = v.extract_as_byte_array();
+    return uint256_t::from(&c[0]);
+};
+
+// conversion to checksum256
+static checksum256 convert(const uint256_t &v) {
+    std::array<uint8_t, 32> c;
+    uint256_t::to(v, &c[0]);
+    return checksum256(c);
+};
+
+// conversion to checksum256
+static checksum256 convert(const bigint &v) {
+    std::array<uint8_t, 32> c;
+    bigint::to(v, &c[0], 32);
+    return checksum256(c);
+};
+
+// conversion from checksum512
+static G1 convert(const checksum512& v) {
+    auto c = v.extract_as_byte_array();
+    uint64_t offset = 0;
+    bigint x = bigint::from((const uint8_t*)&c[offset], 32); offset += 32;
+    bigint y = bigint::from((const uint8_t*)&c[offset], 32); offset += 32;
+    return G1(x, y);
+}
+
+// conversion to checksum512
+static checksum512 convert(const G1& v) {
+    std::array<uint8_t, 64> c;
+    bigint x = v.x;
+    bigint y = v.y;
+    if (v.is_inf()) { x = 0; y = 0; }
+    uint64_t offset = 0;
+    bigint::to(x, &c[offset], 32); offset += 32;
+    bigint::to(y, &c[offset], 32); offset += 32;
+    return checksum512(c);
+}
+
+// generates a low collision 64-bit id for 160-bit addresses
+static uint64_t id64(const uint160_t &address) {
+    return 0
+        | (uint64_t)address.byte(7) << 56
+        | (uint64_t)address.byte(6) << 48
+        | (uint64_t)address.byte(5) << 40
+        | (uint64_t)address.byte(4) << 32
+        | (uint64_t)address.byte(3) << 24
+        | (uint64_t)address.byte(2) << 16
+        | (uint64_t)address.byte(1) << 8
+        | (uint64_t)address.byte(0);
+}
+
+// generates a low collision 64-bit id for 160-bit addresses
+static uint64_t id64(const checksum160 &address) {
+    auto _address = address.extract_as_byte_array();
+    return 0
+        | (uint64_t)_address[12] << 56
+        | (uint64_t)_address[13] << 48
+        | (uint64_t)_address[14] << 40
+        | (uint64_t)_address[15] << 32
+        | (uint64_t)_address[16] << 24
+        | (uint64_t)_address[17] << 16
+        | (uint64_t)_address[18] << 8
+        | (uint64_t)_address[19];
+}
+
+// generates a low collision 64-bit id for 64/256-bit acc_id/keys
+static uint64_t id64(uint64_t acc_id, const uint256_t &key) {
+    return acc_id ^ key.murmur3(acc_id);
+}
+
+// generates a low collision 64-bit id for 64/256-bit acc_id/keys
+static uint64_t id64(uint64_t acc_id, const checksum256 &key) {
+    return id64(acc_id, convert(key));
+}
+
+// generates a low collision 64-bit id for codehash
+static uint64_t id64(const uint256_t &codehash) {
+    return 0
+        | (uint64_t)codehash.byte(7) << 56
+        | (uint64_t)codehash.byte(6) << 48
+        | (uint64_t)codehash.byte(5) << 40
+        | (uint64_t)codehash.byte(4) << 32
+        | (uint64_t)codehash.byte(3) << 24
+        | (uint64_t)codehash.byte(2) << 16
+        | (uint64_t)codehash.byte(1) << 8
+        | (uint64_t)codehash.byte(0);
+}
+
+// generates the codehash for bytecode
+static uint256_t id256(const std::vector<uint8_t> &code) {
+    uint64_t size = code.size();
+    local<uint8_t> buffer_l(size); uint8_t *buffer = buffer_l.data;
+    for (uint64_t i = 0; i < size; i++) buffer[i] = code[i];
+    return sha3(buffer, size);
+}
+
+// generates a low collision 64-bit id for bytecode
+static uint64_t id64(const std::vector<uint8_t> &code) {
+    return id64(id256(code));
+}
+
+// compare checksum160 for equality
+static bool equals(const checksum160 &v1, const uint160_t &v2) {
+    auto _v1 = v1.extract_as_byte_array();
+    for (uint64_t i = 0; i < 20; i++) if (_v1[i] != v2.byte(19 - i)) return false;
+    return true;
+}
+
+// compare checksum256 for equality
+static bool equals(const checksum256 &v1, const uint256_t &v2) {
+    auto _v1 = v1.extract_as_byte_array();
+    for (uint64_t i = 0; i < 32; i++) if (_v1[i] != v2.byte(31 - i)) return false;
+    return true;
+}
+
+// conversion to hex string for printing
+static string to_string(const uint8_t *data, uint64_t size) {
+    static char hex[] = "0123456789abcdef";
+    local<char> buffer_l(2*size); char *buffer = buffer_l.data;
+    for (uint64_t i = 0; i < size; i++) {
+        buffer[2*i] = hex[data[i] >> 4];
+        buffer[2*i+1] = hex[data[i] & 0xf];
+    }
+    return string(buffer, buffer + 2*size);
+}
+
+// conversion to hex string for printing
+static string to_string(const uint160_t &address) {
+    local<uint8_t> buffer_l(20); uint8_t *buffer = buffer_l.data;
+    uint160_t::to(address, buffer);
+    return to_string(buffer, 20);
+}
+
+// conversion to hex string for printing
+static string to_string(const uint256_t &value) {
+    local<uint8_t> buffer_l(32); uint8_t *buffer = buffer_l.data;
+    uint256_t::to(value, buffer);
+    return to_string(buffer, 32);
+}
+
+// ** native ecl **
+
+// alternative implementation of the crypto primitives using the
+// EVM Compatibility Layer (ECL) provided as intrinsicts
+#ifdef NATIVE_CRYPTO
+static uint256_t sha3(const uint8_t *buffer, uint64_t size)
+{
+    return convert(eosio::evm_keccak256((const char*)buffer, size));
+}
+static inline uint256_t sha256(const uint8_t *buffer, uint64_t size)
+{
+    return convert(eosio::sha256((const char*)buffer, size));
+}
+static inline uint160_t ripemd160(const uint8_t *buffer, uint64_t size)
+{
+    return convert(eosio::ripemd160((const char*)buffer, size));
+}
+static void blake2f(const uint32_t ROUNDS,
+    uint64_t &h0, uint64_t &h1, uint64_t &h2, uint64_t &h3,
+    uint64_t &h4, uint64_t &h5, uint64_t &h6, uint64_t &h7,
+    uint64_t w[16], uint64_t t0, uint64_t t1, bool last_chunk)
+{
+    std::array<uint8_t, 16> t;
+    w2b64le(t0, &t[0]);
+    w2b64le(t1, &t[8]);
+    std::array<uint8_t, 64> a;
+    w2b64le(h0, &a[0]);
+    w2b64le(h1, &a[8]);
+    w2b64le(h2, &a[16]);
+    w2b64le(h3, &a[24]);
+    w2b64le(h4, &a[32]);
+    w2b64le(h5, &a[40]);
+    w2b64le(h6, &a[48]);
+    w2b64le(h7, &a[56]);
+    checksum512 state(a);
+    eosio::evm_blake2f((const char*)w, 16*8, state, (const char*)&t[0], 16, last_chunk, ROUNDS);
+    auto c = state.extract_as_byte_array();
+    h0 = b2w64le(&c[0]);
+    h1 = b2w64le(&c[8]);
+    h2 = b2w64le(&c[16]);
+    h3 = b2w64le(&c[24]);
+    h4 = b2w64le(&c[32]);
+    h5 = b2w64le(&c[40]);
+    h6 = b2w64le(&c[48]);
+    h7 = b2w64le(&c[56]);
+}
+static bigint bigmodexp(const bigint& _base, const bigint& _exp, const bigint& _mod)
+{
+    uint64_t baselen = (_base.bitlen() + 7) / 8;
+    uint64_t explen = (_exp.bitlen() + 7) / 8;
+    uint64_t modlen = (_mod.bitlen() + 7) / 8;
+    uint64_t outlen = modlen;
+    local<uint8_t> base_l(baselen); uint8_t *base = base_l.data;
+    local<uint8_t> exp_l(explen); uint8_t *exp = exp_l.data;
+    local<uint8_t> mod_l(modlen); uint8_t *mod = mod_l.data;
+    local<uint8_t> out_l(outlen); uint8_t *out = out_l.data;
+    bigint::to(_base, base, baselen);
+    bigint::to(_exp, exp, explen);
+    bigint::to(_mod, mod, modlen);
+    eosio::evm_bigmodexp((const char*)base, baselen, (const char*)exp, explen, (const char*)mod, modlen, (char*)out, outlen);
+    return bigint::from(out, outlen);
+}
+static G0 ecrecover(const uint256_t &h, const uint256_t &v, const uint256_t &r, const uint256_t &s)
+{
+    eosio::ecc_signature eccsig;
+    auto input = eccsig.data();
+    {
+        uint64_t offset = 0;
+        input[offset] = v == 27 ? 27 : 28; offset++;
+        uint256_t::to(r, (uint8_t*)&input[offset]); offset += 32;
+        uint256_t::to(s, (uint8_t*)&input[offset]); offset += 32;
+    }
+    eosio::ecc_uncompressed_public_key pk = eosio::evm_ecrecover(convert(h), eccsig);
+    auto output = pk.data();
+    uint64_t offset = 0;
+    assert(output[offset] == 4); offset++;
+    bigint x = bigint::from((const uint8_t*)&output[offset], 32); offset += 32;
+    bigint y = bigint::from((const uint8_t*)&output[offset], 32); offset += 32;
+    return G0(x, y);
+}
+static G1 bn256add(const G1& p1, const G1& p2)
+{
+    return convert(eosio::evm_bn256add(convert(p1), convert(p2)));
+}
+static G1 bn256scalarmul(const G1& p1, const bigint& e)
+{
+    return convert(eosio::evm_bn256scalarmul(convert(p1), convert(e)));
+}
+static bool bn256pairing(const std::vector<G1> &a, const std::vector<G2> &b, uint64_t count)
+{
+    local<checksum512> buffer_l(3*count); checksum512 *buffer = buffer_l.data;
+    for (uint64_t i = 0; i < count; i++) {
+        buffer[3*i] = convert(a[i]);
+        buffer[3*i+1] = convert(G1(b[i].x.x, b[i].x.y));
+        buffer[3*i+2] = convert(G1(b[i].y.x, b[i].y.y));
+    }
+    return eosio::evm_bn256pairing(buffer, count);
+}
+#endif // NATIVE_CRYPTO
+
+// ** contract **
+
+// the actual EOSIO contract implementing the EVM
 class [[eosio::contract("evm")]] evm : public contract, public Block, public State {
 private:
 
@@ -288,6 +549,27 @@ public:
                 eosio::print_f("info: deposit of % from % (%)\n", quantity, account, user_id);
             }
         }
+    }
+
+    // Prints the contents of an EVM address for inspection
+    // to be used for testing only
+    [[eosio::action]]
+    void inspect(const checksum160& _address) {
+        uint160_t address = convert(_address);
+        uint64_t nonce = get_nonce(address);
+        uint256_t balance = get_balance(address);
+        uint256_t codehash = get_codehash(address);
+        uint64_t code_size;
+        uint8_t *code = load_code(codehash, code_size);
+        eosio::print_f("info: address<0x%> nonce<0x%> balance<0x%> codehash<0x%> code<0x%>", to_string(address), to_string((uint256_t)nonce), to_string(balance), to_string(codehash), to_string(code, code_size));
+        uint64_t acc_id = get_account(address);
+        if (acc_id > 0) {
+            auto idx = _state.get_index<"state2"_n>();
+            for (auto itr = idx.find(acc_id); itr != idx.end(); itr++) {
+                eosio::print_f(" key<0x%> value<0x%>", to_string(convert(itr->key)), to_string(convert(itr->value)));
+            }
+        }
+        _delete(code);
     }
 
 private:
@@ -572,259 +854,4 @@ private:
         eosio::print_f("log4 address<0x%> topic1<0x%> topic2<0x%> topic3<0x%> topic4<0x%> data<0x%>\n",
             to_string(address), to_string(topic1), to_string(topic2), to_string(topic3), to_string(topic4), to_string(data, data_size));
     }
-
-public:
-
-    // generates a low collision 64-bit id for 160-bit addresses
-    static uint64_t id64(const checksum160 &address) {
-        auto _address = address.extract_as_byte_array();
-        return 0
-            | (uint64_t)_address[12] << 56
-            | (uint64_t)_address[13] << 48
-            | (uint64_t)_address[14] << 40
-            | (uint64_t)_address[15] << 32
-            | (uint64_t)_address[16] << 24
-            | (uint64_t)_address[17] << 16
-            | (uint64_t)_address[18] << 8
-            | (uint64_t)_address[19];
-    }
-
-    // generates a low collision 64-bit id for 160-bit addresses
-    static uint64_t id64(const uint160_t &address) {
-        return 0
-            | (uint64_t)address.byte(7) << 56
-            | (uint64_t)address.byte(6) << 48
-            | (uint64_t)address.byte(5) << 40
-            | (uint64_t)address.byte(4) << 32
-            | (uint64_t)address.byte(3) << 24
-            | (uint64_t)address.byte(2) << 16
-            | (uint64_t)address.byte(1) << 8
-            | (uint64_t)address.byte(0);
-    }
-
-    // generates a low collision 64-bit id for 64/256-bit acc_id/keys
-    static uint64_t id64(uint64_t acc_id, const checksum256 &key) {
-        return id64(acc_id, convert(key));
-    }
-
-    // generates a low collision 64-bit id for 64/256-bit acc_id/keys
-    static uint64_t id64(uint64_t acc_id, const uint256_t &key) {
-        return acc_id ^ key.murmur3(acc_id);
-    }
-
-    // generates a low collision 64-bit id for codehash
-    static uint64_t id64(const uint256_t &codehash) {
-        return 0
-            | (uint64_t)codehash.byte(7) << 56
-            | (uint64_t)codehash.byte(6) << 48
-            | (uint64_t)codehash.byte(5) << 40
-            | (uint64_t)codehash.byte(4) << 32
-            | (uint64_t)codehash.byte(3) << 24
-            | (uint64_t)codehash.byte(2) << 16
-            | (uint64_t)codehash.byte(1) << 8
-            | (uint64_t)codehash.byte(0);
-    }
-
-    // generates a low collision 64-bit id for bytecode
-    static uint64_t id64(const std::vector<uint8_t> &code) {
-        return id64(id256(code));
-    }
-
-    // generates the codehash for bytecode
-    static uint256_t id256(const std::vector<uint8_t> &code) {
-        uint64_t size = code.size();
-        local<uint8_t> buffer_l(size); uint8_t *buffer = buffer_l.data;
-        for (uint64_t i = 0; i < size; i++) buffer[i] = code[i];
-        return sha3(buffer, size);
-    }
-
-    // compare checksum160 for equality
-    static bool equals(const checksum160 &v1, const uint160_t &v2) {
-        auto _v1 = v1.extract_as_byte_array();
-        for (uint64_t i = 0; i < 20; i++) if (_v1[i] != v2.byte(19 - i)) return false;
-        return true;
-    }
-
-    // compare checksum256 for equality
-    static bool equals(const checksum256 &v1, const uint256_t &v2) {
-        auto _v1 = v1.extract_as_byte_array();
-        for (uint64_t i = 0; i < 32; i++) if (_v1[i] != v2.byte(31 - i)) return false;
-        return true;
-    }
-
-    // conversion from checksum160
-    static uint160_t convert(const checksum160 &v) {
-        auto c = v.extract_as_byte_array();
-        return uint160_t::from(&c[0]);
-    };
-
-    // conversion to checksum160
-    static checksum160 convert(const uint160_t &v) {
-        std::array<uint8_t, 20> c;
-        uint160_t::to(v, &c[0]);
-        return checksum160(c);
-    };
-
-    // conversion from checksum256
-    static uint256_t convert(const checksum256 &v) {
-        auto c = v.extract_as_byte_array();
-        return uint256_t::from(&c[0]);
-    };
-
-    // conversion to checksum256
-    static checksum256 convert(const uint256_t &v) {
-        std::array<uint8_t, 32> c;
-        uint256_t::to(v, &c[0]);
-        return checksum256(c);
-    };
-
-    // conversion to checksum256
-    static checksum256 convert(const bigint &v) {
-        std::array<uint8_t, 32> c;
-        bigint::to(v, &c[0], 32);
-        return checksum256(c);
-    };
-
-    // conversion from checksum512
-    static G1 convert(const checksum512& v) {
-        auto c = v.extract_as_byte_array();
-        uint64_t offset = 0;
-        bigint x = bigint::from((const uint8_t*)&c[offset], 32); offset += 32;
-        bigint y = bigint::from((const uint8_t*)&c[offset], 32); offset += 32;
-        return G1(x, y);
-    }
-
-    // conversion to checksum512
-    static checksum512 convert(const G1& v) {
-        std::array<uint8_t, 64> c;
-        bigint x = v.x;
-        bigint y = v.y;
-        if (v.is_inf()) { x = 0; y = 0; }
-        uint64_t offset = 0;
-        bigint::to(x, &c[offset], 32); offset += 32;
-        bigint::to(y, &c[offset], 32); offset += 32;
-        return checksum512(c);
-    }
-
-    // conversion to hex string for printing
-    static string to_string(const uint160_t &address) {
-        local<uint8_t> buffer_l(20); uint8_t *buffer = buffer_l.data;
-        uint160_t::to(address, buffer);
-        return to_string(buffer, 20);
-    }
-
-    // conversion to hex string for printing
-    static string to_string(const uint256_t &value) {
-        local<uint8_t> buffer_l(32); uint8_t *buffer = buffer_l.data;
-        uint256_t::to(value, buffer);
-        return to_string(buffer, 32);
-    }
-
-    // conversion to hex string for printing
-    static string to_string(const uint8_t *data, uint64_t size) {
-        static char hex[] = "0123456789abcdef";
-        local<char> buffer_l(2*size); char *buffer = buffer_l.data;
-        for (uint64_t i = 0; i < size; i++) {
-            buffer[2*i] = hex[data[i] >> 4];
-            buffer[2*i+1] = hex[data[i] & 0xf];
-        }
-        return string(buffer, buffer + 2*size);
-    }
 };
-
-#ifdef NATIVE_CRYPTO
-static uint256_t sha3(const uint8_t *buffer, uint64_t size)
-{
-    return evm::convert(eosio::evm_keccak256((const char*)buffer, size));
-}
-static inline uint256_t sha256(const uint8_t *buffer, uint64_t size)
-{
-    return evm::convert(eosio::sha256((const char*)buffer, size));
-}
-static inline uint160_t ripemd160(const uint8_t *buffer, uint64_t size)
-{
-    return evm::convert(eosio::ripemd160((const char*)buffer, size));
-}
-static void blake2f(const uint32_t ROUNDS,
-    uint64_t &h0, uint64_t &h1, uint64_t &h2, uint64_t &h3,
-    uint64_t &h4, uint64_t &h5, uint64_t &h6, uint64_t &h7,
-    uint64_t w[16], uint64_t t0, uint64_t t1, bool last_chunk)
-{
-    std::array<uint8_t, 16> t;
-    w2b64le(t0, &t[0]);
-    w2b64le(t1, &t[8]);
-    std::array<uint8_t, 64> a;
-    w2b64le(h0, &a[0]);
-    w2b64le(h1, &a[8]);
-    w2b64le(h2, &a[16]);
-    w2b64le(h3, &a[24]);
-    w2b64le(h4, &a[32]);
-    w2b64le(h5, &a[40]);
-    w2b64le(h6, &a[48]);
-    w2b64le(h7, &a[56]);
-    checksum512 state(a);
-    eosio::evm_blake2f((const char*)w, 16*8, state, (const char*)&t[0], 16, last_chunk, ROUNDS);
-    auto c = state.extract_as_byte_array();
-    h0 = b2w64le(&c[0]);
-    h1 = b2w64le(&c[8]);
-    h2 = b2w64le(&c[16]);
-    h3 = b2w64le(&c[24]);
-    h4 = b2w64le(&c[32]);
-    h5 = b2w64le(&c[40]);
-    h6 = b2w64le(&c[48]);
-    h7 = b2w64le(&c[56]);
-}
-static bigint bigmodexp(const bigint& _base, const bigint& _exp, const bigint& _mod)
-{
-    uint64_t baselen = (_base.bitlen() + 7) / 8;
-    uint64_t explen = (_exp.bitlen() + 7) / 8;
-    uint64_t modlen = (_mod.bitlen() + 7) / 8;
-    uint64_t outlen = modlen;
-    local<uint8_t> base_l(baselen); uint8_t *base = base_l.data;
-    local<uint8_t> exp_l(explen); uint8_t *exp = exp_l.data;
-    local<uint8_t> mod_l(modlen); uint8_t *mod = mod_l.data;
-    local<uint8_t> out_l(outlen); uint8_t *out = out_l.data;
-    bigint::to(_base, base, baselen);
-    bigint::to(_exp, exp, explen);
-    bigint::to(_mod, mod, modlen);
-    eosio::evm_bigmodexp((const char*)base, baselen, (const char*)exp, explen, (const char*)mod, modlen, (char*)out, outlen);
-    return bigint::from(out, outlen);
-}
-static G0 ecrecover(const uint256_t &h, const uint256_t &v, const uint256_t &r, const uint256_t &s)
-{
-    eosio::ecc_signature eccsig;
-    auto input = eccsig.data();
-    {
-        uint64_t offset = 0;
-        input[offset] = v == 27 ? 27 : 28; offset++;
-        uint256_t::to(r, (uint8_t*)&input[offset]); offset += 32;
-        uint256_t::to(s, (uint8_t*)&input[offset]); offset += 32;
-    }
-    eosio::ecc_uncompressed_public_key pk = eosio::evm_ecrecover(evm::convert(h), eccsig);
-    auto output = pk.data();
-    uint64_t offset = 0;
-    assert(output[offset] == 4); offset++;
-    bigint x = bigint::from((const uint8_t*)&output[offset], 32); offset += 32;
-    bigint y = bigint::from((const uint8_t*)&output[offset], 32); offset += 32;
-    return G0(x, y);
-}
-static G1 bn256add(const G1& p1, const G1& p2)
-{
-    return evm::convert(eosio::evm_bn256add(evm::convert(p1), evm::convert(p2)));
-}
-static G1 bn256scalarmul(const G1& p1, const bigint& e)
-{
-    return evm::convert(eosio::evm_bn256scalarmul(evm::convert(p1), evm::convert(e)));
-}
-static bool bn256pairing(const std::vector<G1> &a, const std::vector<G2> &b, uint64_t count)
-{
-    local<checksum512> buffer_l(3*count); checksum512 *buffer = buffer_l.data;
-    for (uint64_t i = 0; i < count; i++) {
-        buffer[3*i] = evm::convert(a[i]);
-        buffer[3*i+1] = evm::convert(G1(b[i].x.x, b[i].x.y));
-        buffer[3*i+2] = evm::convert(G1(b[i].y.x, b[i].y.y));
-    }
-    return eosio::evm_bn256pairing(buffer, count);
-}
-#endif // NATIVE_CRYPTO
-
