@@ -189,13 +189,24 @@ def codeDoneLocation(location, number):
 """
 
 def codeInitAccount(account, nonce, balance, code, storage):
+    if len(code) // 4 > 24576: _die("code size exceeds maximum")
     src = """
     {
         uint160_t account = (uint160_t)uhex256(\"""" + intToU256(account) + """\");
         uint64_t nonce = uhex256(\"""" + intToU256(nonce) + """\").cast64();
         uint256_t balance = uhex256(\"""" + intToU256(balance) + """\");
-        uint8_t *code = (uint8_t*)\"""" + code + """\";
+        uint8_t *code1 = (uint8_t*)\"""" + code[0*4*6144:1*4*6144] + """\";
+        uint8_t *code2 = (uint8_t*)\"""" + code[1*4*6144:2*4*6144] + """\";
+        uint8_t *code3 = (uint8_t*)\"""" + code[2*4*6144:3*4*6144] + """\";
+        uint8_t *code4 = (uint8_t*)\"""" + code[3*4*6144:4*4*6144] + """\";
         uint64_t code_size = """ + str(len(code) // 4) + """;
+        local<uint8_t> code_l(code_size); uint8_t *code = code_l.data;
+        for (uint64_t i = 0; i < code_size; i++) {
+            if (i >= 3*6144) { code[i] = code4[i - 3*6144]; continue; }
+            if (i >= 2*6144) { code[i] = code3[i - 2*6144]; continue; }
+            if (i >= 1*6144) { code[i] = code2[i - 1*6144]; continue; }
+            code[i] = code1[i];
+        }
         uint256_t codehash = sha3(code, code_size);
 
         uint64_t acc_id = get_account(account);
