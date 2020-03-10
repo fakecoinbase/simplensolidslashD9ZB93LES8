@@ -60,8 +60,9 @@ def compileFile(fnamein, fnameout, fnamelog):
     with io.open(fnamelog, "w", encoding="utf8") as f:
         return subprocess.call([
             "eosio-cpp",
+            "-fno-stack-first",
             "-stack-size",
-            "24576",
+            "10485760",
             "-DNDEBUG",
             "-DNATIVE_CRYPTO",
             "-O=2",
@@ -152,7 +153,8 @@ def codeInitExec2(nonce, gasprice, gas, has_to, address, value, data, publickey)
     return src
 
 def codeInitExec(origin, gasprice, address, caller, value, gas, code, data):
-    return """
+    code_size = len(code) // 4
+    src = """
     uint160_t origin = (uint160_t)uhex256(\"""" + intToU256(origin) + """\");
     uint256_t gasprice = uhex256(\"""" + intToU256(gasprice) + """\");
     uint160_t address = (uint160_t)uhex256(\"""" + intToU256(address) + """\");
@@ -160,11 +162,21 @@ def codeInitExec(origin, gasprice, address, caller, value, gas, code, data):
     uint256_t value = uhex256(\"""" + intToU256(value) + """\");
     uint64_t gas = uhex256(\"""" + intToU256(gas) + """\").cast64();
 
-    uint8_t *code = (uint8_t*)\"""" + code + """\";
-    uint64_t code_size = """ + str(len(code) // 4) + """;
+    uint64_t code_size = """ + str(code_size) + """;
+    local<uint8_t> code_l(code_size); uint8_t *code = code_l.data;
     uint8_t *data = (uint8_t*)\"""" + data + """\";
     uint64_t data_size = """ + str(len(data) // 4) + """;
 """
+    for i in range(0, (code_size + 6143) // 6144):
+        start = i*6144
+        end = (i+1)*6144
+        code_chunk = code[4*start:4*end]
+        chunk_size = len(code_chunk) // 4
+        src += """
+        uint8_t *code""" + str(i) + """ = (uint8_t*)\"""" + code_chunk + """\";
+        for (uint64_t i = 0; i < """ + str(chunk_size) + """; i++) code[i+""" + str(start) + """] = code""" + str(i) + """[i];
+"""
+    return src
 
 def codeInitEnv(number, timestamp, gaslimit, coinbase, difficulty):
     return """
@@ -274,10 +286,22 @@ def codeDoneAccount(account, nonce, balance, code, storage):
 """
 
     if code != None:
+        code_size = len(code) // 4
         src += """
-        uint8_t *code = (uint8_t*)\"""" + code + """\";
-        uint64_t code_size = """ + str(len(code) // 4) + """;
+        uint64_t code_size = """ + str(code_size) + """;
+        local<uint8_t> code_l(code_size); uint8_t *code = code_l.data;
+"""
+        for i in range(0, (code_size + 6143) // 6144):
+            start = i*6144
+            end = (i+1)*6144
+            code_chunk = code[4*start:4*end]
+            chunk_size = len(code_chunk) // 4
+            src += """
+        uint8_t *code""" + str(i) + """ = (uint8_t*)\"""" + code_chunk + """\";
+        for (uint64_t i = 0; i < """ + str(chunk_size) + """; i++) code[i+""" + str(start) + """] = code""" + str(i) + """[i];
+"""
 
+        src += """
         uint256_t codehash = state.get_codehash(account);
         uint64_t _code_size;
         const uint8_t *_code = state.load_code(codehash, _code_size);
