@@ -810,10 +810,7 @@ private:
         if (acc_id > 0) {
             auto idx = _state.get_index<"state2"_n>();
             for (auto itr = idx.find(acc_id); itr != idx.end(); itr++) {
-                if (itr->acc_id == acc_id) { // this should always be true, but seems not
-                    //idx.erase(itr); // seems not to allow later rewrite of location
-                    idx.modify(itr, _self, [&](auto& row) { row.value = convert((uint256_t)0); });
-                }
+                itr = idx.erase(itr);
             }
         }
     }
