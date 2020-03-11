@@ -16,7 +16,8 @@ do
 		--access-control-allow-origin='*' \
 		--contracts-console \
 		--http-validate-host=false \
-		--max-transaction-time=300 \
+		--max-transaction-time=350 \
+		--abi-serializer-max-time-ms=30 \
 		--genesis-json ~/eosio/docker/genesis.json \
 		--verbose-http-errors >> /tmp/nodeos.log 2>&1 &
 	sleep 1
