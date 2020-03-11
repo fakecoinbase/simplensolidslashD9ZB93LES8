@@ -1,7 +1,7 @@
 #/bin/sh
 
 SCRIPT=`realpath -s $0`
-SCRIPTPATH=`dirname $SCRIPT`
+FOLDER=`dirname $SCRIPT`
 
 # reset the eosio node
 pkill nodeos
@@ -20,7 +20,7 @@ nodeos -e -p eosio \
 	--http-validate-host=false \
 	--max-transaction-time=350 \
 	--abi-serializer-max-time-ms=30 \
-	--genesis-json $SCRIPTPATH/../../docker/genesis.json \
+	--genesis-json $FOLDER/../../docker/genesis.json \
 	--verbose-http-errors >> /tmp/nodeos.log 2>&1 &
 sleep 1
 
@@ -31,7 +31,7 @@ echo '5J2CnKzrj7XU2nHdzqrJ5yZou94tUUk3HB3TiArDCFgSAQmA6qc' | cleos wallet import
 
 # sets up the eosio.token contract and issues SYS
 cleos create account eosio eosio.token EOS72H7tRCDjsPzkdYjmdSnENCrA25D2Q1ZopCyYojBd9cjVa2yqs
-cd $SCRIPTPATH/../../support/eosio.contracts/contracts/eosio.token/
+cd $FOLDER/../../support/eosio.contracts/contracts/eosio.token/
 eosio-cpp -I include -o eosio.token.wasm src/eosio.token.cpp --abigen
 cleos set contract eosio.token . --abi eosio.token.abi -p eosio.token@active
 cleos push action eosio.token create '["eosio", "1000000000.0000 SYS"]' -p eosio.token@active
@@ -40,7 +40,7 @@ cleos push action eosio.token issue '["eosio", "10000.0000 SYS", "memo"]' -p eos
 # sets up the evm contract
 cleos create account eosio evm EOS72H7tRCDjsPzkdYjmdSnENCrA25D2Q1ZopCyYojBd9cjVa2yqs -p eosio@active
 cleos set account permission evm active --add-code
-cd $SCRIPTPATH/../../contracts/evm
+cd $FOLDER/../../contracts/evm
 make
 cleos set contract evm . -p evm@active
 

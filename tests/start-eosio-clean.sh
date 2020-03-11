@@ -1,7 +1,7 @@
 #!/bin/sh
 
 SCRIPT=`realpath -s $0`
-SCRIPTPATH=`dirname $SCRIPT`
+FOLDER=`dirname $SCRIPT`
 
 # attempts to prepare the environment and set the test contract in a robust way
 while true
@@ -22,7 +22,7 @@ do
 		--http-validate-host=false \
 		--max-transaction-time=350 \
 		--abi-serializer-max-time-ms=30 \
-		--genesis-json $SCRIPTPATH/../docker/genesis.json \
+		--genesis-json $FOLDER/../docker/genesis.json \
 		--verbose-http-errors >> /tmp/nodeos.log 2>&1 &
 	sleep 1
 	cleos wallet create --to-console
