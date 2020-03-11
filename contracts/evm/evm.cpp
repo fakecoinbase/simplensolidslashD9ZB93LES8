@@ -809,7 +809,7 @@ private:
         uint64_t acc_id = get_account(address);
         if (acc_id > 0) {
             auto idx = _state.get_index<"state2"_n>();
-            for (auto itr = idx.find(acc_id); itr != idx.end(); itr++) {
+            for (auto itr = idx.find(acc_id); itr != idx.end(); ) {
                 itr = idx.erase(itr);
             }
         }
