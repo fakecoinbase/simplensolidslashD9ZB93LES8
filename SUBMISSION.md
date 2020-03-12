@@ -9,17 +9,24 @@ The submission implements all the functionality featured in the Technical Requir
 
 - The code implements an EVM interpreter
 - It is self-contained and does not rely on additional libraries
-- We have modified EOSIO/eos and EOSIO/eosio.cdt to support keccak256 and other cryptographic primitives natively
+- We have modified EOSIO/eos and EOSIO/eosio.cdt to support keccak256 and other cryptographic primitives as intrinsics
 - We have increased EOSIO/eos `maximum_call_depth` in order to accommodate the EVM call stack limit of 1024
 - The current curve BN256 code is not optmized for production and could run significantly faster if optimized
 
 Regarding the technical requirements:
 
 - Current block number returned is the one provided by `eosio::tapos_block_num()`, as no other alternative was found in the EOSIO platform documentation
-- CHAIN_ID is hardcoded but can be modified by editting the interpreter [[evm.hpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/src/evm.hpp#L2766)]
+- CHAIN_ID is hardcoded but can be modified by editting the `CHAIN_ID` constant of the interpreter [[evm.hpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/src/evm.hpp#L2766)]
 - The implementation supports all releases of Ethereum based on the `forknumber()` method implemented by the contract [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L591)] and the `releaseforkblock` table hardcoded into the interpreter [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/src/evm.hpp#L2784)]
-- The current version of the `raw` action always check is the sender address has an EOSIO account associated, to relax this requirement for signed transactions please comment line 448 of [evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L448)
+- The current version of the `raw` action always check is the sender address has an EOSIO account associated (as understood from the requirements), to relax this requirement for signed transactions please comment line 448 of [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L448)]
 - One can query an EVM account contents using the `inspect` action which takes a 160-bit address as argument
+
+Regarding EOSIO transaction time/cpu usage:
+
+- EOSIO imposes limits to transaction time and cpu usage, but the Technical Requirements fail to specify any desired behavior for when time or cpu parameters are exceeded
+- We tested our implementation with a 350ms limit which naturally rules out some valid EVM transactions that take too long to complete
+- Most tests in the test suite execute under 150ms
+- We did not conceive any mechanism to overcome EOSIO limitations in that regard as this was not clearly specified
 
 ### Source Code
 
@@ -105,4 +112,43 @@ Important note:
 - Both lists are documented in [failing.txt](tests/failing.txt)
 
 ## Testing an ERC-20 implementation
+
+In order to test an ERC-20 implementation we need to prepare the EOSIO enviroment. Please run the [prepare.sh](tests/sol/prepare.sh) or follow the steps manually.
+
+    $ cd tests/sol
+    $ ./prepare.sh
+
+These preparation steps creates two accounts, one for Alice and one for Bob, and issue them 1000.0000 SYS each. In this test we will make Bob send Alice 100.0000 SYS via the WSYS ERC-20 token.
+
+First we need to compile and deploy the WSYS ERC-20 contract (using a third account):
+
+    $ solcjs --bin WSYS.sol
+    $ cleos push action evm create '["evm", ""]' -p evm@active
+    $ python deploy.py create 1 WSYS_sol_WSYS.bin
+    $ cleos push action evm raw '["f91027...", "13729111c844844d28e2c6162bc57aa78dd97bdd"]' -p evm@active
+    $ python deploy.py address 13729111c844844d28e2c6162bc57aa78dd97bdd 1
+    $ cleos push action evm inspect '["b44e6ef3336e9ff9c30290000214ca394086154a"]' -p evm@active
+
+Then Bob deposits 100.0000 SYS into the contract, wraps that amount, and transfer to Alice:
+
+    $ cleos get table eosio.token bob accounts
+    $ cleos push action evm create '["bob", ""]' -p bob@active
+    $ cleos push action eosio.token transfer '["bob", "evm", "100.0000 SYS", "memo"]' -p bob@active
+    $ python deploy.py wrap 1 b44e6ef3336e9ff9c30290000214ca394086154a 1000000
+    $ cleos push action evm raw '["e70101...", "92eac575633155df1667fc4cd67f855d2228d591"]' -p bob@active
+    $ cleos get table eosio.token bob accounts
+    $ cleos push action evm inspect '["b44e6ef3336e9ff9c30290000214ca394086154a"]' -p bob@active
+    $ python deploy.py transfer 2 b44e6ef3336e9ff9c30290000214ca394086154a fde9818b4bf62c6507efb33ddcec5705eed74325 1000000
+    $ cleos push action evm raw '["f86502...", "92eac575633155df1667fc4cd67f855d2228d591"]' -p bob@active
+    $ cleos push action evm inspect '["b44e6ef3336e9ff9c30290000214ca394086154a"]' -p bob@active
+
+Finally Alice unwraps the WSYS and withdraws the amount from the ERC-20 contract:
+
+    $ cleos get table eosio.token alice accounts
+    $ cleos push action evm create '["alice", ""]' -p alice@active
+    $ python deploy.py unwrap 1 b44e6ef3336e9ff9c30290000214ca394086154a 1000000
+    $ cleos push action evm raw '["f84401...", "fde9818b4bf62c6507efb33ddcec5705eed74325"]' -p alice@active
+    $ cleos push action evm withdraw '["alice", "100.0000 SYS"]' -p alice@active
+    $ cleos get table eosio.token alice accounts
+    $ cleos push action evm inspect '["b44e6ef3336e9ff9c30290000214ca394086154a"]' -p alice@active
 
