@@ -16,7 +16,7 @@ The submission implements all the functionality featured in the Technical Requir
 ### 1. Submission Notes<a name="notes"></a>
 
 - The code implements an EVM interpreter, it is self-contained and does not rely on additional libraries
-- We have modified EOSIO/eos and EOSIO/eosio.cdt to support keccak256 and other cryptographic primitives as EOSIO intrinsics
+- We have modified EOSIO/eos and EOSIO/eosio.cdt to support keccak256, and other cryptographic primitives, as EOSIO intrinsics
 - We have increased EOSIO/eos `maximum_call_depth` in order to accommodate the EVM call stack limit of 1024
 - The current curve BN256 code is not optmized for production and could run significantly faster otherwise
 
@@ -49,7 +49,7 @@ Other relevant source files:
 - [tests/tester.py](tests/tester.py) This is the script that coordinates the execution of tests in standalone mode
 - [tests/tester-eosio.py](tests/tester-eosio.py) This is the script that coordinates the execution of tests on the local EOSIO node
 - [tests/sol/deploy.py](tests/sol/deploy.py) This is the script that helps packaging EVM bytecode into unsigned transactions to be used with the `raw` action
-- [tests/sol/WSYS.sol](tests/sol/WSYS.sol) This is the sample ERC-20 contract that implements Wrapped SYS (WSYS)
+- [tests/sol/WSYS.sol](tests/sol/WSYS.sol) This is the sample ERC-20 contract that implements Wrapped-SYS (WSYS)
 
 ### 3. Changes to EOSIO software<a name="changes"></a>
 
@@ -121,12 +121,12 @@ Important note:
 
 ### 7. Testing an ERC-20 implementation<a name="erc20"></a>
 
-In order to test an ERC-20 implementation we need to prepare the EOSIO enviroment. Please run the [prepare.sh](tests/sol/prepare.sh) or follow the steps manually.
+In order to test an ERC-20 implementation we need to prepare the EOSIO enviroment. Please run the [prepare.sh](tests/sol/prepare.sh) script or follow the steps manually.
 
     $ cd tests/sol
     $ ./prepare.sh
 
-The preparation step creates two accounts, one for Alice and one for Bob, and issue them 1000.0000 SYS each. In this test we will make Bob send Alice 100.0000 SYS via the Wrapped-SYS (WSYS) ERC-20 token.
+The preparation steps create two accounts, one for Alice and one for Bob, and issue them 1000.0000 SYS each. In this test we will make Bob send Alice 100.0000 SYS via the Wrapped-SYS (WSYS) ERC-20 token.
 
 First we need to compile and deploy the [WSYS](tests/sol/WSYS.sol) ERC-20 contract (using a third account):
 
