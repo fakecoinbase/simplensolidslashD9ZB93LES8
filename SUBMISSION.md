@@ -3,6 +3,7 @@
 _This documentation is concise on purpose. Please get in touch should you have any questions._
 
 The submission implements all the functionality featured in the Technical Requirements and passes all relevant tests in the test suite.
+To our best knowledge it is complete and compatible with Geth.
 **If after evaluation it does not satisfy any judging criteria, a short report describing what needs to be fixed is very much appreciated.**
 
 1. [Submission Notes](#notes)
@@ -15,7 +16,7 @@ The submission implements all the functionality featured in the Technical Requir
 
 ### 1. Submission Notes<a name="notes"></a>
 
-- The code implements an EVM interpreter, it is self-contained and does not rely on additional libraries
+- The code implements an EVM interpreter, it is self-contained, supports all opcodes and all 9 precompiled contracts, and does not rely on additional libraries
 - We have modified EOSIO/eos and EOSIO/eosio.cdt to support keccak256, and other cryptographic primitives, as EOSIO intrinsics
 - We have increased EOSIO/eos `maximum_call_depth` in order to accommodate the EVM call stack limit of 1024
 - The current curve BN256 code is not optmized for production and could run significantly faster otherwise
@@ -41,7 +42,7 @@ There are two relevant files regarding the EOSIO EVM contract:
 - [src/evm.hpp](src/evm.hpp) A clean-room portable self-contained EVM interpreter
 - [contracts/evm/evm.cpp](contracts/evm/evm.cpp) The contract carrying EOSIO specifics
 
-These files are documented with comments. We encourage reading them.
+These files are fairly readable and documented with comments. We encourage reading them.
 
 Other relevant source files:
 
@@ -125,8 +126,8 @@ The EOSIO tester will kill `nodeos` and wipe out `~/eosio-wallet/` and `~/.local
 
 Important note:
 
-- All tests pass in standalone mode, except a small inconsistent (regarding gas usage) set for which the implementation follows the behavior of `geth`
-- Some tests take longer than 350ms in EOSIO mode and fail with code `3080004` (Transaction exceeded the current CPU usage limit imposed on the transaction) or `3080006` (Transaction took too long)
+- All tests pass in standalone mode, except a small inconsistent (regarding gas usage) set for which the implementation follows the behavior of Geth
+- Some tests take longer than 350ms in EOSIO mode and fail with code `3080004` (Transaction exceeded the current CPU usage limit imposed on the transaction), `3080006` (Transaction took too long), or `3040005` (Expired Transaction)
 - These test lists are documented in [failing.txt](tests/failing.txt)
 
 ### 7. Testing an ERC-20 implementation<a name="erc20"></a>
