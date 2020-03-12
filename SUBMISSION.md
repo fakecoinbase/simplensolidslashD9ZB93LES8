@@ -5,7 +5,15 @@ _This documentation is concise on purpose. Please get in touch should you have a
 The submission implements all the functionality featured in the Technical Requirements and passes all relevant tests in the test suite.
 **If after evaluation it does not satisfy any judging criteria, a short report describing what needs to be fixed is very much appreciated.**
 
-### 1. Submission Notes
+1. [Submission Notes](#notes)
+2. [Source Code](#code)
+3. [Changes to EOSIO software](#changes)
+4. [Getting started](#start)
+5. [Compiling the contract](#compile)
+6. [Running the test suite](#test)
+7. [Testing an ERC-20 implementation](#erc20)
+
+### 1. Submission Notes<a name="notes"></a>
 
 - The code implements an EVM interpreter, it is self-contained and does not rely on additional libraries
 - We have modified EOSIO/eos and EOSIO/eosio.cdt to support keccak256 and other cryptographic primitives as EOSIO intrinsics
@@ -26,7 +34,7 @@ Regarding EOSIO transaction time/cpu usage:
 - We have tested our implementation with a 350ms limit, which naturally rules out some valid EVM transactions that take too long to complete
 - Most tests in the test suite execute under 150ms
 
-### 2. Source Code
+### 2. Source Code<a name="code"></a>
 
 There are two relevant files regarding the EOSIO EVM contract:
 
@@ -43,7 +51,7 @@ Other relevant source files:
 - [tests/sol/deploy.py](tests/sol/deploy.py) This is the script that helps packaging EVM bytecode into unsigned transactions to be used with the `raw` action
 - [tests/sol/WSYS.sol](tests/sol/WSYS.sol) This is the sample ERC-20 contract that implements Wrapped SYS (WSYS)
 
-### 3. Changes to EOSIO software
+### 3. Changes to EOSIO software<a name="changes"></a>
 
 It does not make much sense to implement the crypto primitives required by the EVM in WebAssembly as it exhibits poor performance and bloats the WASM binary. Therefore we have introduced 7 additional intrinsics to the EOSIO contract environment:
 
@@ -63,7 +71,7 @@ We also modified the `maximum_call_depth` in order to accommodate the EVM call s
 
 The EOSIO/eosio.cdt customization is simply glue code to support the additional list of intrinsics as can be seen in the [eosio.cdt-v1.7.0.patch](support/eosio.cdt-v1.7.0.patch) file or in the [eosio.cdt-D9ZB93LES8](https://github.com/simplensolid/eosio.cdt-D9ZB93LES8/commit/a0d0dfb732ac1df3e39ed014a1eb06d3fa682f3b) commit.
 
-### 4. Getting started
+### 4. Getting started<a name="start"></a>
 
 Clone this repository:
 
@@ -75,7 +83,7 @@ Run the Docker image with the modified EOSIO software stack (or follow the [Dock
     $ docker build -t D9ZB93LES8 ./docker/
     $ docker run -it --rm -v $PWD:/home/ubuntu/D9ZB93LES8/ -w /home/ubuntu/D9ZB93LES8/ D9ZB93LES8
 
-### 5. Compiling the contract
+### 5. Compiling the contract<a name="compile"></a>
 
 Compile the contract (using the modified eosio-cpp):
 
@@ -85,7 +93,7 @@ One can also compile the contract for the vanilla EOSIO software stack where the
 
     $ eosio-cpp -fno-stack-first -stack-size 2097152 -DNDEBUG -O=z contracts/evm/evm.cpp
 
-### 6. Running the test suite
+### 6. Running the test suite<a name="test"></a>
 
 One can run the test suite both in standalone mode and EOSIO mode. Each test needs to be compiled and is cached. The first run is always slow. Tests can be filtered using their path.
 
@@ -111,7 +119,7 @@ Important note:
 - Some tests take longer than 350ms in EOSIO mode and fail with code `3080004` (Transaction exceeded the current CPU usage limit imposed on the transaction) or `3080006` (Transaction took too long)
 - Both lists are documented in [failing.txt](tests/failing.txt)
 
-### 7. Testing an ERC-20 implementation
+### 7. Testing an ERC-20 implementation<a name="erc20"></a>
 
 In order to test an ERC-20 implementation we need to prepare the EOSIO enviroment. Please run the [prepare.sh](tests/sol/prepare.sh) or follow the steps manually.
 
