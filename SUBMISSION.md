@@ -83,6 +83,16 @@ Run the Docker image with the modified EOSIO software stack (or follow the [Dock
     $ docker build -t D9ZB93LES8 ./docker/
     $ docker run -it --rm -v $PWD:/home/ubuntu/D9ZB93LES8/ -w /home/ubuntu/D9ZB93LES8/ D9ZB93LES8
 
+To run the tests (not using the [Dockerfile](docker/Dockerfile)), it is necessary to install the dependencies.
+
+For Python
+
+    $ pip3 install ecdsa pyyaml --user
+
+For Node
+
+    $ npm i -g solc@0.6.3
+
 ### 5. Compiling the contract<a name="compile"></a>
 
 Compile the contract (using the modified eosio-cpp):
