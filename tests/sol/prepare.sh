@@ -47,12 +47,12 @@ cleos set contract evm . -p evm@active
 # creates a wallet for alice
 cleos create account eosio alice EOS72H7tRCDjsPzkdYjmdSnENCrA25D2Q1ZopCyYojBd9cjVa2yqs
 cleos push action eosio.token transfer '["eosio", "alice", "1000.0000 SYS", "memo"]' -p eosio@active
-cleos push action evm create '["alice", ""]' -p alice@active
-cleos push action eosio.token transfer '["alice", "evm", "1000.0000 SYS", "memo"]' -p alice@active
+#cleos push action evm create '["alice", ""]' -p alice@active
+#cleos push action eosio.token transfer '["alice", "evm", "1000.0000 SYS", "memo"]' -p alice@active
 
 # creates a wallet for bob
 cleos create account eosio bob EOS72H7tRCDjsPzkdYjmdSnENCrA25D2Q1ZopCyYojBd9cjVa2yqs
 cleos push action eosio.token transfer '["eosio", "bob", "1000.0000 SYS", "memo"]' -p eosio@active
-cleos push action evm create '["bob", ""]' -p bob@active
-cleos push action eosio.token transfer '["bob", "evm", "1000.0000 SYS", "memo"]' -p bob@active
+#cleos push action evm create '["bob", ""]' -p bob@active
+#cleos push action eosio.token transfer '["bob", "evm", "1000.0000 SYS", "memo"]' -p bob@active
 
