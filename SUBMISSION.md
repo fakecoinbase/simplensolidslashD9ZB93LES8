@@ -5,7 +5,7 @@ _This documentation is concise on purpose. Please get in touch should you have a
 The submission implements all the functionality featured in the Technical Requirements and passes all relevant tests in the test suite.
 **If after evaluation it does not satisfy any judging criteria, a short report describing what needs to be fixed is very much appreciated.**
 
-### Submission Notes
+### 1. Submission Notes
 
 - The code implements an EVM interpreter
 - It is self-contained and does not rely on additional libraries
@@ -27,7 +27,7 @@ Regarding EOSIO transaction time/cpu usage:
 - We have tested our implementation with a 350ms limit which naturally rules out some valid EVM transactions that take too long to complete
 - Most tests in the test suite execute under 150ms
 
-### Source Code
+### 2. Source Code
 
 There are two relevant files regarding the EOSIO EVM contract:
 
@@ -44,7 +44,7 @@ Other relevant source files:
 - [tests/sol/deploy.py](tests/sol/deploy.py) This is the script that helps packaging EVM bytecode into unsigned transactions to be used with the `raw` action
 - [tests/sol/WSYS.sol](tests/sol/WSYS.sol) This is the sample ERC-20 contract that implements Wrapped SYS (WSYS)
 
-### Changes to EOSIO software
+### 3. Changes to EOSIO software
 
 It does not make much sense to implement the crypto primitives required by the EVM in WebAssembly as it exhibits poor performance and bloats the WASM binary. Therefore we have introduced 7 additional intrinsics to the EOSIO contract environment:
 
@@ -64,7 +64,7 @@ We also modified the `maximum_call_depth` in order to accommodate the EVM call s
 
 The EOSIO/eosio.cdt customization is simply glue code to support the additional list of intrinsics as can be seen in the [eosio.cdt-v1.7.0.patch](support/eosio.cdt-v1.7.0.patch) file or in the [eosio.cdt-D9ZB93LES8](https://github.com/simplensolid/eosio.cdt-D9ZB93LES8/commit/a0d0dfb732ac1df3e39ed014a1eb06d3fa682f3b) commit.
 
-### Getting Started
+### 4. Getting started
 
 Clone this repository:
 
@@ -76,6 +76,8 @@ Run the Docker image with the modified EOSIO software stack (or follow the [Dock
     $ docker build -t D9ZB93LES8 ./docker/
     $ docker run -it --rm -v $PWD:/home/ubuntu/D9ZB93LES8/ -w /home/ubuntu/D9ZB93LES8/ D9ZB93LES8
 
+### 5. Compiling the contract
+
 Compile the contract (using the modified eosio-cpp):
 
     $ eosio-cpp -fno-stack-first -stack-size 8388608 -DNDEBUG -DNATIVE_CRYPTO -O=z contracts/evm/evm.cpp
@@ -84,7 +86,7 @@ One can also compile the contract for the vanilla EOSIO software stack where the
 
     $ eosio-cpp -fno-stack-first -stack-size 2097152 -DNDEBUG -O=z contracts/evm/evm.cpp
 
-## Running the test suite
+### 6. Running the test suite
 
 One can run the test suite both in standalone mode and EOSIO mode. Each test needs to be compiled and is cached. The first run is always slow. Tests can be filtered using their path.
 
@@ -110,14 +112,14 @@ Important note:
 - Some tests take longer than 350ms in EOSIO mode and fail with code `3080004` (Transaction exceeded the current CPU usage limit imposed on the transaction) or `3080006` (Transaction took too long)
 - Both lists are documented in [failing.txt](tests/failing.txt)
 
-## Testing an ERC-20 implementation
+### 7. Testing an ERC-20 implementation
 
 In order to test an ERC-20 implementation we need to prepare the EOSIO enviroment. Please run the [prepare.sh](tests/sol/prepare.sh) or follow the steps manually.
 
     $ cd tests/sol
     $ ./prepare.sh
 
-These preparation steps creates two accounts, one for Alice and one for Bob, and issue them 1000.0000 SYS each. In this test we will make Bob send Alice 100.0000 SYS via the WSYS ERC-20 token.
+These preparation steps creates two accounts, one for Alice and one for Bob, and issue them 1000.0000 SYS each. In this test we will make Bob send Alice 100.0000 SYS via the Wrapped-SYS (WSYS) ERC-20 token.
 
 First we need to compile and deploy the [WSYS](tests/sol/WSYS.sol) ERC-20 contract (using a third account):
 
@@ -128,7 +130,7 @@ First we need to compile and deploy the [WSYS](tests/sol/WSYS.sol) ERC-20 contra
     $ python deploy.py address 13729111c844844d28e2c6162bc57aa78dd97bdd 1
     $ cleos push action evm inspect '["b44e6ef3336e9ff9c30290000214ca394086154a"]' -p evm@active
 
-Then Bob deposits 100.0000 SYS into the contract, wraps that amount, and transfer to Alice:
+Then Bob deposits 100.0000 SYS into the contract
 
     $ cleos get table eosio.token bob accounts
     $ cleos push action evm create '["bob", ""]' -p bob@active
@@ -136,15 +138,21 @@ Then Bob deposits 100.0000 SYS into the contract, wraps that amount, and transfe
     $ cleos get table eosio.token evm accounts
     $ cleos get table eosio.token bob accounts
     $ cleos push action evm inspect '["92eac575633155df1667fc4cd67f855d2228d591"]' -p bob@active
+
+wraps that amount in WSYS
+
     $ python deploy.py wrap 1 b44e6ef3336e9ff9c30290000214ca394086154a 1000000
     $ cleos push action evm raw '["e70101...", "92eac575633155df1667fc4cd67f855d2228d591"]' -p bob@active
     $ cleos push action evm inspect '["92eac575633155df1667fc4cd67f855d2228d591"]' -p bob@active
     $ cleos push action evm inspect '["b44e6ef3336e9ff9c30290000214ca394086154a"]' -p bob@active
+
+and transfer 100.0000 WSYS to Alice
+
     $ python deploy.py transfer 2 b44e6ef3336e9ff9c30290000214ca394086154a fde9818b4bf62c6507efb33ddcec5705eed74325 1000000
     $ cleos push action evm raw '["f86502...", "92eac575633155df1667fc4cd67f855d2228d591"]' -p bob@active
     $ cleos push action evm inspect '["b44e6ef3336e9ff9c30290000214ca394086154a"]' -p bob@active
 
-Finally Alice unwraps the WSYS and withdraws the amount from the ERC-20 contract:
+Finally, Alice unwraps the WSYS
 
     $ cleos get table eosio.token alice accounts
     $ cleos push action evm create '["alice", ""]' -p alice@active
@@ -153,6 +161,11 @@ Finally Alice unwraps the WSYS and withdraws the amount from the ERC-20 contract
     $ cleos push action evm raw '["f84401...", "fde9818b4bf62c6507efb33ddcec5705eed74325"]' -p alice@active
     $ cleos push action evm inspect '["b44e6ef3336e9ff9c30290000214ca394086154a"]' -p bob@active
     $ cleos push action evm inspect '["fde9818b4bf62c6507efb33ddcec5705eed74325"]' -p bob@active
+
+and withdraws 100.0000 SYS
+
     $ cleos push action evm withdraw '["alice", "100.0000 SYS"]' -p alice@active
     $ cleos get table eosio.token alice accounts
+    $ cleos get table eosio.token evm accounts
+    $ cleos push action evm inspect '["fde9818b4bf62c6507efb33ddcec5705eed74325"]' -p bob@active
 
