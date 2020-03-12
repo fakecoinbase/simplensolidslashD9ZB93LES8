@@ -19,7 +19,7 @@ To our best knowledge it is complete and compatible with Geth.
 - The code implements an EVM interpreter, it is self-contained, supports all opcodes and all 9 precompiled contracts, and does not rely on additional libraries
 - We have modified EOSIO/eos and EOSIO/eosio.cdt to support keccak256, and other cryptographic primitives, as EOSIO intrinsics
 - We have increased EOSIO/eos `maximum_call_depth` in order to accommodate the EVM call stack limit of 1024
-- The current curve BN256 code is not optmized for production and could run significantly faster otherwise
+- The current curve BN256 code is not optimized for production and could run significantly faster otherwise
 
 Regarding the technical requirements:
 
@@ -81,8 +81,8 @@ Clone this repository:
 
 Run the Docker image with the modified EOSIO software stack (or follow the [Dockerfile](docker/Dockerfile) steps manually). It will take several minutes to build the modified versions of EOSIO/eos and EOSIO/eosio.cdt:
 
-    $ docker build -t D9ZB93LES8 ./docker/
-    $ docker run -it --rm -v $PWD:/home/ubuntu/D9ZB93LES8/ -w /home/ubuntu/D9ZB93LES8/ D9ZB93LES8
+    $ docker build -t custom-eosio ./docker/
+    $ docker run -it --rm -v $PWD:/home/ubuntu/D9ZB93LES8/ -w /home/ubuntu/D9ZB93LES8/ custom-eosio
 
 To run the tests (not using the [Dockerfile](docker/Dockerfile)), it is necessary to install the dependencies.
 
