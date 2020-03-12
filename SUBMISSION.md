@@ -97,14 +97,14 @@ One can also compile the contract for the vanilla EOSIO software stack where the
 
 One can run the test suite both in standalone mode and EOSIO mode. Each test needs to be compiled and is cached. The first run is always slow. Tests can be filtered using their path.
 
-In standalone mode we test only the EVM interpreter running on native code.
+In standalone mode, we test only the EVM interpreter running on native code
 
     $ cd tests
     $ python3 tester.py
     $ python3 tester.py ../support/tests/VMTests/vmLogTest/
     $ python3 tester.py ../support/tests/VMTests/vmLogTest/log0_emptyMem.json
 
-In EOSIO mode we test the EVM execution on top of the WASM based EOS-VM.
+In EOSIO mode, we test the EVM execution on top of the WASM based EOS-VM
 
     $ cd tests
     $ python3 tester-eosio.py
@@ -115,9 +115,9 @@ The EOSIO tester will kill `nodeos` and wipe out `~/eosio-wallet/` and `~/.local
 
 Important note:
 
-- All tests pass in standalone mode, except a small inconsistent set (regarding gas usage) for which the implementation is consistent with the behavior of `geth`
+- All tests pass in standalone mode, except a small inconsistent (regarding gas usage) set for which the implementation follows the behavior of `geth`
 - Some tests take longer than 350ms in EOSIO mode and fail with code `3080004` (Transaction exceeded the current CPU usage limit imposed on the transaction) or `3080006` (Transaction took too long)
-- Both lists are documented in [failing.txt](tests/failing.txt)
+- These test lists are documented in [failing.txt](tests/failing.txt)
 
 ### 7. Testing an ERC-20 implementation<a name="erc20"></a>
 
@@ -126,7 +126,7 @@ In order to test an ERC-20 implementation we need to prepare the EOSIO enviromen
     $ cd tests/sol
     $ ./prepare.sh
 
-These preparation steps creates two accounts, one for Alice and one for Bob, and issue them 1000.0000 SYS each. In this test we will make Bob send Alice 100.0000 SYS via the Wrapped-SYS (WSYS) ERC-20 token.
+The preparation step creates two accounts, one for Alice and one for Bob, and issue them 1000.0000 SYS each. In this test we will make Bob send Alice 100.0000 SYS via the Wrapped-SYS (WSYS) ERC-20 token.
 
 First we need to compile and deploy the [WSYS](tests/sol/WSYS.sol) ERC-20 contract (using a third account):
 
