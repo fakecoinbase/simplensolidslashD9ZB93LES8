@@ -1,8 +1,3 @@
-# Tests that seem incorrect and need further investigation
-../support/tests/TransactionTests/ttRSValue/TransactionWithSvalueTooHigh.json
-../support/tests/GeneralStateTests/stPreCompiledContracts2/CALLBlake2f.json
-../support/tests/GeneralStateTests/stPreCompiledContracts2/CALLCODEBlake2f.json
-
 # Transaction tests that seem inconsistent with the specs
 ../support/tests/TransactionTests/ttRSValue/TransactionWithSvalueLargerThan_c_secp256k1n_x05.json
 
