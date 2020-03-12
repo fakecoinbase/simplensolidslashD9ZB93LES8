@@ -22,8 +22,8 @@ RUN apt-get install -y \
 #RUN dpkg -i eosio.cdt_1.7.0-1-ubuntu-18.04_amd64.deb
 
 # installs the customized eosio stack
-RUN git clone --recursive https://a313c8193ce98cae75f1e244d534cdfd0fa32e81@github.com/simplensolid/eos-D9ZB93LES8/ /eos/
-RUN git clone --recursive https://a313c8193ce98cae75f1e244d534cdfd0fa32e81@github.com/simplensolid/eosio.cdt-D9ZB93LES8/ /eosio.cdt/
+RUN git clone --recursive https://github.com/simplensolid/eos-D9ZB93LES8/ /eos/
+RUN git clone --recursive https://github.com/simplensolid/eosio.cdt-D9ZB93LES8/ /eosio.cdt/
 RUN cd /eos/ && ./scripts/eosio_build.sh -y -i /usr/local/eos/ && cd build && make install && ln -s /usr/local/eos/bin/* /usr/local/bin/
 RUN cd /eosio.cdt/ && mkdir build && cd build && cmake .. && make install -j4
 RUN rm -rf /eos/ /eosio.cdt/
