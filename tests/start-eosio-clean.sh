@@ -8,7 +8,7 @@ while true
 do
 	pkill nodeos
 	sleep 1
-    rm -rf ~/eosio-wallet/
+	rm -rf ~/eosio-wallet/
 	rm -rf ~/.local/share/eosio/
 	nodeos -e -p eosio \
 		--plugin eosio::producer_plugin \

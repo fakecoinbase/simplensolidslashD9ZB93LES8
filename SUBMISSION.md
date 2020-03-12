@@ -15,9 +15,9 @@ The submission implements all the functionality featured in the Technical Requir
 
 Regarding the technical requirements:
 
-- Current block number returned by `BLOCKNUMBER` is the one provided by `eosio::tapos_block_num()`, as no other alternative was found in the EOSIO platform documentation
+- Current block number returned by `NUMBER` is the one provided by `eosio::tapos_block_num()`, as no other alternative was found in the EOSIO platform documentation
 - The Chain ID is hardcoded but can be modified by editting the `CHAIN_ID` constant of the interpreter [[evm.hpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/src/evm.hpp#L2766)]
-- The implementation may support any past release of Ethereum based on the `forknumber()` method implemented by the contract [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L591)] and the `releaseforkblock` table hardcoded into the interpreter [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/src/evm.hpp#L2784)]
+- The implementation may support any past release of Ethereum based on the `forknumber()` method implemented by the contract [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L591)] and the `releaseforkblock` table hardcoded into the interpreter [[evm.hpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/src/evm.hpp#L2784)]
 - The current version of the `raw` action always check is the sender address has an EOSIO account associated with it (as understood from the requirements). To relax this requirement for signed transactions, please comment line 448 of [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L448)]
 - For testing, one can easily query any EVM account for its contents using the `inspect` action which takes an 160-bit address as argument
 
@@ -29,7 +29,7 @@ Regarding EOSIO transaction time/cpu usage:
 
 ### Source Code
 
-There are two relevant files regarding the EOSIO EVM contract are:
+There are two relevant files regarding the EOSIO EVM contract:
 
 - [src/evm.hpp](src/evm.hpp) A clean-room portable self-contained EVM interpreter
 - [contracts/evm/evm.cpp](contracts/evm/evm.cpp) The contract carrying EOSIO specifics
@@ -102,7 +102,7 @@ In EOSIO mode we test the EVM execution on top of the WASM based EOS-VM.
     $ python3 tester-eosio.py ../support/tests/VMTests/vmLogTest/
     $ python3 tester-eosio.py ../support/tests/VMTests/vmLogTest/log0_emptyMem.json
 
-The EOSIO tester will kill `nodeos` and wipe out `~/eosio-wallet/` and `~/.local/share/eosio/` folders at every test, check the details on the auxiliary script [start-eosio-clean.sh](tests/start-eosio-clean.sh). Therefore in order to run tests in parallel, one should instantiate multiple Docker containers.
+The EOSIO tester will kill `nodeos` and wipe out `~/eosio-wallet/` and `~/.local/share/eosio/` folders at every test (check the details on the auxiliary script [start-eosio-clean.sh](tests/start-eosio-clean.sh)). Therefore in order to run tests in parallel, one should instantiate multiple Docker containers.
 
 Important note:
 
