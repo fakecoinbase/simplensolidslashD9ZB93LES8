@@ -174,16 +174,16 @@ Finally, Alice unwraps the WSYS
 
     $ cleos get table eosio.token alice accounts
     $ cleos push action evm create '["alice", ""]' -p alice@active
-    $ cleos push action evm inspect '["92eac575633155df1667fc4cd67f855d2228d591"]' -p bob@active
+    $ cleos push action evm inspect '["fde9818b4bf62c6507efb33ddcec5705eed74325"]' -p alice@active
     $ python deploy.py unwrap 1 b44e6ef3336e9ff9c30290000214ca394086154a 1000000
     $ cleos push action evm raw '["f84401...", "fde9818b4bf62c6507efb33ddcec5705eed74325"]' -p alice@active
-    $ cleos push action evm inspect '["b44e6ef3336e9ff9c30290000214ca394086154a"]' -p bob@active
-    $ cleos push action evm inspect '["fde9818b4bf62c6507efb33ddcec5705eed74325"]' -p bob@active
+    $ cleos push action evm inspect '["b44e6ef3336e9ff9c30290000214ca394086154a"]' -p alice@active
+    $ cleos push action evm inspect '["fde9818b4bf62c6507efb33ddcec5705eed74325"]' -p alice@active
 
 and withdraws 100.0000 SYS
 
     $ cleos push action evm withdraw '["alice", "100.0000 SYS"]' -p alice@active
     $ cleos get table eosio.token alice accounts
     $ cleos get table eosio.token evm accounts
-    $ cleos push action evm inspect '["fde9818b4bf62c6507efb33ddcec5705eed74325"]' -p bob@active
+    $ cleos push action evm inspect '["fde9818b4bf62c6507efb33ddcec5705eed74325"]' -p alice@active
 
