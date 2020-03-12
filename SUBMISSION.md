@@ -24,7 +24,7 @@ Regarding the technical requirements:
 
 - Current block number returned by `NUMBER` is the one provided by `eosio::tapos_block_num()`, as no other alternative was found in the EOSIO platform documentation
 - The Chain ID is hardcoded but can be modified by editting the `CHAIN_ID` constant of the interpreter [[evm.hpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/src/evm.hpp#L2766)]
-- The implementation may support any past release of Ethereum based on the `forknumber()` method implemented by the contract [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L591)] and the `releaseforkblock` table hardcoded into the interpreter [[evm.hpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/src/evm.hpp#L2784)]
+- The implementation may support any past release of Ethereum based on the `forknumber()` method, implemented by the contract [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L591)], and the `releaseforkblock` table, hardcoded into the interpreter [[evm.hpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/src/evm.hpp#L2784)]
 - The current version of the `raw` action always check if the sender address has an EOSIO account associated with it (as understood from the requirements). To remove this constraint for signed transactions, please comment line 448 of [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L448)]
 - For testing purposes, one can easily query any EVM account for its contents using the `inspect` action which takes an 160-bit address as argument
 
@@ -95,9 +95,9 @@ One can also compile the contract for the vanilla EOSIO software stack where the
 
 ### 6. Running the test suite<a name="test"></a>
 
-One can run the test suite both in standalone mode and EOSIO mode. Each test needs to be compiled and is cached. The first run is always slow. Tests can be filtered using their path.
+One can run the test suite both in standalone mode and EOSIO mode. Each test needs to be compiled and is cached, therefore the first run is always slow. Tests can be filtered using their path.
 
-In standalone mode, we test only the EVM interpreter running on native code
+In standalone mode, we test only the EVM interpreter running nativelly (compiled with g++)
 
     $ cd tests
     $ python3 tester.py
