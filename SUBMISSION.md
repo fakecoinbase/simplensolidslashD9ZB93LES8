@@ -7,24 +7,23 @@ The submission implements all the functionality featured in the Technical Requir
 
 ### 1. Submission Notes
 
-- The code implements an EVM interpreter
-- It is self-contained and does not rely on additional libraries
+- The code implements an EVM interpreter, it is self-contained and does not rely on additional libraries
 - We have modified EOSIO/eos and EOSIO/eosio.cdt to support keccak256 and other cryptographic primitives as EOSIO intrinsics
 - We have increased EOSIO/eos `maximum_call_depth` in order to accommodate the EVM call stack limit of 1024
-- The current curve BN256 code is not optmized for production and could run significantly faster if optimized
+- The current curve BN256 code is not optmized for production and could run significantly faster otherwise
 
 Regarding the technical requirements:
 
 - Current block number returned by `NUMBER` is the one provided by `eosio::tapos_block_num()`, as no other alternative was found in the EOSIO platform documentation
 - The Chain ID is hardcoded but can be modified by editting the `CHAIN_ID` constant of the interpreter [[evm.hpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/src/evm.hpp#L2766)]
 - The implementation may support any past release of Ethereum based on the `forknumber()` method implemented by the contract [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L591)] and the `releaseforkblock` table hardcoded into the interpreter [[evm.hpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/src/evm.hpp#L2784)]
-- The current version of the `raw` action always check is the sender address has an EOSIO account associated with it (as understood from the requirements). To relax this requirement for signed transactions, please comment line 448 of [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L448)]
-- For testing, one can easily query any EVM account for its contents using the `inspect` action which takes an 160-bit address as argument
+- The current version of the `raw` action always check if the sender address has an EOSIO account associated with it (as understood from the requirements). To remove this constraint for signed transactions, please comment line 448 of [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L448)]
+- For testing purposes, one can easily query any EVM account for its contents using the `inspect` action which takes an 160-bit address as argument
 
 Regarding EOSIO transaction time/cpu usage:
 
-- EOSIO imposes limits to transaction time/cpu usage, but the Technical Requirements fail to specify any desired behavior for when these parameters are exceeded. Therefore we did not conceive any mechanism to overcome these limits in order to complete EVM transactions that might exceed them
-- We have tested our implementation with a 350ms limit which naturally rules out some valid EVM transactions that take too long to complete
+- EOSIO imposes limits to transaction time/cpu usage, but the Technical Requirements fail to specify the desired behavior for when these parameters are exceeded. Therefore, we did not conceive any mechanism to overcome these limits in order to complete EVM transactions that might exceed them (besides working on the interpreter performance)
+- We have tested our implementation with a 350ms limit, which naturally rules out some valid EVM transactions that take too long to complete
 - Most tests in the test suite execute under 150ms
 
 ### 2. Source Code
@@ -34,7 +33,7 @@ There are two relevant files regarding the EOSIO EVM contract:
 - [src/evm.hpp](src/evm.hpp) A clean-room portable self-contained EVM interpreter
 - [contracts/evm/evm.cpp](contracts/evm/evm.cpp) The contract carrying EOSIO specifics
 
-These files are documented with comments.
+These files are documented with comments. We encourage reading them.
 
 Other relevant source files:
 
@@ -60,7 +59,7 @@ This EOSIO/eos customization can be seen in the [eos-v2.0.3.patch](support/eos-v
 
 For simplicity, it includes an exact copy of [evm.hpp](src/evm.hpp), even though only the crypto primitives are required (the compiler throws away the unused code).
 
-We also modified the `maximum_call_depth` in order to accommodate the EVM call stack limit of 1024. Alternativelly, the interpreter could have used a heap allocated stack instead, but naturally using the C++ stack makes the code easier to read and maintain.
+We also modified the `maximum_call_depth` in order to accommodate the EVM call stack limit of 1024. Alternativelly, the interpreter could have used a heap allocated stack instead, but naturally using the C++ call stack as the interpreter call stack makes the code easier to read and maintain.
 
 The EOSIO/eosio.cdt customization is simply glue code to support the additional list of intrinsics as can be seen in the [eosio.cdt-v1.7.0.patch](support/eosio.cdt-v1.7.0.patch) file or in the [eosio.cdt-D9ZB93LES8](https://github.com/simplensolid/eosio.cdt-D9ZB93LES8/commit/a0d0dfb732ac1df3e39ed014a1eb06d3fa682f3b) commit.
 
