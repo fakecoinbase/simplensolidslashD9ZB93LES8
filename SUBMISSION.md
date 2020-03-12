@@ -9,41 +9,40 @@ The submission implements all the functionality featured in the Technical Requir
 
 - The code implements an EVM interpreter
 - It is self-contained and does not rely on additional libraries
-- We have modified EOSIO/eos and EOSIO/eosio.cdt to support keccak256 and other cryptographic primitives as intrinsics
+- We have modified EOSIO/eos and EOSIO/eosio.cdt to support keccak256 and other cryptographic primitives as EOSIO intrinsics
 - We have increased EOSIO/eos `maximum_call_depth` in order to accommodate the EVM call stack limit of 1024
 - The current curve BN256 code is not optmized for production and could run significantly faster if optimized
 
 Regarding the technical requirements:
 
-- Current block number returned is the one provided by `eosio::tapos_block_num()`, as no other alternative was found in the EOSIO platform documentation
-- CHAIN_ID is hardcoded but can be modified by editting the `CHAIN_ID` constant of the interpreter [[evm.hpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/src/evm.hpp#L2766)]
-- The implementation supports all releases of Ethereum based on the `forknumber()` method implemented by the contract [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L591)] and the `releaseforkblock` table hardcoded into the interpreter [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/src/evm.hpp#L2784)]
-- The current version of the `raw` action always check is the sender address has an EOSIO account associated (as understood from the requirements), to relax this requirement for signed transactions please comment line 448 of [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L448)]
-- One can query an EVM account contents using the `inspect` action which takes a 160-bit address as argument
+- Current block number returned by `BLOCKNUMBER` is the one provided by `eosio::tapos_block_num()`, as no other alternative was found in the EOSIO platform documentation
+- The Chain ID is hardcoded but can be modified by editting the `CHAIN_ID` constant of the interpreter [[evm.hpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/src/evm.hpp#L2766)]
+- The implementation may support any past release of Ethereum based on the `forknumber()` method implemented by the contract [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L591)] and the `releaseforkblock` table hardcoded into the interpreter [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/src/evm.hpp#L2784)]
+- The current version of the `raw` action always check is the sender address has an EOSIO account associated with it (as understood from the requirements). To relax this requirement for signed transactions, please comment line 448 of [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L448)]
+- For testing, one can easily query any EVM account for its contents using the `inspect` action which takes an 160-bit address as argument
 
 Regarding EOSIO transaction time/cpu usage:
 
-- EOSIO imposes limits to transaction time and cpu usage, but the Technical Requirements fail to specify any desired behavior for when time or cpu parameters are exceeded
-- We tested our implementation with a 350ms limit which naturally rules out some valid EVM transactions that take too long to complete
+- EOSIO imposes limits to transaction time/cpu usage, but the Technical Requirements fail to specify any desired behavior for when these parameters are exceeded. Therefore we did not conceive any mechanism to overcome these limits in order to complete EVM transactions that might exceed them
+- We have tested our implementation with a 350ms limit which naturally rules out some valid EVM transactions that take too long to complete
 - Most tests in the test suite execute under 150ms
-- We did not conceive any mechanism to overcome EOSIO limitations in that regard as this was not clearly specified
 
 ### Source Code
 
-There two relevant files regarding the EOSIO EVM contract are:
+There are two relevant files regarding the EOSIO EVM contract are:
 
-- [evm.hpp](src/evm.hpp) A clean-room portable self-contained EVM interpreter
-- [evm.cpp](contracts/evm/evm.cpp) The contract carrying EOSIO specifics
+- [src/evm.hpp](src/evm.hpp) A clean-room portable self-contained EVM interpreter
+- [contracts/evm/evm.cpp](contracts/evm/evm.cpp) The contract carrying EOSIO specifics
 
 These files are documented with comments.
 
 Other relevant source files:
 
-- [evm.cpp](src/evm.cpp) This is the standalone environment used as base for tests
-- [tester.py](tests/tester.py) This is the script that coordinates the execution of tests in standalone mode
-- [tester-eosio.py](tests/tester-eosio.py) This is the script that coordinates the execution of tests on the local EOSIO node
-- [deploy.py](tests/sol/deploy.py) This is the script helps packaging EVM bytecode into unsigned transactions to be used with the `raw` action
-- [WSYS.sol](tests/sol/WSYS.sol) This is the sample ERC-20 contract that implements Wrapped SYS (WSYS)
+- [src/evm.cpp](src/evm.cpp) This is the standalone environment used as base for tests
+- [tests/tester.py](tests/tester.py) This is the script that coordinates the execution of tests in standalone mode
+- [tests/tester-eosio.py](tests/tester-eosio.py) This is the script that coordinates the execution of tests on the local EOSIO node
+- [tests/sol/deploy.py](tests/sol/deploy.py) This is the script helps packaging EVM bytecode into unsigned transactions to be used with the `raw` action
+- [tests/sol/WSYS.sol](tests/sol/WSYS.sol) This is the sample ERC-20 contract that implements Wrapped SYS (WSYS)
 
 ### Changes to EOSIO software
 
@@ -108,7 +107,7 @@ The EOSIO tester will kill `nodeos` and wipe out `~/eosio-wallet/` and `~/.local
 Important note:
 
 - All tests pass in standalone mode, except a small inconsistent set (regarding gas usage) for which the implementation is consistent with the behavior of `geth`
-- Some tests take longer than 350ms in EOSIO mode and fail with code 3080004 (Transaction exceeded the current CPU usage limit imposed on the transaction) or 3080006 (Transaction took too long)
+- Some tests take longer than 350ms in EOSIO mode and fail with code `3080004` (Transaction exceeded the current CPU usage limit imposed on the transaction) or `3080006` (Transaction took too long)
 - Both lists are documented in [failing.txt](tests/failing.txt)
 
 ## Testing an ERC-20 implementation
