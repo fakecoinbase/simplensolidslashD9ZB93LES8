@@ -3,7 +3,7 @@
 _This documentation is concise on purpose. Please get in touch should you have any questions._
 
 The submission implements all the functionality featured in the Technical Requirements and passes all relevant tests in the test suite.
-**If it does not satisfy any judging criteria, a short report describing what needs to be fixed is very much appreciated.**
+**If after evaluation it does not satisfy any judging criteria, a short report describing what needs to be fixed is very much appreciated.**
 
 ### Submission Notes
 
@@ -120,7 +120,7 @@ In order to test an ERC-20 implementation we need to prepare the EOSIO enviromen
 
 These preparation steps creates two accounts, one for Alice and one for Bob, and issue them 1000.0000 SYS each. In this test we will make Bob send Alice 100.0000 SYS via the WSYS ERC-20 token.
 
-First we need to compile and deploy the WSYS ERC-20 contract (using a third account):
+First we need to compile and deploy the [WSYS](tests/sol/WSYS.sol) ERC-20 contract (using a third account):
 
     $ solcjs --bin WSYS.sol
     $ cleos push action evm create '["evm", ""]' -p evm@active
