@@ -1,0 +1,341 @@
+diff --git a/libraries/eosiolib/capi/eosio/crypto.h b/libraries/eosiolib/capi/eosio/crypto.h
+index e5d1ad0b..dd4dd1bd 100644
+--- a/libraries/eosiolib/capi/eosio/crypto.h
++++ b/libraries/eosiolib/capi/eosio/crypto.h
+@@ -186,6 +186,95 @@ void sha512( const char* data, uint32_t length, capi_checksum512* hash );
+ __attribute__((eosio_wasm_import))
+ void ripemd160( const char* data, uint32_t length, capi_checksum160* hash );
+ 
++/**
++ *  EVM Compatibility Layer - Hashes `data` using KECCAK256.
++ *
++ *  @ingroup crypto
++ *  @param data - Data you want to hash
++ *  @param length - Data length
++ *  @param hash - Hash pointer
++ *
++ */
++__attribute__((eosio_wasm_import))
++void evm_keccak256( const char* data, uint32_t length, capi_checksum256* hash );
++
++/**
++ *  EVM Compatibility Layer - Calculates the uncompressed public key used for a given signature on a given digest.
++ *
++ *  @ingroup crypto
++ *  @param digest - Digest of the message that was signed
++ *  @param sig - Signature
++ *  @param siglen - The signature buffer length
++ *  @param pub - The recovered public key
++ *  @param publen - The public key buffer length
++ */
++__attribute__((eosio_wasm_import))
++void evm_ecrecover( const capi_checksum256* digest, const char* sig, size_t siglen, char* pub, size_t publen );
++
++/**
++ *  EVM Compatibility Layer - Perform modular exponentiation of unsigned numbers.
++ *
++ *  @ingroup crypto
++ *  @param base - The base number
++ *  @param baselen - The base length in bytes
++ *  @param exp - The exponent number
++ *  @param explen - The exponent length in bytes
++ *  @param mod - The modulus number
++ *  @param modlen - The modulus length in bytes
++ *  @param output - The resulting number
++ *  @param outlen - The resulting number length in bytes
++ */
++__attribute__((eosio_wasm_import))
++void evm_bigmodexp( const char* base, uint32_t baselen, const char* exp, uint32_t explen, const char* mod, uint32_t modlen, char *output, size_t outlen );
++
++/**
++ *  EVM Compatibility Layer - Adds two BN256 curve points.
++ *
++ *  @ingroup crypto
++ *  @param point1 - First point to add
++ *  @param point2 - Second point to add
++ *  @param point3 - The resulting point
++ */
++__attribute__((eosio_wasm_import))
++void evm_bn256add( const capi_checksum512* point1, const capi_checksum512* point2, capi_checksum512* point3 );
++
++/**
++ *  EVM Compatibility Layer - Multiplies a BN256 curve point by a scalar.
++ *
++ *  @ingroup crypto
++ *  @param point1 - Point to multiply
++ *  @param scalar - Scalar multiplier
++ *  @param point2 - The resulting point
++ */
++__attribute__((eosio_wasm_import))
++void evm_bn256scalarmul( const capi_checksum512* point1, const capi_checksum256* scalar, capi_checksum512* point2 );
++
++/**
++ *  EVM Compatibility Layer - Check for a BN256 curve point/twist pairing.
++ *
++ *  @ingroup crypto
++ *  @param point_twistx_twisty_list - A list of tuples consisting of bn256 point, bn256 twist x, and y coordinates
++ *  @param count - The number of tuples
++ *  @return bool - Whether or not there is a pairing
++ */
++__attribute__((eosio_wasm_import))
++bool evm_bn256pairing( const capi_checksum512* point_twistx_twisty_list, uint32_t count );
++
++/**
++ *  EVM Compatibility Layer - Hashes `data` using BLAKE2F cipher.
++ *
++ *  @ingroup crypto
++ *  @param data - Data you want to hash
++ *  @param length - Data length (should always be 128)
++ *  @param state - Cipher state (modified after call)
++ *  @param offset - Offset into the data
++ *  @param offsetlen - Length of the offset (should always be 16)
++ *  @param last - Marks the end of data
++ *  @param rounds - Number of cipher rounds to perform
++ */
++__attribute__((eosio_wasm_import))
++void evm_blake2f( const char* data, uint32_t length, capi_checksum512* state, const char *offset, uint32_t offsetlen, uint32_t last, uint32_t rounds );
++
+ /**
+  *  Calculates the public key used for a given signature and hash used to create a message.
+  *
+diff --git a/libraries/eosiolib/core/eosio/crypto.hpp b/libraries/eosiolib/core/eosio/crypto.hpp
+index b7ca46a9..f7cbe377 100644
+--- a/libraries/eosiolib/core/eosio/crypto.hpp
++++ b/libraries/eosiolib/core/eosio/crypto.hpp
+@@ -28,6 +28,15 @@ namespace eosio {
+     */
+    using ecc_public_key = std::array<char, 33>;
+ 
++   /**
++    *  EOSIO ECC uncompressed public key data
++    *
++    *  Fixed size representation of either a K1 or R1 uncompressed public key
++
++    *  @ingroup public_key
++    */
++   using ecc_uncompressed_public_key = std::array<char, 65>;
++
+    /**
+     *  EOSIO WebAuthN public key
+     *
+@@ -317,6 +326,85 @@ namespace eosio {
+     */
+    eosio::checksum160 ripemd160( const char* data, uint32_t length );
+ 
++   /**
++    *  EVM Compatibility Layer - Hashes `data` using KECCAK256.
++    *
++    *  @ingroup crypto
++    *  @param data - Data you want to hash
++    *  @param length - Data length
++    *  @return eosio::checksum256 - Computed digest
++    */
++   eosio::checksum256 evm_keccak256( const char* data, uint32_t length );
++
++   /**
++    *  EVM Compatibility Layer - Calculates the uncompressed public key used for a given signature on a given digest.
++    *
++    *  @ingroup crypto
++    *  @param digest - Digest of the message that was signed
++    *  @param sig - Signature
++    *  @return eosio::ecc_uncompressed_public_key - Recovered public key
++    */
++   eosio::ecc_uncompressed_public_key evm_ecrecover( const eosio::checksum256& digest, const eosio::ecc_signature& sig );
++
++   /**
++    *  EVM Compatibility Layer - Perform modular exponentiation of unsigned numbers.
++    *
++    *  @ingroup crypto
++    *  @param base - The base number
++    *  @param baselen - The base length in bytes
++    *  @param exp - The exponent number
++    *  @param explen - The exponent length in bytes
++    *  @param mod - The modulus number
++    *  @param modlen - The modulus length in bytes
++    *  @param output - The resulting number
++    *  @param outlen - The resulting number length in bytes
++    */
++   void evm_bigmodexp( const char* base, uint32_t baselen, const char* exp, uint32_t explen, const char* mod, uint32_t modlen, char *output, size_t outlen );
++
++   /**
++    *  EVM Compatibility Layer - Adds two BN256 curve points.
++    *
++    *  @ingroup crypto
++    *  @param point1 - First point to add
++    *  @param point2 - Second point to add
++    *  @return eosio::checksum512 - The resulting point
++    */
++   eosio::checksum512 evm_bn256add( const eosio::checksum512& point1, const eosio::checksum512& point2 );
++
++   /**
++    *  EVM Compatibility Layer - Multiplies a BN256 curve point by a scalar.
++    *
++    *  @ingroup crypto
++    *  @param point - Point to multiply
++    *  @param scalar - Scalar multiplier
++    *  @return eosio::checksum512 - The resulting point
++    */
++   eosio::checksum512 evm_bn256scalarmul( const eosio::checksum512& point, const eosio::checksum256& scalar );
++
++   /**
++    *  EVM Compatibility Layer - Check for a BN256 curve point/twist pairing.
++    *
++    *  @ingroup crypto
++    *  @param points - A list of tuples consisting of bn256 point, bn256 twist x, and y coordinates
++    *  @param count - The number of tuples in the list
++    *  @return bool - Whether or not there is a pairing
++    */
++   bool evm_bn256pairing( const eosio::checksum512* points, uint32_t count );
++
++   /**
++    *  EVM Compatibility Layer - Hashes `data` using BLAKE2F cipher.
++    *
++    *  @ingroup crypto
++    *  @param data - Data you want to hash
++    *  @param length - Data length (should always be 128)
++    *  @param state - Cipher state (modified after call)
++    *  @param offset - Offset into the data
++    *  @param offsetlen - Length of the offset (should always be 16)
++    *  @param last - Marks the end of data
++    *  @param rounds - Number of cipher rounds to perform
++    */
++   void evm_blake2f( const char* data, uint32_t length, eosio::checksum512& state, const char* offset, uint32_t offsetlen, uint32_t last, uint32_t rounds );
++
+    /**
+     *  Calculates the public key used for a given signature on a given digest.
+     *
+diff --git a/libraries/eosiolib/crypto.cpp b/libraries/eosiolib/crypto.cpp
+index 6df7d145..a499f782 100644
+--- a/libraries/eosiolib/crypto.cpp
++++ b/libraries/eosiolib/crypto.cpp
+@@ -33,6 +33,27 @@ extern "C" {
+    __attribute__((eosio_wasm_import))
+    void ripemd160( const char* data, uint32_t length, capi_checksum160* hash );
+ 
++   __attribute__((eosio_wasm_import))
++   void evm_keccak256( const char* data, uint32_t length, capi_checksum256* hash );
++
++   __attribute__((eosio_wasm_import))
++   void evm_ecrecover( const capi_checksum256* digest, const char* sig, size_t siglen, char* pub, size_t publen );
++
++   __attribute__((eosio_wasm_import))
++   void evm_bigmodexp( const char* base, uint32_t baselen, const char* exp, uint32_t explen, const char* mod, uint32_t modlen, char *output, size_t outlen );
++
++   __attribute__((eosio_wasm_import))
++   void evm_bn256add( const capi_checksum512* point1, const capi_checksum512* point2, capi_checksum512* point3 );
++
++   __attribute__((eosio_wasm_import))
++   void evm_bn256scalarmul( const capi_checksum512* point1, const capi_checksum256* scalar, capi_checksum512* point2 );
++
++   __attribute__((eosio_wasm_import))
++   bool evm_bn256pairing( const eosio::checksum512* points, uint32_t count );
++
++   __attribute__((eosio_wasm_import))
++   void evm_blake2f( const char* data, uint32_t length, capi_checksum512* state, const char* offset, uint32_t offsetlen, uint32_t last, uint32_t rounds );
++
+    __attribute__((eosio_wasm_import))
+    int recover_key( const capi_checksum256* digest, const char* sig,
+                     size_t siglen, char* pub, size_t publen );
+@@ -89,6 +110,52 @@ namespace eosio {
+       return {hash.hash};
+    }
+ 
++   eosio::checksum256 evm_keccak256( const char* data, uint32_t length ) {
++      ::capi_checksum256 hash;
++      ::evm_keccak256( data, length, &hash );
++      return {hash.hash};
++   }
++
++   eosio::ecc_uncompressed_public_key evm_ecrecover( const eosio::checksum256& digest, const eosio::ecc_signature& sig ) {
++      auto digest_data = digest.extract_as_byte_array();
++      char pubkey_data[65];
++      ::evm_ecrecover( reinterpret_cast<const capi_checksum256*>(digest_data.data()), sig.data(), sig.size(), pubkey_data, sizeof(pubkey_data) );
++      eosio::ecc_uncompressed_public_key pubkey;
++      eosio::datastream<const char*> pubkey_ds( pubkey_data, sizeof(pubkey_data) );
++      pubkey_ds >> pubkey;
++      return pubkey;
++   }
++
++   void evm_bigmodexp( const char* base, uint32_t baselen, const char* exp, uint32_t explen, const char* mod, uint32_t modlen, char *output, size_t outlen ) {
++      ::evm_bigmodexp( base, baselen, exp, explen, mod, modlen, output, outlen );
++   }
++
++   eosio::checksum512 evm_bn256add( const eosio::checksum512& point1, const eosio::checksum512& point2 ) {
++      auto point1_data = point1.extract_as_byte_array();
++      auto point2_data = point2.extract_as_byte_array();
++      ::capi_checksum512 point3;
++      ::evm_bn256add( reinterpret_cast<const capi_checksum512*>(point1_data.data()), reinterpret_cast<const capi_checksum512*>(point2_data.data()), &point3 );
++      return {point3.hash};
++   }
++
++   eosio::checksum512 evm_bn256scalarmul( const eosio::checksum512& point1, const eosio::checksum256& scalar ) {
++      auto point1_data = point1.extract_as_byte_array();
++      auto scalar_data = scalar.extract_as_byte_array();
++      ::capi_checksum512 point2;
++      ::evm_bn256scalarmul( reinterpret_cast<const capi_checksum512*>(point1_data.data()), reinterpret_cast<const capi_checksum256*>(scalar_data.data()), &point2 );
++      return {point2.hash};
++   }
++
++   bool evm_bn256pairing( const eosio::checksum512* points, uint32_t count ) {
++      return ::evm_bn256pairing( points, count );
++   }
++
++   void evm_blake2f( const char* data, uint32_t length, eosio::checksum512& state, const char* offset, uint32_t offsetlen, uint32_t last, uint32_t rounds ) {
++      auto state_data = state.extract_as_byte_array();
++      ::evm_blake2f( data, length, reinterpret_cast<capi_checksum512*>(state_data.data()), offset, offsetlen, last, rounds );
++      state = checksum512(state_data);
++   }
++
+    eosio::public_key recover_key( const eosio::checksum256& digest, const eosio::signature& sig ) {
+       auto digest_data = digest.extract_as_byte_array();
+ 
+diff --git a/libraries/native/intrinsics.cpp b/libraries/native/intrinsics.cpp
+index e023fbd7..6222217d 100644
+--- a/libraries/native/intrinsics.cpp
++++ b/libraries/native/intrinsics.cpp
+@@ -259,6 +259,27 @@ extern "C" {
+    void ripemd160( const char* data, uint32_t length, capi_checksum160* hash ) {
+       return intrinsics::get().call<intrinsics::ripemd160>(data, length, hash);
+    }
++   void evm_keccak256( const char* data, uint32_t length, capi_checksum256* hash ) {
++      return intrinsics::get().call<intrinsics::evm_keccak256>(data, length, hash);
++   }
++   void evm_ecrecover( const capi_checksum256* digest, const char* sig, size_t siglen, char* pub, size_t publen ) {
++      return intrinsics::get().call<intrinsics::evm_ecrecover>(digest, sig, siglen, pub, publen);
++   }
++   void evm_bigmodexp( const char* base, uint32_t baselen, const char* exp, uint32_t explen, const char* mod, uint32_t modlen, char *output, size_t outlen ) {
++      return intrinsics::get().call<intrinsics::evm_bigmodexp>(base, baselen, exp, explen, mod, modlen, output, outlen);
++   }
++   void evm_bn256add( const capi_checksum512* point1, const capi_checksum512* point2, capi_checksum512* point3 ) {
++      return intrinsics::get().call<intrinsics::evm_bn256add>(point1, point2, point3);
++   }
++   void evm_bn256scalarmul( const capi_checksum512* point1, const capi_checksum256* scalar, capi_checksum512* point2 ) {
++      return intrinsics::get().call<intrinsics::evm_bn256scalarmul>(point1, scalar, point2);
++   }
++   bool evm_bn256pairing( const capi_checksum512* point_twistx_twisty_list, uint32_t count ) {
++      return intrinsics::get().call<intrinsics::evm_bn256pairing>(point_twistx_twisty_list, count);
++   }
++   void evm_blake2f( const char* data, uint32_t length, capi_checksum512* state, const char* offset, uint32_t offsetlen, uint32_t last, uint32_t rounds ) {
++      return intrinsics::get().call<intrinsics::evm_blake2f>(data, length, state, offset, offsetlen, last, rounds);
++   }
+    int32_t check_transaction_authorization( const char* trx_data,     uint32_t trx_size,
+                                     const char* pubkeys_data, uint32_t pubkeys_size,
+                                     const char* perms_data,   uint32_t perms_size
+diff --git a/libraries/native/native/eosio/intrinsics_def.hpp b/libraries/native/native/eosio/intrinsics_def.hpp
+index 9166d1f2..f74e5036 100644
+--- a/libraries/native/native/eosio/intrinsics_def.hpp
++++ b/libraries/native/native/eosio/intrinsics_def.hpp
+@@ -121,6 +121,13 @@ intrinsic_macro(sha1) \
+ intrinsic_macro(sha256) \
+ intrinsic_macro(sha512) \
+ intrinsic_macro(ripemd160) \
++intrinsic_macro(evm_keccak256) \
++intrinsic_macro(evm_ecrecover) \
++intrinsic_macro(evm_bigmodexp) \
++intrinsic_macro(evm_bn256add) \
++intrinsic_macro(evm_bn256scalarmul) \
++intrinsic_macro(evm_bn256pairing) \
++intrinsic_macro(evm_blake2f) \
+ intrinsic_macro(check_transaction_authorization) \
+ intrinsic_macro(check_permission_authorization) \
+ intrinsic_macro(get_permission_last_used) \
