@@ -32,8 +32,8 @@ RUN rm -rf /eos/ /eosio.cdt/
 RUN pip3 install ecdsa pyyaml
 
 # install the solidity compiler
-#RUN apt-get install -y npm
-#RUN npm i -g npx solc
+RUN apt-get install -y npm
+RUN npm i -g solc@0.6.3
 
 # sets up the user account
 RUN useradd -U -G sudo -m -s /bin/bash ${USER}
