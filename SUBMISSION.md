@@ -187,3 +187,5 @@ and withdraws 100.0000 SYS
     $ cleos get table eosio.token evm accounts
     $ cleos push action evm inspect '["fde9818b4bf62c6507efb33ddcec5705eed74325"]' -p alice@active
 
+You can watch a step-by-step video on [YouTube](https://youtu.be/Wsq4jQ61-Us).
+
