@@ -1,29 +1,28 @@
-# EOSIO Challenge Submission
+## EOSIO Challenge Submission
 
-This documentation is concise on purpose. Please get in touch should you have any questions.
+_This documentation is concise on purpose. Please get in touch should you have any questions._
 
-This submission implements all the functionality featured in the Technical Requirements and passes all relevant tests in the test suite.
+The submission implements all the functionality featured in the Technical Requirements and passes all relevant tests in the test suite.
 
-**If this submission does not satisfy any judging criteria, an objective report describing what needs to be fixed is very much appreciated.**
+**If it does not satisfy any judging criteria, a short report describing what needs to be fixed is very much appreciated.**
 
 ### Submission Notes
 
 - The code implements an EVM interpreter
 - It is self-contained and does not rely on additional libraries
-- We have modified eos and eosio.cdt to support keccak256 and other cryptographic primitives natively
-- We have modified increased eos `maximum_call_depth` in order to accommodate the EVM call stack limit of 1024
-  (alternativelly, the interpreter could have used a heap allocated stack instead, but naturally using the CPP stack makes the code easier to read and maintain)
+- We have modified EOSIO/eos and EOSIO/eosio.cdt to support keccak256 and other cryptographic primitives natively
+- We have increased EOSIO/eos `maximum_call_depth` in order to accommodate the EVM call stack limit of 1024
 - The curve BN256 code is not optmized for production and could run significantly faster if optimized
 
 Regarding the technical requirements:
 
 - Current block number returned is the one provided by `eosio::tapos_block_num()`, as no other alternative was found in the EOSIO platform documentation
-- CHAIN_ID is hardcoded but can be modified by editting the interpreter [[evm.hpp](https://github.com/simplensolid/D9ZB93LES8/blob/5070afc9f55a86a544ad0f295410d130d0742bde/src/evm.hpp#L2720)]
-- The implementation supports all releases of Ethereum based on the `forknumber()` method implemented by the contract [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/5070afc9f55a86a544ad0f295410d130d0742bde/contracts/evm/evm.cpp#L301)] and the `releaseforkblock` table hardcoded into the interpreter [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/5070afc9f55a86a544ad0f295410d130d0742bde/src/evm.hpp#L2737)]
-- The current version of the `raw` action always check is the sender has an EOSIO account associated, to relax this requirement for signed transactions please comment line 448
+- CHAIN_ID is hardcoded but can be modified by editting the interpreter [[evm.hpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/src/evm.hpp#L2766)]
+- The implementation supports all releases of Ethereum based on the `forknumber()` method implemented by the contract [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L591)] and the `releaseforkblock` table hardcoded into the interpreter [[evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/src/evm.hpp#L2784)]
+- The current version of the `raw` action always check is the sender address has an EOSIO account associated, to relax this requirement for signed transactions please comment line 448 of [evm.cpp](https://github.com/simplensolid/D9ZB93LES8/blob/741b261ea8f91e3675956688a9920f884ad69ad8/contracts/evm/evm.cpp#L448)
 - One can query an EVM account contents using the `inspect` action which takes a 160-bit address as argument
 
-### The Contract
+### Source Code
 
 There two relevant files regarding the EOSIO EVM contract are:
 
@@ -32,19 +31,17 @@ There two relevant files regarding the EOSIO EVM contract are:
 
 These files are documented with comments.
 
-### Other Relevant Files
+Other relevant source files:
 
 - [evm.cpp](src/evm.cpp) This is the standalone environment used as base for tests
 - [tester.py](tests/tester.py) This is the script that coordinates the execution of tests in standalone mode
 - [tester-eosio.py](tests/tester-eosio.py) This is the script that coordinates the execution of tests on the local EOSIO node
-- [deploy.py](tests/sol/deploy.py) This is the script helps packaging EVM bytecode into unsigned transactions to be used in the raw action
+- [deploy.py](tests/sol/deploy.py) This is the script helps packaging EVM bytecode into unsigned transactions to be used with the `raw` action
 - [WSYS.sol](tests/sol/WSYS.sol) This is the sample ERC-20 contract that implements Wrapped SYS (WSYS)
 
 ### Changes to EOSIO software
 
-It does not make much sense to implement the crypto primitives required by the EVM in WebAssembly. It exhibits poor performance and bloats the binary.
-
-Therefore we have introduced 7 additional intrinsics to the EOSIO contract environment:
+It does not make much sense to implement the crypto primitives required by the EVM in WebAssembly as it exhibits poor performance and bloats the binary. Therefore we have introduced 7 additional intrinsics to the EOSIO contract environment:
 
 - evm_keccak256
 - evm_ecrecover
@@ -54,11 +51,13 @@ Therefore we have introduced 7 additional intrinsics to the EOSIO contract envir
 - evm_bn256pairing
 - evm_blake2f
 
-The EOSIO/eos customization can be seen in the [eos-v2.0.3.patch](support/eos-v2.0.3.patch) file.
-For simplicity, it includes an exact copy of [evm.hpp](src/evm.hpp) even though only the crypto primitives are required (the compiler throws away the unused code).
-We also modified the `maximum_call_depth` in order to accommodate the EVM call stack limit of 1024.
+This EOSIO/eos customization can be seen in the [eos-v2.0.3.patch](support/eos-v2.0.3.patch) file or in the respective [eos-D9ZB93LES8](https://github.com/simplensolid/eos-D9ZB93LES8/commit/f236f2791ad4c10e81ab60df6905a367dc4b253f) commit.
 
-The EOSIO/eosio.cdt customization is simply glue code to support the additional list of intrinsics as can be seen in the (eosio.cdt-v1.7.0.patch)[support/eosio.cdt-v1.7.0.patch] file.
+For simplicity, it includes an exact copy of [evm.hpp](src/evm.hpp) even though only the crypto primitives are required (the compiler throws away the unused code).
+
+We also modified the `maximum_call_depth` in order to accommodate the EVM call stack limit of 1024. Alternativelly, the interpreter could have used a heap allocated stack instead, but naturally using the CPP stack makes the code easier to read and maintain.
+
+The EOSIO/eosio.cdt customization is simply glue code to support the additional list of intrinsics as can be seen in the [eosio.cdt-v1.7.0.patch](support/eosio.cdt-v1.7.0.patch) file or in the [eosio.cdt-D9ZB93LES8](https://github.com/simplensolid/eosio.cdt-D9ZB93LES8/commit/a0d0dfb732ac1df3e39ed014a1eb06d3fa682f3b) commit.
 
 ### Getting Started
 
@@ -67,12 +66,12 @@ Clone this repository:
     $ git clone git@github.com:simplensolid/D9ZB93LES8.git
     $ cd D9ZB93LES8
 
-Run the docker image with the modified EOSIO software stack (or follow the [Dockerfile](docker/Dockerfile) steps manually):
+Run the docker image with the modified EOSIO software stack (or follow the [Dockerfile](docker/Dockerfile) steps manually). It will take several minutes to build the modified versions of EOSIO/eos and EOSIO/eosio.cdt:
 
     $ docker build -t D9ZB93LES8 ./docker/
     $ docker run -it --rm -v $PWD:/home/ubuntu/D9ZB93LES8/ -w /home/ubuntu/D9ZB93LES8/ D9ZB93LES8
 
-Compile the contract:
+Compile the contract (using the modified eosio-cpp):
 
     $ eosio-cpp -fno-stack-first -stack-size 8388608 -DNDEBUG -DNATIVE_CRYPTO -O=z contracts/evm/evm.cpp
 
@@ -107,5 +106,4 @@ Important note:
 - Both lists are documented in [failing.txt](tests/failing.txt)
 
 ## Testing an ERC-20 implementation
-
 
